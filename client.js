@@ -84,6 +84,170 @@ window.__ModuleLoader__.load({
       settingsFeatureId: SETTINGS_FEATURE_ID,
     }
 
+    /* ------------------------------------------------------------------ *
+     * Feature health bookkeeping.
+     *
+     * Failures, dependency skips and quarantines are recorded here so the
+     * settings shell can report them, and failures are persisted so the next
+     * page load can warn about a feature that crashed in an earlier boot.
+     * ------------------------------------------------------------------ */
+
+    /** Browser-local failure records key. */
+    const FEATURE_FAILURES_KEY = 'dsh.codexStyle.failures'
+    /** Live state per feature id: { state, phase, message, at }. */
+    const __DSH_STATUS__ = Object.create(null)
+    /** @type {Set<Function>} status listeners owned by the settings shell. */
+    const __DSH_STATUS_LISTENERS__ = new Set()
+
+    /**
+     * Bounded one-line message for an unknown thrown value.
+     * @param {unknown} error - thrown value.
+     * @returns {string} message.
+     */
+    function __dshMessageOf(error) {
+      try {
+        const text = error !== null && typeof error === 'object'
+          ? String(error.message ?? error)
+          : String(error)
+        return text.slice(0, 400)
+      } catch {
+        return 'unknown error'
+      }
+    }
+
+    /** Notify every registered status listener; a broken listener is ignored. */
+    function __dshNotifyStatus() {
+      for (const listener of [...__DSH_STATUS_LISTENERS__]) {
+        try {
+          listener()
+        } catch {
+          // A broken status surface never breaks a feature.
+        }
+      }
+    }
+
+    /** @returns {object} persisted failure map, best effort. */
+    function __dshReadFailures() {
+      try {
+        const raw = window.localStorage.getItem(FEATURE_FAILURES_KEY)
+        if (raw === null || raw === '') return {}
+        const parsed = JSON.parse(raw)
+        return parsed !== null && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        return {}
+      }
+    }
+
+    /**
+     * Persist a failure map, best effort.
+     * @param {object} failures - map keyed by feature id.
+     */
+    function __dshWriteFailures(failures) {
+      try {
+        if (Object.keys(failures).length === 0) window.localStorage.removeItem(FEATURE_FAILURES_KEY)
+        else window.localStorage.setItem(FEATURE_FAILURES_KEY, JSON.stringify(failures))
+      } catch {
+        // Private browsing keeps the in-memory records only.
+      }
+    }
+
+    /** Persist the current live failure map, best effort. */
+    function __dshPersistFailures() {
+      const failures = {}
+      for (const [id, status] of Object.entries(__DSH_STATUS__)) {
+        if (status.state === 'failed' || status.state === 'quarantined') failures[id] = status
+      }
+      __dshWriteFailures(failures)
+    }
+
+    /**
+     * Record one feature health transition.
+     * @param {string} id - feature id.
+     * @param {string} state - failed, quarantined, skipped or disabled.
+     * @param {string} phase - failing phase.
+     * @param {string} message - bounded message.
+     */
+    function __dshSetStatus(id, state, phase, message) {
+      __DSH_STATUS__[id] = { state, phase, message, at: Date.now() }
+      __dshPersistFailures()
+      __dshNotifyStatus()
+    }
+
+    /**
+     * Record a feature failure.
+     * @param {string} id - feature id.
+     * @param {string} phase - build, apply, effect, slot, label, inject, render or cleanup.
+     * @param {string} message - bounded message.
+     */
+    env.recordFailure = (id, phase, message) => {
+      const state = phase === 'render' || phase === 'dependency' ? 'quarantined' : 'failed'
+      __dshSetStatus(id, state, phase, typeof message === 'string' ? message : __dshMessageOf(message))
+    }
+
+    /**
+     * Record a feature quarantined after it started running.
+     * @param {string} id - feature id.
+     * @param {string} phase - render, effect, slot, label, inject or dependency.
+     * @param {string} message - bounded message.
+     */
+    env.recordQuarantine = (id, phase, message) => {
+      __dshSetStatus(id, 'quarantined', phase, typeof message === 'string' ? message : __dshMessageOf(message))
+    }
+
+    /**
+     * Record a feature skipped because a declared dependency is unavailable.
+     * @param {string} id - feature id.
+     * @param {string} dependency - missing dependency id.
+     */
+    env.markSkipped = (id, dependency) => {
+      __dshSetStatus(id, 'skipped', 'dependency', 'requires "' + dependency + '"')
+    }
+
+    /** @param {string} id - feature id. Clear a healthy feature's failure record. */
+    env.clearFailure = (id) => {
+      const hadLive = __DSH_STATUS__[id] !== undefined
+      if (hadLive) delete __DSH_STATUS__[id]
+      const failures = __dshReadFailures()
+      if (failures[id] !== undefined) {
+        delete failures[id]
+        __dshWriteFailures(failures)
+      }
+      if (hadLive) __dshNotifyStatus()
+    }
+
+    /** @returns {object} live failure/skip/quarantine records keyed by feature id. */
+    env.featureStatuses = () => ({ ...__DSH_STATUS__ })
+
+    /** @returns {object} failure records persisted by an earlier boot. */
+    env.persistedFailures = () => __dshReadFailures()
+
+    /**
+     * Subscribe to feature health changes (used by the settings shell).
+     * @param {Function} listener - change listener.
+     * @returns {Function} unsubscribe.
+     */
+    env.subscribeStatus = (listener) => {
+      if (typeof listener !== 'function') return () => {}
+      __DSH_STATUS_LISTENERS__.add(listener)
+      return () => { __DSH_STATUS_LISTENERS__.delete(listener) }
+    }
+
+    /**
+     * Quarantine a feature from a render boundary or the settings page.
+     * @param {string} id - feature id.
+     * @param {unknown} error - thrown value.
+     * @param {string} phase - failing phase.
+     */
+    env.quarantineFeature = (id, error, phase) => {
+      if (env.__runtime !== null) env.__runtime.quarantine(id, error, phase ?? 'render')
+      else env.recordFailure(id, phase ?? 'render', __dshMessageOf(error))
+    }
+
+    /** @param {object} runtime - isolation runtime for this materialization. */
+    env.attachRuntime = (runtime) => { env.__runtime = runtime }
+    /** @type {object|null} isolation runtime, attached at materialization. */
+    env.__runtime = null
+
     /* ================================================================== *
      * Feature: dsh-sidebar-sections
      * ================================================================== */
@@ -10463,8 +10627,37 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
 
 __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
   const React = require('react')
-  const { useId, useRef, useState } = React
+  const { useEffect, useId, useRef, useState } = React
   const h = React.createElement
+
+  /**
+   * Error boundary for a feature-owned settings page. A page that crashes
+   * renders nothing and quarantines only its own feature.
+   */
+  class SettingsPageBoundary extends React.Component {
+    constructor(props) {
+      super(props)
+      this.state = { failed: false }
+    }
+
+    /** @returns {{ failed: boolean }} suppress the crashed page. */
+    static getDerivedStateFromError() {
+      return { failed: true }
+    }
+
+    /**
+     * Quarantine the page's own feature, not the settings shell.
+     * @param {unknown} error - thrown value.
+     */
+    componentDidCatch(error) {
+      env.quarantineFeature(this.props.featureId, error, 'render')
+    }
+
+    /** @returns {object|null} page until the first error. */
+    render() {
+      return this.state.failed ? null : this.props.children
+    }
+  }
 
   /** Locale namespace owned by the merged plugin shell. */
   const NS = 'codexStyle'
@@ -10510,6 +10703,13 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'settings.noOptions': '这个子插件没有额外可配置项，使用上方开关控制它是否加载。',
     'settings.disabledHint': '该子插件当前已停用；重新启用并重启 DSH 后生效。',
     'settings.dataHint': '数据与限制',
+    'settings.state.failed': '启动失败',
+    'settings.state.quarantined': '已隔离',
+    'settings.state.skipped': '已跳过',
+    'settings.failure.message': '原因：{message}',
+    'settings.failure.isolated': '该子插件已停止运行，其他子插件不受影响；重启 DSH 会重新尝试。',
+    'settings.failure.skipped': '它依赖的子插件本次启动失败，因此被跳过；修复依赖后重启 DSH 会重新加载。',
+    'settings.failure.previous': '上次启动的失败记录',
     'feature.dsh-sidebar-sections.title': '侧边栏分区',
     'feature.dsh-sidebar-sections.summary': '把侧边栏分成置顶 / 项目 / 最近 / 归档四个分区，支持拖拽排序、行菜单与安全删除。',
     'feature.dsh-sidebar-sections.note': '排序、折叠与安全删除记录保存在浏览器 localStorage；已删除会话的恢复在下方设置里。',
@@ -10556,6 +10756,13 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'settings.noOptions': 'This sub-plugin has no extra options; use the switch above to control whether it loads.',
     'settings.disabledHint': 'This sub-plugin is disabled; re-enable it and restart DSH to apply.',
     'settings.dataHint': 'Data and limitations',
+    'settings.state.failed': 'Failed to start',
+    'settings.state.quarantined': 'Quarantined',
+    'settings.state.skipped': 'Skipped',
+    'settings.failure.message': 'Reason: {message}',
+    'settings.failure.isolated': 'This sub-plugin has been stopped; the other sub-plugins keep running. Restart DSH to retry it.',
+    'settings.failure.skipped': 'A sub-plugin it depends on failed to start, so it was skipped. Fix the dependency and restart DSH to load it.',
+    'settings.failure.previous': 'Failure from the previous start',
     'feature.dsh-sidebar-sections.title': 'Sidebar sections',
     'feature.dsh-sidebar-sections.summary': 'Pinned / Projects / Recent / Archived sidebar sections with drag ordering, row menus and safe delete.',
     'feature.dsh-sidebar-sections.note': 'Ordering, collapse and safe-delete records live in browser localStorage; restoring removed conversations is in the settings below.',
@@ -10619,6 +10826,12 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     '.dshcs-notes{border-style:dashed;}',
     '.dshcs-notesTitle{margin:0;font-size:12px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-tertiary);text-transform:uppercase;letter-spacing:.04em;}',
     '.dshcs-note{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);}',
+    '.dshcs-tabBadge{display:inline-block;margin-left:5px;padding:0 4px;border-radius:6px;font-size:10px;line-height:15px;font-weight:700;color:#fff;background:var(--dsw-alias-state-error-primary,#d03050);vertical-align:1px;}',
+    '.dshcs-alert{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding:10px 12px;border-radius:8px;border:.5px solid var(--dsw-alias-state-error-primary,#d03050);background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d03050) 8%,transparent);}',
+    '.dshcs-alertTitle{font-size:13px;line-height:20px;color:var(--dsw-alias-state-error-primary,#d03050);}',
+    '.dshcs-alertText{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;}',
+    '.dshcs-alert[data-state="skipped"]{border-color:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));background:transparent;}',
+    '.dshcs-alert[data-state="skipped"] .dshcs-alertTitle{color:var(--dsw-alias-label-secondary);}',
   ].join('')
 
   /**
@@ -10651,13 +10864,18 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     const tabRefs = useRef([])
     const [activeId, setActiveId] = useState(() => FEATURES[0])
     const [enabledMap, setEnabledMap] = useState(() => env.readEnabledFeatures())
+    const [statuses, setStatuses] = useState(() => env.featureStatuses())
+    useEffect(() => env.subscribeStatus(() => setStatuses(env.featureStatuses())), [])
+    const persisted = env.persistedFailures()
 
     const rows = FEATURES.map((id) => ({
       id,
       label: t(titleKey(id)),
+      problem: statuses[id] ?? persisted[id],
     }))
     const active = rows.find((row) => row.id === activeId)?.id ?? rows[0]?.id
     const enabled = enabledMap[active] !== false
+    const health = statuses[active] ?? persisted[active]
     const page = env.settingsPages().find((entry) => entry.id === active)
 
     /** @param {number} index - tab index to move to. */
@@ -10695,11 +10913,23 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
           }
           event.preventDefault?.()
         },
-      }, row.label)
+      }, row.label !== '' && row.problem !== undefined
+        ? [
+          row.label,
+          h('span', {
+            key: 'badge',
+            className: 'dshcs-tabBadge',
+            'data-state': row.problem.state,
+            role: 'status',
+            'aria-label': t('settings.state.' + (row.problem.state === 'skipped' ? 'skipped' : row.problem.state === 'quarantined' ? 'quarantined' : 'failed')),
+          }, '!'),
+        ]
+        : row.label)
     }))
 
     const pageBody = page !== undefined && typeof page.render === 'function'
-      ? h('div', { className: 'dshcs-page' }, page.render())
+      ? h(SettingsPageBoundary, { key: active, featureId: active },
+        h('div', { className: 'dshcs-page' }, page.render()))
       : h('section', { className: 'dshcs-card dshcs-generic' },
         h('p', { className: 'dshcs-genericText' }, enabled ? t('settings.noOptions') : t('settings.disabledHint')))
 
@@ -10726,6 +10956,17 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
           }),
         ),
         h('p', { className: 'dshcs-restart' }, t('settings.restart')),
+        health !== undefined
+          ? h('div', { className: 'dshcs-alert', 'data-state': health.state, role: 'status' },
+            h('strong', { className: 'dshcs-alertTitle' },
+              t('settings.state.' + (health.state === 'skipped' ? 'skipped' : health.state === 'quarantined' ? 'quarantined' : 'failed'))),
+            health.message !== undefined && health.message !== ''
+              ? h('p', { className: 'dshcs-alertText' }, t('settings.failure.message', { message: health.message }))
+              : null,
+            h('p', { className: 'dshcs-alertText' },
+              t(health.state === 'skipped' ? 'settings.failure.skipped' : 'settings.failure.isolated')),
+          )
+          : null,
       ),
       pageBody,
       h('section', { className: 'dshcs-card dshcs-notes' },
@@ -10764,32 +11005,573 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
   }
 })
 
-    /* ------------------------------------------------------------------ *
-     * Materialization: build the features selected for this page.
-     * ------------------------------------------------------------------ */
+    /* ================================================================== *
+     * Isolation runtime: per-feature interceptor, scopes and boundaries
+     * ================================================================== */
 
-    /** Test filter used by the package checks; absent in the shipped page. */
-    const filter = typeof __DSH_CODEX_STYLE_FEATURES__ !== 'undefined'
-      && Array.isArray(__DSH_CODEX_STYLE_FEATURES__)
-      ? __DSH_CODEX_STYLE_FEATURES__
-      : null
+/**
+ * Per-feature runtime for the merged bundle: build, dependency resolution,
+ * error-boundary wrapping, quarantine and status reporting.
+ *
+ * The requirement is that one merged feature can fail without taking the others
+ * down. Isolation happens on three levels:
+ *
+ *   1. build      — a feature whose lazy builder throws is reported and skipped;
+ *   2. apply      — every feature applies on its own disposable scope, so a
+ *                   throwing `apply`/effect is quarantined with its listeners
+ *                   and slot registrations removed, and the rest keep running;
+ *   3. render     — every component a feature registers in a slot is wrapped in
+ *                   a React error boundary owned by that feature. A render or
+ *                   lifecycle crash renders nothing for that feature, schedules
+ *                   a quarantine and leaves the host tree and other features up.
+ *
+ * Features may declare `requires: [featureId, ...]` in the module they return.
+ * A dependent feature is skipped when a required feature failed to build or was
+ * quarantined; a hard dependency therefore fails closed instead of corrupting
+ * the UI. Platform modules and services listed in `dsh.client.inject` remain
+ * the bundle-level hard dependency.
+ *
+ * The package checks drive the same code with a synthetic feature table through
+ * the `__DSH_CODEX_STYLE_FEATURES__` / `__DSH_CODEX_STYLE_ISOLATION__` test
+ * hooks, so isolation is exercised without loading the host.
+ */
 
-    /** Built features: id plus the module the standalone package used to export. */
-    const modules = []
-    for (const feature of __DSH_FEATURE_TABLE__) {
-      if (filter !== null && !filter.includes(feature.id)) continue
-      try {
-        const built = feature.build(require, env)
-        modules.push({
-          id: feature.id,
-          inject: Array.isArray(built.inject) ? built.inject : [],
-          apply: typeof built.apply === 'function' ? built.apply : () => {},
-          ...built.__test !== undefined ? { __test: built.__test } : {},
-        })
-      } catch (error) {
-        console.error('[dsh-codex-style] feature "' + feature.id + '" failed to build:', error)
+/**
+ * Create the per-feature runtime for one bundle materialization.
+ * @param {Function} require - bundle module require function.
+ * @param {object} env - shared feature environment from the bundle prologue.
+ * @param {{ id: string, build: Function }[]} featureTable - lazy feature table.
+ * @returns {object} runtime with build/apply/status/report helpers.
+ */
+function __dshCreateRuntime(require, env, featureTable) {
+  /** @type {string[] | null} check-only feature filter, absent in the shipped page. */
+  const filter = typeof __DSH_CODEX_STYLE_FEATURES__ !== 'undefined'
+    && Array.isArray(__DSH_CODEX_STYLE_FEATURES__)
+    ? __DSH_CODEX_STYLE_FEATURES__
+    : null
+  /** @type {boolean} render/apply isolation; legacy single-feature checks can opt out. */
+  const isolationEnabled = filter === null
+    || (typeof __DSH_CODEX_STYLE_ISOLATION__ !== 'undefined' && __DSH_CODEX_STYLE_ISOLATION__ === true)
+
+  const table = new Map()
+  for (const feature of featureTable) table.set(feature.id, feature)
+
+  /** @type {Map<string, object>} successfully built feature modules. */
+  const modules = new Map()
+  /** @type {string[]} build order of the modules that survived dependency checks. */
+  const order = []
+  /** @type {Map<string, object>} live disposable scopes for applied features. */
+  const scopes = new Map()
+  /** @type {Set<string>} features quarantined after a failure. */
+  const quarantined = new Set()
+  /** @type {Map<string, Function>} per-feature React error boundary components. */
+  const boundaries = new Map()
+  let React = null
+
+  /**
+   * Read React lazily; the shipped page always has it available.
+   * @returns {object} React module.
+   */
+  function react() {
+    if (React === null) React = require('react')
+    return React
+  }
+
+  /**
+   * One-line message from an unknown error, bounded for storage and display.
+   * @param {unknown} error - thrown value.
+   * @returns {string} message.
+   */
+  function messageOf(error) {
+    try {
+      const text = error !== null && typeof error === 'object'
+        ? String(error.stack ?? error.message ?? error)
+        : String(error)
+      return text.split('\n')[0].slice(0, 400)
+    } catch {
+      return 'unknown error'
+    }
+  }
+
+  /**
+   * Log one feature failure. Returns the bounded message for status records.
+   * @param {string} id - feature id.
+   * @param {string} phase - build, apply, effect, slot, label, render, dependency or cleanup.
+   * @param {unknown} error - thrown value.
+   * @returns {string} message.
+   */
+  function report(id, phase, error) {
+    const message = messageOf(error)
+    console.error('[dsh-codex-style] feature "' + id + '" ' + phase + ' failed:', error)
+    return message
+  }
+
+  /** @param {string} id - feature id. @returns {boolean} whether the check filter selects it. */
+  function selected(id) {
+    return filter === null || filter.includes(id)
+  }
+
+  /** @param {string} id - feature id. @returns {object|undefined} built module. */
+  function moduleOf(id) {
+    return modules.get(id)
+  }
+
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build one feature lazily. A builder error is reported and skipped.
+   * @param {string} id - feature id.
+   * @returns {boolean} whether the feature built.
+   */
+  function buildFeature(id) {
+    if (modules.has(id)) return true
+    const feature = table.get(id)
+    if (feature === undefined || !selected(id)) return false
+    try {
+      const built = feature.build(require, env)
+      const dependencies = Array.isArray(built.requires)
+        ? built.requires.filter((dependency) => typeof dependency === 'string')
+        : []
+      modules.set(id, {
+        ...built,
+        id,
+        requires: dependencies,
+        inject: Array.isArray(built.inject) ? built.inject : [],
+        apply: typeof built.apply === 'function' ? built.apply : () => {},
+      })
+      order.push(id)
+      return true
+    } catch (error) {
+      env.recordFailure(id, 'build', report(id, 'build', error))
+      return false
+    }
+  }
+
+  /**
+   * Drop features whose declared dependencies did not build. Iterates because a
+   * skipped dependency may cascade to its own dependents.
+   */
+  function pruneDependencies() {
+    if (!isolationEnabled) return
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const id of [...order]) {
+        const module = modules.get(id)
+        if (module === undefined) continue
+        for (const dependency of module.requires) {
+          if (!selected(dependency) || table.get(dependency) === undefined) continue
+          if (modules.has(dependency)) continue
+          modules.delete(id)
+          const index = order.indexOf(id)
+          if (index >= 0) order.splice(index, 1)
+          env.markSkipped(id, dependency)
+          changed = true
+          break
+        }
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Rendering boundary
+  // -------------------------------------------------------------------------
+
+  /**
+   * React error boundary owned by one feature: a render/lifecycle crash renders
+   * nothing for that feature and schedules a quarantine of its scope.
+   * @param {string} id - feature id.
+   * @returns {Function} boundary component class.
+   */
+  function boundaryFor(id) {
+    const existing = boundaries.get(id)
+    if (existing !== undefined) return existing
+    const ReactModule = react()
+
+    class FeatureErrorBoundary extends ReactModule.Component {
+      constructor(props) {
+        super(props)
+        this.state = { failed: false }
+      }
+
+      /** @returns {{ failed: boolean }} state that suppresses the crashed subtree. */
+      static getDerivedStateFromError() {
+        return { failed: true }
+      }
+
+      /**
+       * Schedule the quarantine outside the render phase.
+       * @param {unknown} error - thrown value.
+       */
+      componentDidCatch(error) {
+        deferQuarantine(id, error)
+      }
+
+      /** @returns {object|null} children until the first error. */
+      render() {
+        return this.state.failed ? null : this.props.children
+      }
+    }
+
+    boundaries.set(id, FeatureErrorBoundary)
+    return FeatureErrorBoundary
+  }
+
+  /**
+   * Wrap a slot component in its feature's error boundary. Props are forwarded
+   * unchanged so host-injected values keep working.
+   * @param {string} id - feature id.
+   * @param {Function} Component - component registered by the feature.
+   * @returns {Function} isolated component.
+   */
+  function wrapComponent(id, Component) {
+    const Boundary = boundaryFor(id)
+    const ReactModule = react()
+    function IsolatedFeatureComponent(props) {
+      return ReactModule.createElement(Boundary, null, ReactModule.createElement(Component, props))
+    }
+    IsolatedFeatureComponent.displayName = 'CodexStyleIsolated(' +
+      (typeof Component.displayName === 'string' ? Component.displayName : '') +
+      (typeof Component.name === 'string' ? Component.name : 'Component') + ')'
+    return IsolatedFeatureComponent
+  }
+
+  // -------------------------------------------------------------------------
+  // Disposable per-feature scope
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build one feature's disposable context facade.
+   * @param {object} host - the real client context.
+   * @param {string} id - feature id.
+   * @returns {object} scope with `proxy`, `dispose`, `errorCount` and `firstError`.
+   */
+  function createScope(host, id) {
+    /** @type {Function[]} */
+    const disposers = []
+    /** @type {{ phase: string, error: unknown }[]} */
+    const errors = []
+    let disposed = false
+
+    /** @param {Function} dispose - disposer to release. */
+    function safeDispose(dispose) {
+      try {
+        dispose()
+      } catch (error) {
+        console.error('[dsh-codex-style] feature "' + id + '" cleanup failed:', error)
+      }
+    }
+
+    /** @param {Function} dispose - disposer to run now or when the scope is disposed. */
+    function track(dispose) {
+      if (typeof dispose !== 'function') return
+      if (disposed) {
+        safeDispose(dispose)
+        return
+      }
+      disposers.push(dispose)
+    }
+
+    /** @param {string} phase - failing phase. @param {unknown} error - thrown value. */
+    function fail(phase, error) {
+      errors.push({ phase, error })
+      env.recordFailure(id, phase, report(id, phase, error))
+      deferQuarantine(id, error, phase)
+    }
+
+    /** @param {Function} factory - effect body. @param {string} label - cordis effect label. */
+    function effect(factory, label) {
+      if (disposed) return () => {}
+      let dispose = () => {}
+      try {
+        dispose = host.effect(() => {
+          try {
+            const cleanup = factory()
+            return () => {
+              if (typeof cleanup === 'function') {
+                try {
+                  cleanup()
+                } catch (error) {
+                  fail('cleanup', error)
+                }
+              }
+            }
+          } catch (error) {
+            fail('effect', error)
+            return () => {}
+          }
+        }, typeof label === 'string' ? label : 'codex-style: ' + id)
+      } catch (error) {
+        fail('effect', error)
+      }
+      track(dispose)
+      return dispose
+    }
+
+    /**
+     * Wrap slot registration options so a throwing label or inject callback is
+     * reported and yields a safe fallback instead of breaking the host render.
+     * @param {object} options - slot registration options.
+     * @returns {object} wrapped options.
+     */
+    function wrapOptions(options) {
+      if (options === null || typeof options !== 'object') return options
+      const next = { ...options }
+      if (typeof options.label === 'function') {
+        next.label = (...args) => {
+          try {
+            return options.label(...args)
+          } catch (error) {
+            fail('label', error)
+            return ''
+          }
+        }
+      }
+      if (typeof options.inject === 'function') {
+        next.inject = (...args) => {
+          try {
+            return options.inject(...args)
+          } catch (error) {
+            fail('inject', error)
+            return {}
+          }
+        }
+      }
+      return next
+    }
+
+    const slots = {
+      /** @param {object} options - slot options. @param {Function} component - feature component. */
+      register(options, component) {
+        const nextOptions = wrapOptions(options)
+        const nextComponent = isolationEnabled && typeof component === 'function'
+          ? wrapComponent(id, component)
+          : component
+        const dispose = host.slots.register(nextOptions, nextComponent)
+        track(dispose)
+        return dispose
+      },
+      /**
+       * Defer to the host slot lifecycle; the callback is guarded and its
+       * disposer is owned by this scope.
+       * @param {string} name - slot name. @param {Function} callback - registration callback.
+       */
+      inject(name, callback) {
+        const dispose = host.slots.inject(name, (...args) => {
+          if (disposed) return () => {}
+          try {
+            const cleanup = callback(...args)
+            track(cleanup)
+            return cleanup
+          } catch (error) {
+            fail('slot', error)
+            return () => {}
+          }
+        })
+        track(dispose)
+        return dispose
+      },
+      /** @param {string} name - slot name. @returns {number} ledger version. */
+      getVersion(name) { return host.slots.getVersion(name) },
+      /** @param {string} name - slot name. @returns {object[]} slot entries. */
+      entries(name) { return host.slots.entries(name) },
+      /** @param {string} name - slot name. @param {Function} listener - ledger listener. */
+      subscribe(name, listener) { return host.slots.subscribe(name, listener) },
+    }
+
+    /** @param {string|string[]} deps - service names. @param {Function} callback - injected body. */
+    function inject(deps, callback) {
+      let dispose = () => {}
+      try {
+        dispose = host.inject(deps, (inner) => {
+          if (disposed) return
+          try {
+            callback(scopeFacade(inner))
+          } catch (error) {
+            fail('inject', error)
+          }
+        })
+      } catch (error) {
+        fail('inject', error)
+      }
+      track(dispose)
+      return dispose
+    }
+
+    /**
+     * Facade over a context (root or nested inject context) that owns the
+     * feature's registrations. Nested facades share this scope's tracking.
+     * @param {object} context - context to wrap.
+     * @returns {object} facaded context.
+     */
+    function scopeFacade(context) {
+      return new Proxy(context, {
+        get(target, property) {
+          if (property === 'effect') return effect
+          if (property === 'slots') return slots
+          if (property === 'inject') return inject
+          const value = Reflect.get(target, property, target)
+          return typeof value === 'function' ? value.bind(target) : value
+        },
+      })
+    }
+
+    const proxy = scopeFacade(host)
+
+    return {
+      proxy,
+      /** Release every registration this feature made. */
+      dispose() {
+        if (disposed) return
+        disposed = true
+        for (const dispose of disposers.reverse()) safeDispose(dispose)
+        disposers.length = 0
+      },
+      /** @returns {number} recorded in-scope failures. */
+      errorCount() { return errors.length },
+      /** @returns {{phase: string, error: unknown}|null} first failure. */
+      firstError() { return errors.length > 0 ? errors[0] : null },
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Quarantine
+  // -------------------------------------------------------------------------
+
+  /**
+   * Quarantine one feature: report it, dispose its scope and quarantine its
+   * dependents. Safe to call repeatedly and from render callbacks.
+   * @param {string} id - feature id.
+   * @param {unknown} error - thrown value.
+   * @param {string} phase - failing phase.
+   */
+  function quarantine(id, error, phase) {
+    if (quarantined.has(id)) return
+    quarantined.add(id)
+    const scope = scopes.get(id)
+    scopes.delete(id)
+    if (scope !== undefined) scope.dispose()
+    env.recordQuarantine(id, phase, report(id, phase, error))
+    for (const [otherId, module] of modules) {
+      if (otherId === id) continue
+      if (!module.requires.includes(id)) continue
+      quarantine(otherId, new Error('required feature "' + id + '" is quarantined'), 'dependency')
+    }
+  }
+
+  /** @param {string} id - feature id. @param {unknown} error - thrown value. @param {string} [phase] - failing phase. */
+  function deferQuarantine(id, error, phase = 'render') {
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => quarantine(id, error, phase), 0)
+    } else {
+      Promise.resolve().then(() => quarantine(id, error, phase))
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Build + apply
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build every selected feature in table order, then drop unresolvable
+   * dependents.
+   * @returns {string[]} built feature ids in bundle order.
+   */
+  function buildAll() {
+    for (const feature of featureTable) buildFeature(feature.id)
+    pruneDependencies()
+    return order.slice()
+  }
+
+  /** @param {object} module - built feature. @param {Set<string>} applied - applied ids. @param {Set<string>} skipped - skipped ids. @returns {string|null} missing dependency. */
+  function missingDependency(module, applied, skipped) {
+    for (const dependency of module.requires) {
+      if (!selected(dependency) || table.get(dependency) === undefined) continue
+      if (!modules.has(dependency) || skipped.has(dependency) || !applied.has(dependency)) return dependency
+    }
+    return null
+  }
+
+  /**
+   * Apply every built feature, each on its own disposable scope.
+   * @param {object} ctx - client root context.
+   */
+  function applyAll(ctx) {
+    const applied = new Set()
+    const skipped = new Set()
+    const enabled = env.readEnabledFeatures()
+    for (const id of order) {
+      const module = modules.get(id)
+      if (module === undefined) continue
+      if (module.id !== env.settingsFeatureId && enabled[module.id] === false) continue
+      const missing = missingDependency(module, applied, skipped)
+      if (missing !== null) {
+        skipped.add(id)
+        env.markSkipped(id, missing)
+        continue
+      }
+      if (!isolationEnabled) {
+        try {
+          module.apply(ctx)
+          applied.add(id)
+          env.clearFailure(id)
+        } catch (error) {
+          env.recordFailure(id, 'apply', report(id, 'apply', error))
+        }
+        continue
+      }
+      const scope = createScope(ctx, id)
+      let failed = false
+      try {
+        module.apply(scope.proxy)
+      } catch (error) {
+        env.recordFailure(id, 'apply', report(id, 'apply', error))
+        failed = true
+      }
+      const scopeError = scope.firstError()
+      if (scopeError !== null) {
+        report(id, scopeError.phase, scopeError.error)
+        env.recordFailure(id, scopeError.phase, messageOf(scopeError.error))
+        failed = true
+      }
+      if (failed) {
+        scope.dispose()
+        quarantined.add(id)
+        continue
+      }
+      scopes.set(id, scope)
+      applied.add(id)
+      env.clearFailure(id)
+    }
+  }
+
+  return {
+    filter,
+    isolationEnabled,
+    /** @returns {string[]} built feature ids in bundle order. */
+    builtIds() { return order.slice() },
+    /** @returns {object[]} built feature modules in bundle order. */
+    builtModules() { return order.map((id) => modules.get(id)).filter((module) => module !== undefined) },
+    /** @returns {boolean} whether a feature is quarantined. */
+    isQuarantined(id) { return quarantined.has(id) },
+    buildAll,
+    applyAll,
+    quarantine,
+  }
+}
+
+    /* ------------------------------------------------------------------ *
+     * Materialization: build the selected features and hand them to the
+     * isolation runtime (src/isolation.js), which owns apply, quarantine and
+     * per-feature error boundaries.
+     * ------------------------------------------------------------------ */
+
+    const runtime = __dshCreateRuntime(require, env, __DSH_FEATURE_TABLE__)
+    env.attachRuntime(runtime)
+    runtime.buildAll()
+    const modules = runtime.builtModules()
 
     /* ------------------------------------------------------------------ *
      * Merged client plugin: one module for the whole bundle.
@@ -10797,27 +11579,23 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
 
     return {
       /** Union of the built features' services; the shell never applies early. */
-      inject: [...new Set(modules.flatMap((module) => module.inject))],
+      inject: [...new Set(modules.flatMap((module) => module.inject ?? []))],
       /**
-       * Apply every enabled feature on the shared client context. A feature
-       * that throws is reported and skipped so the rest of the bundle survives.
+       * Apply every enabled feature on its own disposable scope. A feature that
+       * throws is quarantined so the rest of the bundle keeps running.
        * @param {object} ctx - client root context.
        */
       apply(ctx) {
-        const enabled = env.readEnabledFeatures()
-        for (const module of modules) {
-          if (module.id !== SETTINGS_FEATURE_ID && enabled[module.id] === false) continue
-          try {
-            module.apply(ctx)
-          } catch (error) {
-            console.error('[dsh-codex-style] feature "' + module.id + '" failed to apply:', error)
-          }
-        }
+        runtime.applyAll(ctx)
       },
       /** Ids built in this materialization (a test filter narrows them). */
-      __features: modules.map((module) => module.id),
+      __features: runtime.builtIds(),
       /** Settings pages registered by the built features, for the package checks. */
       __settingsPages: __DSH_SETTINGS_PAGES__,
+      /** @returns {object} live failure/skip/quarantine records per feature. */
+      __statuses: () => env.featureStatuses(),
+      /** Whether apply/render isolation is active for this materialization. */
+      __isolationEnabled: runtime.isolationEnabled,
       /** Per-feature test hooks when exactly one feature is built. */
       __test: modules.length === 1 ? modules[0].__test : undefined,
     }

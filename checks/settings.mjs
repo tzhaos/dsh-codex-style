@@ -96,6 +96,20 @@ function createRuntime() {
       if (!(index in instance.hooks)) instance.hooks[index] = 'id-' + index + '-' + instances.size
       return instance.hooks[index]
     },
+    useEffect(factory) {
+      const cleanup = factory()
+      return cleanup
+    },
+    Component: class FakeComponent {
+      constructor(props) {
+        this.props = props
+        this.state = {}
+      }
+
+      setState(next) {
+        this.state = { ...this.state, ...next }
+      }
+    },
   }
 
   /** Render one node tree, invoking function components with hook context. */
@@ -132,9 +146,9 @@ function createRuntime() {
  * @param {object} React - miniature React runtime.
  * @returns {object} loaded bundle and mount helpers.
  */
-function loadBundle(React) {
+function loadBundle(React, seedStorage = {}) {
   const registrations = []
-  const storage = new Map()
+  const storage = new Map(Object.entries(seedStorage))
   const styles = []
   const sandbox = {
     __DSH_CODEX_STYLE_FEATURES__: ['dsh-codex-style.settings'],
@@ -143,6 +157,7 @@ function loadBundle(React) {
       localStorage: {
         getItem: (key) => storage.has(key) ? storage.get(key) : null,
         setItem: (key, value) => storage.set(key, String(value)),
+        removeItem: (key) => storage.delete(key),
       },
     },
     document: {
@@ -166,9 +181,9 @@ function loadBundle(React) {
  * Mount the settings shell on a fake client context.
  * @returns {object} mount, dictionaries, render helpers and captured state.
  */
-function mount(language = 'zh') {
+function mount(language = 'zh', seedStorage = {}) {
   const runtime = createRuntime()
-  const loaded = loadBundle(runtime.React)
+  const loaded = loadBundle(runtime.React, seedStorage)
   const dictionaries = {}
   const registered = []
   const effects = []
@@ -395,10 +410,70 @@ await check('shell injects its stylesheet and cleans up effects', () => {
   const mounted = mount()
   assert(mounted.styles.length === 1, 'one style tag')
   const css = mounted.styles[0].textContent
-  for (const marker of ['.dshcs-section', '.dshcs-tabs', '.dshcs-tab', '.dshcs-switchOn', '.dshcs-note']) {
+  for (const marker of ['.dshcs-section', '.dshcs-tabs', '.dshcs-tab', '.dshcs-switchOn', '.dshcs-note', '.dshcs-alert', '.dshcs-tabBadge']) {
     assert(css.includes(marker), marker + ' styled')
   }
   assert.equal(mounted.effects.length, 3, 'dictionaries, styles and section effects')
+})
+
+// ---------------------------------------------------------------------------
+// Feature health reporting
+// ---------------------------------------------------------------------------
+
+const failureStorage = (record) => ({
+  'dsh.codexStyle.failures': JSON.stringify(record),
+})
+
+await check('a persisted failure is reported on its feature tab and page', () => {
+  const mounted = mount('zh', failureStorage({
+    'dsh-sidebar-sections': { state: 'failed', phase: 'apply', message: 'boom in apply', at: 1 },
+  }))
+  const tree = mounted.render()
+  const tabs = tabsOf(tree)
+  const sidebarTab = tabs[FEATURE_ORDER.indexOf('dsh-sidebar-sections')]
+  const otherTab = tabs[FEATURE_ORDER.indexOf('dsh-quick-fork')]
+  assert.equal(otherTab.props.children.includes('!'), false, 'healthy tab has no badge')
+  const badge = findAll(sidebarTab, (node) => node.props?.className === 'dshcs-tabBadge')[0]
+  assert(badge !== undefined, 'failing tab gets a badge')
+  assert.equal(badge.props['aria-label'], '启动失败')
+  const alert = findOne(tree, (node) => node.props?.className === 'dshcs-alert')
+  assert.equal(alert.props['data-state'], 'failed')
+  assert(textOf(alert).includes('启动失败'))
+  assert(textOf(alert).includes('boom in apply'))
+  assert(textOf(alert).includes('其他子插件不受影响'))
+})
+
+await check('a skipped record explains the dependency instead of a crash', () => {
+  const mounted = mount('en', failureStorage({
+    'dsh-quick-fork': { state: 'skipped', phase: 'dependency', message: 'requires "dsh-sidebar-sections"', at: 1 },
+  }))
+  const tree = mounted.render()
+  const quickForkIndex = FEATURE_ORDER.indexOf('dsh-quick-fork')
+  tabsOf(tree)[quickForkIndex].props.onClick()
+  const page = mounted.render()
+  const alert = findOne(page, (node) => node.props?.className === 'dshcs-alert')
+  assert.equal(alert.props['data-state'], 'skipped')
+  assert(textOf(alert).includes('Skipped'))
+  assert(textOf(alert).includes('dependency'))
+})
+
+await check('a quarantined record reads as isolated, not failed', () => {
+  const mounted = mount('zh', failureStorage({
+    'dsh-hover-polish': { state: 'quarantined', phase: 'render', message: 'render boom', at: 1 },
+  }))
+  let tree = mounted.render()
+  tabsOf(tree)[FEATURE_ORDER.indexOf('dsh-hover-polish')].props.onClick()
+  tree = mounted.render()
+  const alert = findOne(tree, (node) => node.props?.className === 'dshcs-alert')
+  assert.equal(alert.props['data-state'], 'quarantined')
+  assert(textOf(alert).includes('已隔离'))
+  assert(textOf(alert).includes('render boom'))
+})
+
+await check('a healthy feature page shows no health alert', () => {
+  const mounted = mount()
+  const tree = mounted.render()
+  assert.equal(findAll(tree, (node) => node.props?.className === 'dshcs-alert').length, 0)
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

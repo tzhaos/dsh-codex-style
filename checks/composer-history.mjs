@@ -91,7 +91,7 @@ const isDialog = (element) => element.props?.role === 'dialog'
 
 await check('manifest declares the merged DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.0.0')
+  assert.equal(manifest.version, '1.1.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')

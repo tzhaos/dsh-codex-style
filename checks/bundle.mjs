@@ -42,7 +42,7 @@ async function check(name, body) {
 
 await check('manifest declares one DSH bundle and one web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.0.0')
+  assert.equal(manifest.version, '1.1.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')
@@ -174,6 +174,48 @@ await check('host half exports its services and keeps the queue routes', () => {
   assert(indexSource.includes('installClaimPatch'))
   assert(indexSource.includes('frozenFile()'))
   assert(!indexSource.includes('dsh-composer-plus'), 'composer-plus is not merged yet')
+})
+
+// ---------------------------------------------------------------------------
+// Feature isolation
+// ---------------------------------------------------------------------------
+
+await check('the bundle ships the per-feature isolation runtime', () => {
+  for (const marker of [
+    'function __dshCreateRuntime',
+    'FeatureErrorBoundary',
+    'getDerivedStateFromError',
+    'function createScope',
+    'function quarantine(',
+    'env.markSkipped',
+    'missingDependency',
+    '__DSH_CODEX_STYLE_ISOLATION__',
+    'dsh.codexStyle.failures',
+  ]) assert(clientSource.includes(marker), 'isolation marker ' + marker)
+  assert(clientSource.includes('__statuses: () => env.featureStatuses()'), 'statuses exposed to the checks')
+  assert(clientSource.includes('__isolationEnabled: runtime.isolationEnabled'), 'isolation flag exposed')
+})
+
+await check('an isolated feature cannot take the bundle down at apply time', () => {
+  assert(clientSource.includes("env.recordFailure(id, 'apply'"), 'apply failures recorded')
+  assert(clientSource.includes('scope.dispose()'), 'failed scope disposed')
+  assert(clientSource.includes('const scope = createScope(ctx, id)'), 'each feature applies on its own scope')
+  assert(clientSource.includes('if (failed) {'), 'failed feature skipped after disposal')
+  assert(clientSource.includes('setTimeout(() => quarantine(id, error, phase), 0)'), 'runtime quarantine is deferred')
+})
+
+await check('the settings shell reports failed, quarantined and skipped features', () => {
+  for (const marker of [
+    "'settings.state.failed'",
+    "'settings.state.quarantined'",
+    "'settings.state.skipped'",
+    "'settings.failure.isolated'",
+    "'settings.failure.skipped'",
+    'dshcs-alert',
+    'dshcs-tabBadge',
+    'SettingsPageBoundary',
+  ]) assert(settingsSource.includes(marker), 'settings health marker ' + marker)
+  assert(settingsSource.includes('env.subscribeStatus'), 'settings shell follows live health changes')
 })
 
 // ---------------------------------------------------------------------------

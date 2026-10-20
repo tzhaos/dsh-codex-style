@@ -5,7 +5,7 @@
 长文本粘贴、划选复创、会话前进/后退、左侧图标栏等全部交互；设置里有一个统一的
 **「Codex 风格」** 分区，每个子插件占一个 tab，可以单独管理自己的设置和启用状态。
 
-[![Checks](https://img.shields.io/badge/checks-321-brightgreen)](checks/)
+[![Checks](https://img.shields.io/badge/checks-340-brightgreen)](checks/)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 [![Runtime deps](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -22,6 +22,22 @@
 - 设置集中在 **设置 → Codex 风格**，每个子插件一个 tab
 - 某个 feature 构建或应用失败时只影响它自己，不会拖垮其余功能
 - 子插件的 localStorage 键、Host 路由和既有数据全部沿用，升级不丢数据
+
+## 故障隔离
+
+任意子插件在**构建、应用、effect、slot 回调或 React 渲染**阶段报错时，都只影响它自己：
+
+- 构建失败：该 feature 被跳过，其余 feature 照常加载
+- 应用/effect 失败：它自己的 slot 注册、effect 和监听器会被回收，其他子插件继续运行
+- 渲染失败：每个 feature 注册的组件都套着它自己的 React error boundary，崩溃时该组件渲染为空，
+  宿主和其他子插件不会白屏；这次崩溃随后会隔离该 feature 并释放它的注册
+- 声明了 `requires` 的子插件会在依赖失败时级联标记为「跳过」，而不是带着坏依赖继续跑
+- 失败会写入 `dsh.codexStyle.failures`，设置页对应 tab 显示「启动失败 / 已隔离 / 已跳过」和原因；
+  重启 DSH 会自动重新尝试，成功加载后记录自动清除
+
+只有 bundle 级强依赖（`dsh.client.inject` 里的平台客户端模块/服务）缺失时，整个插件才会等待——
+这和 DSH 对普通插件的硬依赖语义一致。不在隔离范围内：子插件计时器/事件处理器里的异步异常
+（浏览器会记录，不会卸载 React 树），以及死循环、超大同步任务这类无法抢占的执行。
 
 ## 子插件与设置页
 
@@ -87,13 +103,15 @@ path-link 安装时不用重新安装，源码更新后重启即可；如果目�
 
 - 无遥测、无额外服务端、无网络上报
 - 侧边栏排序/折叠、输入历史、Hover 设置、feature 启用状态等保存在浏览器 `localStorage`
-  （启用状态键：`dsh.codexStyle.features`）
+  （启用状态键：`dsh.codexStyle.features`，故障记录键：`dsh.codexStyle.failures`）
 - 排队撤回的文件缓存保存在 `IndexedDB`；锁定状态由 Host 半边的 `$DSH_HOME` 文件持久化
 - 会话、消息、Agent 结果始终由 DSH 管理，插件不会修改会话日志
 
 ## 限制
 
 - 合并后所有 feature 共享同一次启动；启用/禁用需要重启 DSH
+- 故障隔离覆盖构建、应用、effect、slot 回调和 React 渲染；子插件自己的异步回调异常只会被浏览器
+  记录，不影响其他插件继续工作，但也不会自动隔离该 feature
 - 部分 feature 依赖宿主 DOM / slot 契约（DockKit 标签、`inbox.claim`、宿主按钮
   `aria-label`），DSH 升级时可能需要跟随适配
 - 没有提供逐 feature 的独立安装包；只需要其中一两个功能时，仍可继续使用旧的独立插件仓库
@@ -114,6 +132,7 @@ node scripts/check.mjs                 # 全量零依赖检查
 ├── client.js                # 生成的浏览器 bundle（不要手改）
 ├── src/
 │   ├── features/            # 11 个合并 feature，各自保持原实现
+│   ├── isolation.js         # 每个 feature 的构建/应用/渲染隔离与故障记录
 │   └── settings.js          # 设置 shell：Codex 风格分区与每 feature 一个 tab
 ├── checks/                  # 零依赖检查，按 feature 拆分
 ├── scripts/
@@ -124,10 +143,10 @@ node scripts/check.mjs                 # 全量零依赖检查
 └── CHANGELOG.md
 ```
 
-当前检查规模：**13 个检查文件、321 项零依赖检查**（约 2 秒跑完）：
+当前检查规模：**14 个检查文件、340 项零依赖检查**（约 3 秒跑完）：
 
 ```text
-all checks passed: 13 files, 321 checks, 2.2s
+all checks passed: 14 files, 340 checks, 2.6s
 ```
 
 提交前请运行 `node scripts/check.mjs`；`client.js` 是生成产物，改动 `src/` 后必须重新生成。

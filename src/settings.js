@@ -12,8 +12,37 @@
 
 __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
   const React = require('react')
-  const { useId, useRef, useState } = React
+  const { useEffect, useId, useRef, useState } = React
   const h = React.createElement
+
+  /**
+   * Error boundary for a feature-owned settings page. A page that crashes
+   * renders nothing and quarantines only its own feature.
+   */
+  class SettingsPageBoundary extends React.Component {
+    constructor(props) {
+      super(props)
+      this.state = { failed: false }
+    }
+
+    /** @returns {{ failed: boolean }} suppress the crashed page. */
+    static getDerivedStateFromError() {
+      return { failed: true }
+    }
+
+    /**
+     * Quarantine the page's own feature, not the settings shell.
+     * @param {unknown} error - thrown value.
+     */
+    componentDidCatch(error) {
+      env.quarantineFeature(this.props.featureId, error, 'render')
+    }
+
+    /** @returns {object|null} page until the first error. */
+    render() {
+      return this.state.failed ? null : this.props.children
+    }
+  }
 
   /** Locale namespace owned by the merged plugin shell. */
   const NS = 'codexStyle'
@@ -59,6 +88,13 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'settings.noOptions': '这个子插件没有额外可配置项，使用上方开关控制它是否加载。',
     'settings.disabledHint': '该子插件当前已停用；重新启用并重启 DSH 后生效。',
     'settings.dataHint': '数据与限制',
+    'settings.state.failed': '启动失败',
+    'settings.state.quarantined': '已隔离',
+    'settings.state.skipped': '已跳过',
+    'settings.failure.message': '原因：{message}',
+    'settings.failure.isolated': '该子插件已停止运行，其他子插件不受影响；重启 DSH 会重新尝试。',
+    'settings.failure.skipped': '它依赖的子插件本次启动失败，因此被跳过；修复依赖后重启 DSH 会重新加载。',
+    'settings.failure.previous': '上次启动的失败记录',
     'feature.dsh-sidebar-sections.title': '侧边栏分区',
     'feature.dsh-sidebar-sections.summary': '把侧边栏分成置顶 / 项目 / 最近 / 归档四个分区，支持拖拽排序、行菜单与安全删除。',
     'feature.dsh-sidebar-sections.note': '排序、折叠与安全删除记录保存在浏览器 localStorage；已删除会话的恢复在下方设置里。',
@@ -105,6 +141,13 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'settings.noOptions': 'This sub-plugin has no extra options; use the switch above to control whether it loads.',
     'settings.disabledHint': 'This sub-plugin is disabled; re-enable it and restart DSH to apply.',
     'settings.dataHint': 'Data and limitations',
+    'settings.state.failed': 'Failed to start',
+    'settings.state.quarantined': 'Quarantined',
+    'settings.state.skipped': 'Skipped',
+    'settings.failure.message': 'Reason: {message}',
+    'settings.failure.isolated': 'This sub-plugin has been stopped; the other sub-plugins keep running. Restart DSH to retry it.',
+    'settings.failure.skipped': 'A sub-plugin it depends on failed to start, so it was skipped. Fix the dependency and restart DSH to load it.',
+    'settings.failure.previous': 'Failure from the previous start',
     'feature.dsh-sidebar-sections.title': 'Sidebar sections',
     'feature.dsh-sidebar-sections.summary': 'Pinned / Projects / Recent / Archived sidebar sections with drag ordering, row menus and safe delete.',
     'feature.dsh-sidebar-sections.note': 'Ordering, collapse and safe-delete records live in browser localStorage; restoring removed conversations is in the settings below.',
@@ -168,6 +211,12 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     '.dshcs-notes{border-style:dashed;}',
     '.dshcs-notesTitle{margin:0;font-size:12px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-tertiary);text-transform:uppercase;letter-spacing:.04em;}',
     '.dshcs-note{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);}',
+    '.dshcs-tabBadge{display:inline-block;margin-left:5px;padding:0 4px;border-radius:6px;font-size:10px;line-height:15px;font-weight:700;color:#fff;background:var(--dsw-alias-state-error-primary,#d03050);vertical-align:1px;}',
+    '.dshcs-alert{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding:10px 12px;border-radius:8px;border:.5px solid var(--dsw-alias-state-error-primary,#d03050);background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d03050) 8%,transparent);}',
+    '.dshcs-alertTitle{font-size:13px;line-height:20px;color:var(--dsw-alias-state-error-primary,#d03050);}',
+    '.dshcs-alertText{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;}',
+    '.dshcs-alert[data-state="skipped"]{border-color:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));background:transparent;}',
+    '.dshcs-alert[data-state="skipped"] .dshcs-alertTitle{color:var(--dsw-alias-label-secondary);}',
   ].join('')
 
   /**
@@ -200,13 +249,18 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     const tabRefs = useRef([])
     const [activeId, setActiveId] = useState(() => FEATURES[0])
     const [enabledMap, setEnabledMap] = useState(() => env.readEnabledFeatures())
+    const [statuses, setStatuses] = useState(() => env.featureStatuses())
+    useEffect(() => env.subscribeStatus(() => setStatuses(env.featureStatuses())), [])
+    const persisted = env.persistedFailures()
 
     const rows = FEATURES.map((id) => ({
       id,
       label: t(titleKey(id)),
+      problem: statuses[id] ?? persisted[id],
     }))
     const active = rows.find((row) => row.id === activeId)?.id ?? rows[0]?.id
     const enabled = enabledMap[active] !== false
+    const health = statuses[active] ?? persisted[active]
     const page = env.settingsPages().find((entry) => entry.id === active)
 
     /** @param {number} index - tab index to move to. */
@@ -244,11 +298,23 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
           }
           event.preventDefault?.()
         },
-      }, row.label)
+      }, row.label !== '' && row.problem !== undefined
+        ? [
+          row.label,
+          h('span', {
+            key: 'badge',
+            className: 'dshcs-tabBadge',
+            'data-state': row.problem.state,
+            role: 'status',
+            'aria-label': t('settings.state.' + (row.problem.state === 'skipped' ? 'skipped' : row.problem.state === 'quarantined' ? 'quarantined' : 'failed')),
+          }, '!'),
+        ]
+        : row.label)
     }))
 
     const pageBody = page !== undefined && typeof page.render === 'function'
-      ? h('div', { className: 'dshcs-page' }, page.render())
+      ? h(SettingsPageBoundary, { key: active, featureId: active },
+        h('div', { className: 'dshcs-page' }, page.render()))
       : h('section', { className: 'dshcs-card dshcs-generic' },
         h('p', { className: 'dshcs-genericText' }, enabled ? t('settings.noOptions') : t('settings.disabledHint')))
 
@@ -275,6 +341,17 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
           }),
         ),
         h('p', { className: 'dshcs-restart' }, t('settings.restart')),
+        health !== undefined
+          ? h('div', { className: 'dshcs-alert', 'data-state': health.state, role: 'status' },
+            h('strong', { className: 'dshcs-alertTitle' },
+              t('settings.state.' + (health.state === 'skipped' ? 'skipped' : health.state === 'quarantined' ? 'quarantined' : 'failed'))),
+            health.message !== undefined && health.message !== ''
+              ? h('p', { className: 'dshcs-alertText' }, t('settings.failure.message', { message: health.message }))
+              : null,
+            h('p', { className: 'dshcs-alertText' },
+              t(health.state === 'skipped' ? 'settings.failure.skipped' : 'settings.failure.isolated')),
+          )
+          : null,
       ),
       pageBody,
       h('section', { className: 'dshcs-card dshcs-notes' },

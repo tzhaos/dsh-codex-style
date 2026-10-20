@@ -12,8 +12,9 @@
  *
  * The generated bundle keeps every feature lazy: a feature body only runs when
  * the feature is enabled (or when a check selects it through the
- * `__DSH_CODEX_STYLE_FEATURES__` test filter), so a broken feature cannot stop
- * the rest of the bundle from booting.
+ * `__DSH_CODEX_STYLE_FEATURES__` test filter). The isolation runtime generated
+ * from `src/isolation.js` then keeps one failing feature from affecting the
+ * others on build, apply and render.
  *
  * Usage:
  *   node scripts/build-client.mjs          # rewrite client.js
@@ -120,36 +121,184 @@ const PROLOGUE = `    /**
       /** Id of the settings shell feature. */
       settingsFeatureId: SETTINGS_FEATURE_ID,
     }
-`
 
-/** Epilogue: build the enabled features, expose the merged module. */
-const EPILOGUE = `
     /* ------------------------------------------------------------------ *
-     * Materialization: build the features selected for this page.
+     * Feature health bookkeeping.
+     *
+     * Failures, dependency skips and quarantines are recorded here so the
+     * settings shell can report them, and failures are persisted so the next
+     * page load can warn about a feature that crashed in an earlier boot.
      * ------------------------------------------------------------------ */
 
-    /** Test filter used by the package checks; absent in the shipped page. */
-    const filter = typeof __DSH_CODEX_STYLE_FEATURES__ !== 'undefined'
-      && Array.isArray(__DSH_CODEX_STYLE_FEATURES__)
-      ? __DSH_CODEX_STYLE_FEATURES__
-      : null
+    /** Browser-local failure records key. */
+    const FEATURE_FAILURES_KEY = 'dsh.codexStyle.failures'
+    /** Live state per feature id: { state, phase, message, at }. */
+    const __DSH_STATUS__ = Object.create(null)
+    /** @type {Set<Function>} status listeners owned by the settings shell. */
+    const __DSH_STATUS_LISTENERS__ = new Set()
 
-    /** Built features: id plus the module the standalone package used to export. */
-    const modules = []
-    for (const feature of __DSH_FEATURE_TABLE__) {
-      if (filter !== null && !filter.includes(feature.id)) continue
+    /**
+     * Bounded one-line message for an unknown thrown value.
+     * @param {unknown} error - thrown value.
+     * @returns {string} message.
+     */
+    function __dshMessageOf(error) {
       try {
-        const built = feature.build(require, env)
-        modules.push({
-          id: feature.id,
-          inject: Array.isArray(built.inject) ? built.inject : [],
-          apply: typeof built.apply === 'function' ? built.apply : () => {},
-          ...built.__test !== undefined ? { __test: built.__test } : {},
-        })
-      } catch (error) {
-        console.error('[dsh-codex-style] feature "' + feature.id + '" failed to build:', error)
+        const text = error !== null && typeof error === 'object'
+          ? String(error.message ?? error)
+          : String(error)
+        return text.slice(0, 400)
+      } catch {
+        return 'unknown error'
       }
     }
+
+    /** Notify every registered status listener; a broken listener is ignored. */
+    function __dshNotifyStatus() {
+      for (const listener of [...__DSH_STATUS_LISTENERS__]) {
+        try {
+          listener()
+        } catch {
+          // A broken status surface never breaks a feature.
+        }
+      }
+    }
+
+    /** @returns {object} persisted failure map, best effort. */
+    function __dshReadFailures() {
+      try {
+        const raw = window.localStorage.getItem(FEATURE_FAILURES_KEY)
+        if (raw === null || raw === '') return {}
+        const parsed = JSON.parse(raw)
+        return parsed !== null && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        return {}
+      }
+    }
+
+    /**
+     * Persist a failure map, best effort.
+     * @param {object} failures - map keyed by feature id.
+     */
+    function __dshWriteFailures(failures) {
+      try {
+        if (Object.keys(failures).length === 0) window.localStorage.removeItem(FEATURE_FAILURES_KEY)
+        else window.localStorage.setItem(FEATURE_FAILURES_KEY, JSON.stringify(failures))
+      } catch {
+        // Private browsing keeps the in-memory records only.
+      }
+    }
+
+    /** Persist the current live failure map, best effort. */
+    function __dshPersistFailures() {
+      const failures = {}
+      for (const [id, status] of Object.entries(__DSH_STATUS__)) {
+        if (status.state === 'failed' || status.state === 'quarantined') failures[id] = status
+      }
+      __dshWriteFailures(failures)
+    }
+
+    /**
+     * Record one feature health transition.
+     * @param {string} id - feature id.
+     * @param {string} state - failed, quarantined, skipped or disabled.
+     * @param {string} phase - failing phase.
+     * @param {string} message - bounded message.
+     */
+    function __dshSetStatus(id, state, phase, message) {
+      __DSH_STATUS__[id] = { state, phase, message, at: Date.now() }
+      __dshPersistFailures()
+      __dshNotifyStatus()
+    }
+
+    /**
+     * Record a feature failure.
+     * @param {string} id - feature id.
+     * @param {string} phase - build, apply, effect, slot, label, inject, render or cleanup.
+     * @param {string} message - bounded message.
+     */
+    env.recordFailure = (id, phase, message) => {
+      const state = phase === 'render' || phase === 'dependency' ? 'quarantined' : 'failed'
+      __dshSetStatus(id, state, phase, typeof message === 'string' ? message : __dshMessageOf(message))
+    }
+
+    /**
+     * Record a feature quarantined after it started running.
+     * @param {string} id - feature id.
+     * @param {string} phase - render, effect, slot, label, inject or dependency.
+     * @param {string} message - bounded message.
+     */
+    env.recordQuarantine = (id, phase, message) => {
+      __dshSetStatus(id, 'quarantined', phase, typeof message === 'string' ? message : __dshMessageOf(message))
+    }
+
+    /**
+     * Record a feature skipped because a declared dependency is unavailable.
+     * @param {string} id - feature id.
+     * @param {string} dependency - missing dependency id.
+     */
+    env.markSkipped = (id, dependency) => {
+      __dshSetStatus(id, 'skipped', 'dependency', 'requires "' + dependency + '"')
+    }
+
+    /** @param {string} id - feature id. Clear a healthy feature's failure record. */
+    env.clearFailure = (id) => {
+      const hadLive = __DSH_STATUS__[id] !== undefined
+      if (hadLive) delete __DSH_STATUS__[id]
+      const failures = __dshReadFailures()
+      if (failures[id] !== undefined) {
+        delete failures[id]
+        __dshWriteFailures(failures)
+      }
+      if (hadLive) __dshNotifyStatus()
+    }
+
+    /** @returns {object} live failure/skip/quarantine records keyed by feature id. */
+    env.featureStatuses = () => ({ ...__DSH_STATUS__ })
+
+    /** @returns {object} failure records persisted by an earlier boot. */
+    env.persistedFailures = () => __dshReadFailures()
+
+    /**
+     * Subscribe to feature health changes (used by the settings shell).
+     * @param {Function} listener - change listener.
+     * @returns {Function} unsubscribe.
+     */
+    env.subscribeStatus = (listener) => {
+      if (typeof listener !== 'function') return () => {}
+      __DSH_STATUS_LISTENERS__.add(listener)
+      return () => { __DSH_STATUS_LISTENERS__.delete(listener) }
+    }
+
+    /**
+     * Quarantine a feature from a render boundary or the settings page.
+     * @param {string} id - feature id.
+     * @param {unknown} error - thrown value.
+     * @param {string} phase - failing phase.
+     */
+    env.quarantineFeature = (id, error, phase) => {
+      if (env.__runtime !== null) env.__runtime.quarantine(id, error, phase ?? 'render')
+      else env.recordFailure(id, phase ?? 'render', __dshMessageOf(error))
+    }
+
+    /** @param {object} runtime - isolation runtime for this materialization. */
+    env.attachRuntime = (runtime) => { env.__runtime = runtime }
+    /** @type {object|null} isolation runtime, attached at materialization. */
+    env.__runtime = null
+`
+
+/** Epilogue: build the selected features, expose the merged isolated module. */
+const EPILOGUE = `
+    /* ------------------------------------------------------------------ *
+     * Materialization: build the selected features and hand them to the
+     * isolation runtime (src/isolation.js), which owns apply, quarantine and
+     * per-feature error boundaries.
+     * ------------------------------------------------------------------ */
+
+    const runtime = __dshCreateRuntime(require, env, __DSH_FEATURE_TABLE__)
+    env.attachRuntime(runtime)
+    runtime.buildAll()
+    const modules = runtime.builtModules()
 
     /* ------------------------------------------------------------------ *
      * Merged client plugin: one module for the whole bundle.
@@ -157,27 +306,23 @@ const EPILOGUE = `
 
     return {
       /** Union of the built features' services; the shell never applies early. */
-      inject: [...new Set(modules.flatMap((module) => module.inject))],
+      inject: [...new Set(modules.flatMap((module) => module.inject ?? []))],
       /**
-       * Apply every enabled feature on the shared client context. A feature
-       * that throws is reported and skipped so the rest of the bundle survives.
+       * Apply every enabled feature on its own disposable scope. A feature that
+       * throws is quarantined so the rest of the bundle keeps running.
        * @param {object} ctx - client root context.
        */
       apply(ctx) {
-        const enabled = env.readEnabledFeatures()
-        for (const module of modules) {
-          if (module.id !== SETTINGS_FEATURE_ID && enabled[module.id] === false) continue
-          try {
-            module.apply(ctx)
-          } catch (error) {
-            console.error('[dsh-codex-style] feature "' + module.id + '" failed to apply:', error)
-          }
-        }
+        runtime.applyAll(ctx)
       },
       /** Ids built in this materialization (a test filter narrows them). */
-      __features: modules.map((module) => module.id),
+      __features: runtime.builtIds(),
       /** Settings pages registered by the built features, for the package checks. */
       __settingsPages: __DSH_SETTINGS_PAGES__,
+      /** @returns {object} live failure/skip/quarantine records per feature. */
+      __statuses: () => env.featureStatuses(),
+      /** Whether apply/render isolation is active for this materialization. */
+      __isolationEnabled: runtime.isolationEnabled,
       /** Per-feature test hooks when exactly one feature is built. */
       __test: modules.length === 1 ? modules[0].__test : undefined,
     }
@@ -237,6 +382,15 @@ window.__ModuleLoader__.load({
     '     * Feature: settings shell (Settings -> Codex Style)\n' +
     '     * ================================================================== */\n\n')
   parts.push(settings.replace('__DSH_FEATURE(SETTINGS_FEATURE_ID', "__DSH_FEATURE('" + SETTINGS_FEATURE_ID + "'") + '\n')
+
+  const isolation = readSource('src/isolation.js').trimEnd()
+  if (!isolation.includes('function __dshCreateRuntime')) {
+    throw new Error('src/isolation.js does not define __dshCreateRuntime')
+  }
+  parts.push('\n    /* ================================================================== *\n' +
+    '     * Isolation runtime: per-feature interceptor, scopes and boundaries\n' +
+    '     * ================================================================== */\n\n')
+  parts.push(isolation + '\n')
 
   parts.push(EPILOGUE)
   return parts.join('')

@@ -7,7 +7,7 @@ tooltips, long-paste attachments, selection fork, session back/forward and the
 left icon rail. Settings gains one **Codex Style** section where every
 sub-plugin has its own tab for its settings and its enable switch.
 
-[![Checks](https://img.shields.io/badge/checks-321-brightgreen)](checks/)
+[![Checks](https://img.shields.io/badge/checks-340-brightgreen)](checks/)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 [![Runtime deps](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -30,6 +30,30 @@ plugin fixes that:
   taking down the rest of the bundle
 - every sub-plugin keeps its localStorage keys, Host routes and existing data,
   so upgrading loses nothing
+
+## Failure isolation
+
+A sub-plugin that throws while **building, applying, in an effect, in a slot
+callback or while rendering** only affects itself:
+
+- build failure: that feature is skipped and the rest still load
+- apply/effect failure: its own slot registrations, effects and listeners are
+  released, and the other sub-plugins keep running
+- render failure: every component a feature registers sits under its own React
+  error boundary, so a crash renders nothing for that feature instead of
+  blanking the host; the crash then quarantines the feature and releases its
+  registrations
+- features may declare `requires`; when a required feature fails, its dependents
+  are marked skipped instead of running on a broken dependency
+- failures are stored in `dsh.codexStyle.failures`; the matching settings tab
+  shows **failed / quarantined / skipped** with the reason, and a restart retries
+  the feature automatically. A successful load clears the old record.
+
+Only a missing bundle-level hard dependency (a platform client module or service
+listed in `dsh.client.inject`) makes the whole plugin wait, matching normal DSH
+plugin semantics. Not covered: async exceptions inside a feature's timers or
+event handlers (the browser logs them without unmounting the React tree), and
+uninterruptible work such as infinite loops or very large synchronous tasks.
 
 ## Sub-plugins and settings pages
 
@@ -99,7 +123,7 @@ needed; reinstall when the directory, version or `cordis.patch.yml` changes.
 - no telemetry, no extra server, no network reporting
 - sidebar ordering/collapse, prompt history, hover preferences and feature
   enable states stay in browser `localStorage` (enable state key:
-  `dsh.codexStyle.features`)
+  `dsh.codexStyle.features`, failure record key: `dsh.codexStyle.failures`)
 - the queued-message file cache stays in `IndexedDB`; lock state is persisted by
   the Host half under `$DSH_HOME`
 - sessions, messages and agent results stay under DSH control; plugins never
@@ -108,6 +132,9 @@ needed; reinstall when the directory, version or `cordis.patch.yml` changes.
 ## Limitations
 
 - all features boot together; enabling or disabling one needs a DSH restart
+- isolation covers build, apply, effects, slot callbacks and React rendering; a
+  feature's own async callback errors are logged by the browser and do not stop
+  other plugins, but they do not auto-quarantine that feature
 - some features depend on host DOM/slot contracts (DockKit tabs, `inbox.claim`,
   host button `aria-label`), which a DSH upgrade may change
 - there are no per-feature installs; keep using the old standalone repositories
@@ -129,6 +156,7 @@ Layout:
 ├── client.js                # generated browser bundle (do not edit by hand)
 ├── src/
 │   ├── features/            # the eleven merged features, each kept as-is
+│   ├── isolation.js         # per-feature build/apply/render isolation and health records
 │   └── settings.js          # settings shell: Codex Style section, one tab per feature
 ├── checks/                  # zero-dependency checks, one file per feature
 ├── scripts/
@@ -139,10 +167,10 @@ Layout:
 └── CHANGELOG.md
 ```
 
-Current suite size: **13 check files, 321 zero-dependency checks** (about 2 seconds):
+Current suite size: **14 check files, 340 zero-dependency checks** (about 3 seconds):
 
 ```text
-all checks passed: 13 files, 321 checks, 2.2s
+all checks passed: 14 files, 340 checks, 2.6s
 ```
 
 Run `node scripts/check.mjs` before committing, and regenerate `client.js`

@@ -4,6 +4,36 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.1.0] - 2026-10-20
+
+### Added
+
+- Per-feature failure isolation: a sub-plugin that throws while building,
+  applying, in an effect, in a slot label/inject callback or while rendering is
+  contained instead of affecting the rest of the bundle.
+  - every feature applies on its own disposable scope; a failure releases that
+    feature's slot registrations, effects and listeners;
+  - every component a feature registers is wrapped in that feature's React error
+    boundary: a render crash renders nothing for it and schedules a quarantine
+    while the host tree and the other sub-plugins stay up;
+  - features may declare `requires`; dependents of a failed or quarantined
+    feature are marked skipped and quarantined with it;
+  - failures and skips are stored in `dsh.codexStyle.failures`; the matching
+    Settings → Codex Style tab shows failed/quarantined/skipped with the reason,
+    and a successful load clears the record.
+- Settings page health reporting: a per-tab badge and a failure/isolated/skipped
+  notice with the reason and retry hint; a settings-page error boundary
+  quarantines only the page's own feature.
+- `checks/isolation.mjs` plus new bundle-contract checks: 14 check files and 340
+  zero-dependency checks.
+
+### Changed
+
+- `client.js` now also embeds `src/isolation.js`; `apply` no longer runs every
+  feature on the shared context, and runtime quarantines are deferred out of the
+  render phase.
+- Version bumped to 1.1.0.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
