@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex 风格插件",
+    "description": "把侧边栏分区、输入历史、排队消息、文件链接等 11 个 Codex 风格交互合并成一个 DSH bundle，并在设置里提供按子插件分 tab 的统一设置页。"
+  }
+}

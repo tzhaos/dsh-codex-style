@@ -1,0 +1,11 @@
+# Bundle patch for dsh-codex-style.
+#
+# The merged bundle has two halves and both are discovered from this one row:
+#   - the Host half (./index.js) registers the queued-message routes and the
+#     inbox claim patch used by the lock control;
+#   - the Client half (./client.js) is declared by package.json's `dsh.client`
+#     and contains all eleven merged features plus the Codex Style settings
+#     section (Settings -> Codex Style).
+- insert:
+    - id: codex-style
+      name: 'dsh-codex-style'
