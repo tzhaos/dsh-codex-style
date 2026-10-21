@@ -20,8 +20,8 @@ window.__ModuleLoader__.load({
     /** Browser-local per-feature enable preferences. */
     const FEATURE_PREFS_KEY = 'dsh.codexStyle.features'
     /** Feature ids in bundle order, mirrored by the settings shell tabs. */
-    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-file-link-actions","dsh-selection-toolbar","dsh-quick-fork","dsh-tab-middle-click","dsh-ui-motion","dsh-hover-polish"]
-    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-ui-motion","source":"src/shared/motion.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
+    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-file-link-actions","dsh-selection-toolbar","dsh-quick-fork","dsh-tab-middle-click","dsh-instant-ui","dsh-hover-polish"]
+    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-instant-ui","source":"src/shared/instant-ui.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
 
     /**
      * Register one merged feature.
@@ -8994,7 +8994,7 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 [data-queue-dock] [data-dshq-row] [class*="thumb"] { width: 28px; height: 28px; border-radius: 6px; }
 .dshqw-handle { gap: 1px; cursor: grab; touch-action: none; }
 .dshqw-handle > svg { flex: none; }
-.dshqw-grip { opacity: 0; transition: opacity 100ms ease; }
+.dshqw-grip { opacity: 0; }
 [data-dshq-row]:hover .dshqw-grip,
 [data-dshq-row]:focus-within .dshqw-grip,
 .dshqw-drag-source .dshqw-grip,
@@ -9015,10 +9015,10 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
   user-select: text;
 }
 .dshqw-more:hover:not(:disabled),
-.dshqw-more[aria-expanded="true"],
-.dshqw-handle:hover:not(:disabled) {
+.dshqw-more[aria-expanded="true"] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+[data-queue-dock] .dshqw-handle:is(:hover,:active) { background: transparent; }
 .dshqw-more:disabled,
 .dshqw-handle:disabled {
   cursor: default;
@@ -9031,7 +9031,6 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 }
 .dshqw-drag-source {
   opacity: .28;
-  transition: opacity 120ms ease;
 }
 .dshqw-drag-ghost {
   position: fixed;
@@ -13065,7 +13064,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     return stop
   }
 
-  function EffortSlider({ sessionId, directory, connected, t }) {
+  function EffortSlider({ sessionId, directory, connected, nativeT, t }) {
     const anchor = useRef(null),
       panel = useRef(null),
       range = useRef(null)
@@ -13087,6 +13086,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
     const view = describe(state, t('default'))
+    const translatedDefault = nativeT?.('effort.providerDefault')
+    const nativeDefault = translatedDefault && translatedDefault !== 'effort.providerDefault' ? translatedDefault : 'Default'
+    const metricsKey = JSON.stringify([view.model, nativeDefault])
     const latest = useRef(null)
     latest.current = { view, open, generation, directory }
     const ready = () =>
@@ -13172,7 +13174,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       button?.toggleAttribute('data-dshe-updating', pending)
     }, [button, pending])
     useLayoutEffect(() => {
-      if (!button || !view.model) return
+      if (!button || !view.model || !view.levels.length) return
       const effort = button.querySelector('.wq12jW_triggerEffort')
       if (!effort) return
       const context = document.createElement('canvas').getContext('2d')
@@ -13183,9 +13185,11 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
-        const labels = [...view.levels.map((level) => level.name), effort.textContent]
+        // The native implicit default is "Default", even in the Chinese UI.
+        // Reserve it before it is selected; the current text must not size the control.
+        const labels = view.levels.map((level) => level.id === undefined ? nativeDefault : level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
-        const effortWidth = Math.max(...labels.map(widthOf))
+        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
           ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
@@ -13194,16 +13198,21 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
         // Reserve the widest advertised level; the host's responsive max-width still applies.
         button.style.setProperty('--dshe-trigger-width', Math.ceil(width) + 'px')
+        button.style.setProperty('--dshe-effort-width', effortWidth + 'px')
         button.dataset.dsheTrigger = ''
       }
       measure()
+      const resize = new ResizeObserver(measure)
+      resize.observe(button.closest('[data-composer-card]') ?? button)
       document.fonts?.ready.then(measure)
       return () => {
         alive = false
+        resize.disconnect()
         button.removeAttribute('data-dshe-trigger')
         button.style.removeProperty('--dshe-trigger-width')
+        button.style.removeProperty('--dshe-effort-width')
       }
-    }, [button, view.model, view.effective])
+    }, [button, metricsKey])
     useLayoutEffect(() => {
       if (!button) return
       let menu = null, frame = null
@@ -13452,8 +13461,12 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                       })
                     },
                   },
-                  h('span', { className: 'dshe-level', 'aria-live': 'polite' },
-                    level?.name ?? view.effective ?? t('default')),
+                  h('span', { className: 'dshe-levelBox' },
+                    h('span', { className: 'dshe-level', 'aria-live': 'polite' },
+                      level?.name ?? view.effective ?? t('default')),
+                    view.levels.map((item) => h('span', {
+                      className: 'dshe-levelMeasure', key: item.id === undefined ? 'provider-default' : 'effort:' + item.id, 'aria-hidden': true,
+                    }, item.name))),
                   h('span', { className: 'dshe-modelCaption' },
                     h('span', null, view.model?.name),
                     h(IconChevronRightOutlineRegular, { size: 12 })),
@@ -13563,6 +13576,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
 
   const CSS = `
     .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
+    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
     .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
     .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
@@ -13571,7 +13585,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     .wq12jW_menu[data-dshe-native-model]{left:var(--dshe-native-model-left)!important;}
     .dshe-panel{position:fixed;z-index:1000;box-sizing:border-box;display:block;width:260px;min-width:0;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;box-shadow:var(--dsw-shadow-lv2);overflow:auto;overscroll-behavior:contain;color:var(--dsw-alias-label-primary);}
     .dshe-heading{display:flex;justify-content:center;min-width:0;padding:0 24px;text-align:center;}
-    .dshe-level{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dshe-levelBox{display:grid;max-width:100%;}.dshe-levelBox>span{grid-area:1/1;}
+    .dshe-levelMeasure{visibility:hidden;pointer-events:none;}
+    .dshe-level,.dshe-levelMeasure{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .dshe-model{display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;min-width:0;margin:-4px 0;padding:4px 8px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}
     .dshe-modelCaption{display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;}.dshe-model span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dshe-model svg{flex:none;}.dshe-model:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
     .dshe-reset{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}.dshe-reset:hover{background:var(--dsw-alias-interactive-bg-hover);}
@@ -13611,6 +13627,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   sessionId,
                   directory: ctx.modelDirectories.directoryFor(sessionId),
                   connected: ctx.connection.generation,
+                  nativeT: ctx.locale.bind('model'),
                 }
               },
             },
@@ -15200,299 +15217,42 @@ __DSH_FEATURE('dsh-tab-middle-click', function (require, env) {
 })
 
     /* ================================================================== *
-     * Feature: dsh-ui-motion
+     * Feature: dsh-instant-ui
      * ================================================================== */
 
-/** Shared, bounded motion for plugin-owned surfaces; never retains live dialogs. */
-__DSH_FEATURE('dsh-ui-motion', function () {
-  const SURFACES = [
+/** Immediate presentation for plugin-owned surfaces; native focus lifecycles remain in control. */
+__DSH_FEATURE('dsh-instant-ui', function () {
+  const surfaces = [
     '.dsh-motion-surface', '.dshe-panel', '[data-dshe-native-model]', '.dshch-panel',
     '.dshst-searchModal', '.dshss-hoverCard', '.dshqf-annotationPanel',
     '.dsh-selection-toolbar', '.dshhp-tooltip', '.dshfl-toast', '.dshgit-menu',
     '.dshlr-displayMenu', '.dshss-viewMenu', '.dshwp-sidebarSearch', '.dshqf-panel',
-    '.dshwp-skills', '.dshwp-taskLanding',
+    '.dshwp-skills', '.dshwp-taskLanding', '[role="tooltip"][data-dshhp-ready]',
   ].join(',')
-  const CONTROLS = `:where(${SURFACES},.dshlr-rail,.dshss-root,.dshss-settings,
+  const controls = `:where(${surfaces},.dshlr-rail,.dshss-root,.dshss-settings,
     .dshcs-section,.dshst-headerActions,.dshwp-sidebar,.dshwp-taskFilter,
     .dshqw-row,.dshqw-editor,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
-  const CSS = `
-    [data-dsh-motion-managed], [data-dsh-motion-managed] [role="dialog"] { animation:none!important; }
-    ${CONTROLS} {
-      transition:background-color 120ms ease,color 120ms ease,border-color 120ms ease,
-        box-shadow 120ms ease,opacity 120ms ease;
-    }
-    [data-dsh-motion-ghost], [data-dsh-motion-ghost] * { pointer-events:none!important; }
-    @media(prefers-reduced-motion:reduce) {
-      :is(${SURFACES}), :is(${SURFACES}) [role="dialog"] { animation:none!important; }
-      ${CONTROLS} { transition:none!important; }
+  const css = `
+    :is(${surfaces}),
+    [role="presentation"]:has(> :is(${surfaces})[aria-modal="true"]),
+    [role="presentation"]:has(> :is(${surfaces})[aria-modal="true"]) > *,
+    ${controls},
+    .dshss-rowActions,.dshss-sectionArrow,.dshqw-grip,.dshqw-queueGlyph,
+    .wq12jW_trigger[data-dshe-trigger] .wq12jW_chevron {
+      animation:none!important;transition:none!important;
     }
   `
-  // Visual copies contain no original classes, IDs, roles, event handlers or remote URLs.
-  const PROPERTIES = (`display box-sizing position inset top right bottom left z-index isolation
-    width height min-width min-height max-width max-height margin padding
-    flex flex-direction flex-wrap flex-basis flex-grow flex-shrink align-items align-self
-    justify-content gap row-gap column-gap grid-template-columns grid-template-rows
-    grid-column grid-row vertical-align overflow overflow-x overflow-y
-    background-color background-image background-size background-position background-repeat
-    border-top border-right border-bottom border-left border-radius corner-shape box-shadow
-    color font-family font-size font-weight font-style line-height letter-spacing
-    text-align text-decoration text-overflow white-space word-break overflow-wrap
-    opacity transform transform-origin translate visibility clip-path
-    fill fill-rule stroke stroke-width stroke-linecap stroke-linejoin
-    object-fit object-position backdrop-filter`).split(/\s+/)
-  const SVG_TAGS = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon'])
-  const SVG_ATTRS = ['viewBox', 'd', 'x', 'y', 'x1', 'x2', 'y1', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'points']
-  const OMIT = 'script,style,link,iframe,object,embed,video,audio,source,canvas,[hidden]'
-
-  /** Cache while connected: detached elements no longer have layout or inherited styles. */
-  function visualCopy(root) {
-    let count = 0, textSize = 0, bytes = 0
-    const budget = (value) => {
-      bytes += value.length * 2
-      if (bytes > 256 * 1024) throw new RangeError('surface copy is too large')
-      return value
-    }
-    const copy = (node) => {
-      if (++count > 256) throw new RangeError('surface is too large')
-      if (node.nodeType === 3) {
-        textSize += node.textContent.length
-        if (textSize > 24000) throw new RangeError('surface text is too large')
-        return document.createTextNode(budget(node.textContent))
-      }
-      if (node.nodeType !== 1 || node.matches(OMIT)) return null
-      if (node !== root && node.matches('[data-dsh-motion-managed]')) return null
-      const computed = getComputedStyle(node)
-      if (computed.display === 'none' || computed.visibility === 'hidden') return null
-      const tag = node.localName
-      const target = SVG_TAGS.has(tag)
-        ? document.createElementNS('http://www.w3.org/2000/svg', tag)
-        : document.createElement(tag === 'img' ? 'img' : 'div')
-      for (const property of PROPERTIES) {
-        const value = computed.getPropertyValue(property)
-        if (value && !/url\(/i.test(value)) target.style.setProperty(property, budget(value))
-      }
-      if (SVG_TAGS.has(tag)) {
-        for (const name of SVG_ATTRS) {
-          if (node.hasAttribute(name)) target.setAttribute(name, budget(node.getAttribute(name)))
-        }
-      } else if (tag === 'img') {
-        const src = node.currentSrc || node.getAttribute('src') || ''
-        if (/^(data:image\/|blob:)/i.test(src)) target.setAttribute('src', budget(src))
-        target.setAttribute('alt', '')
-      } else if (tag === 'input' || tag === 'textarea') {
-        target.textContent = ['password', 'range', 'checkbox', 'radio', 'file', 'color'].includes(node.type)
-          ? '' : node.value
-        textSize += target.textContent.length
-        if (textSize > 24000) throw new RangeError('surface text is too large')
-        budget(target.textContent)
-      }
-      for (const child of tag === 'input' || tag === 'textarea' ? [] : node.childNodes) {
-        const next = copy(child)
-        if (next) target.append(next)
-      }
-      // Maintain scroll previews without carrying their live scrolling behavior.
-      if (node.scrollTop || node.scrollLeft) {
-        target.dataset.dshMotionScroll = `${node.scrollLeft},${node.scrollTop}`
-      }
-      return target
-    }
-    const rect = root.getBoundingClientRect()
-    if (!rect.width || !rect.height || rect.bottom < 0 || rect.top > innerHeight) return null
-    let node
-    try { node = copy(root) } catch (error) {
-      if (!(error instanceof RangeError)) throw error
-      // A long transcript/editor never gets duplicated. Its surface can still fade.
-      node = document.createElement('div')
-      const computed = getComputedStyle(root)
-      for (const name of ['background-color', 'border-radius', 'box-shadow'])
-        node.style.setProperty(name, computed.getPropertyValue(name))
-    }
-    if (!node) return null
-    const computed = getComputedStyle(root)
-    const shift = computed.translate.split(/\s+/)
-    Object.assign(node.style, {
-      position: 'absolute', inset: 'auto', top: `${rect.top - (parseFloat(shift[1]) || 0)}px`,
-      left: `${rect.left - (parseFloat(shift[0]) || 0)}px`, width: `${rect.width}px`,
-      height: `${rect.height}px`, minWidth: '0', minHeight: '0', maxWidth: 'none',
-      maxHeight: 'none', boxSizing: 'border-box', margin: '0', transform: 'none',
-      translate: 'none', opacity: '1', animation: 'none', transition: 'none',
-    })
-    return node
+  return {
+    apply(ctx) {
+      ctx.effect(() => {
+        const style = document.createElement('style')
+        style.dataset.dshPlugin = 'dsh-instant-ui'
+        style.textContent = css
+        document.head.append(style)
+        return () => style.remove()
+      }, 'instant-ui: styles')
+    },
   }
-
-  function install() {
-    const media = matchMedia('(prefers-reduced-motion: reduce)')
-    const records = new Map(), dirty = new Set(), ghosts = new Set()
-    let frame = null, disposed = false
-    const style = document.createElement('style')
-    style.dataset.dshPlugin = 'dsh-ui-motion'
-    style.textContent = CSS
-    document.head.append(style)
-    const dropGhost = (ghost) => {
-      clearTimeout(ghost.timer)
-      ghost.animation?.cancel()
-      ghost.node.remove()
-      ghosts.delete(ghost)
-    }
-    const clearGhosts = () => { for (const ghost of [...ghosts]) dropGhost(ghost) }
-    const cancel = (record) => {
-      for (const animation of record.animations) animation.cancel()
-      record.animations = []
-    }
-    const backingFor = (node) => {
-      const anchor = node.style.getPropertyValue('--dsh-menu-anchor')
-      if (!anchor) return null
-      return [...document.querySelectorAll('[data-menu-backing]')].find((backing) =>
-        backing.style.getPropertyValue('--dsh-menu-anchor') === anchor &&
-        getComputedStyle(backing).display !== 'none') ?? null
-    }
-    const capture = (record) => {
-      const node = record.node
-      if (!node.isConnected) return
-      const computed = getComputedStyle(node)
-      if (computed.visibility !== 'visible' || computed.display === 'none') return
-      record.snapshot = visualCopy(node)
-      record.backingSnapshot = record.backing?.isConnected ? visualCopy(record.backing) : null
-      let layer = 0
-      for (let parent = node; parent && parent !== document.body; parent = parent.parentElement)
-        layer = Math.max(layer, parseInt(getComputedStyle(parent).zIndex) || 0)
-      record.layer = layer || 1000
-    }
-    const resize = new ResizeObserver((entries) => {
-      for (const { target } of entries) if (records.has(target)) dirty.add(target)
-      schedule()
-    })
-    const enter = (record) => {
-      if (record.entered || !record.snapshot) return
-      record.entered = true
-      // Reopening or opening the next menu must never overlap an outgoing shadow.
-      clearGhosts()
-      const modal = record.node.getAttribute('role') === 'presentation'
-      const keyframes = modal ? [{ opacity: 0 }, { opacity: 1 }]
-        : [{ opacity: 0, translate: '0 3px' }, { opacity: 1, translate: '0 0' }]
-      for (const node of [record.node, record.backing].filter(Boolean)) {
-        record.animations.push(node.animate(keyframes, {
-          duration: 150, easing: 'cubic-bezier(.2,.8,.2,1)',
-        }))
-      }
-    }
-    const exit = (record) => {
-      const opacity = record.animations[0]?.effect.getComputedTiming().progress ?? 1
-      cancel(record)
-      resize.unobserve(record.node)
-      record.node.removeAttribute('data-dsh-motion-managed')
-      records.delete(record.node)
-      dirty.delete(record.node)
-      if (!record.snapshot || media.matches || disposed) return
-      // Only paint remains; all native listeners, focus traps and ARIA are already gone.
-      while (ghosts.size >= 4) dropGhost(ghosts.values().next().value)
-      const node = document.createElement('div')
-      node.dataset.dshMotionGhost = ''
-      node.setAttribute('aria-hidden', 'true')
-      node.inert = true
-      Object.assign(node.style, { position: 'fixed', inset: '0', pointerEvents: 'none', opacity: String(opacity),
-        zIndex: String(record.layer), overflow: 'visible' })
-      if (record.backingSnapshot) node.append(record.backingSnapshot)
-      node.append(record.snapshot)
-      document.body.append(node)
-      for (const scroll of node.querySelectorAll('[data-dsh-motion-scroll]')) {
-        const [left, top] = scroll.dataset.dshMotionScroll.split(',').map(Number)
-        scroll.scrollLeft = left; scroll.scrollTop = top
-        scroll.removeAttribute('data-dsh-motion-scroll')
-      }
-      const ghost = { node, animation: node.animate([{ opacity }, { opacity: 0 }],
-        { duration: 110, easing: 'ease-in', fill: 'forwards' }), timer: null }
-      ghosts.add(ghost)
-      ghost.animation.onfinish = () => dropGhost(ghost)
-      ghost.timer = setTimeout(() => dropGhost(ghost), 180)
-    }
-    function schedule() {
-      if (frame !== null || disposed || media.matches || !dirty.size) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        for (const node of [...dirty]) {
-          dirty.delete(node)
-          const record = records.get(node)
-          if (!record) continue
-          if (!node.isConnected) { exit(record); continue }
-          record.backing ??= backingFor(node)
-          capture(record)
-          enter(record)
-        }
-      })
-    }
-    const register = (surface) => {
-      const node = surface.matches('[aria-modal="true"]') &&
-        surface.parentElement?.matches('[role="presentation"]') ? surface.parentElement : surface
-      if (records.has(node) || records.size >= 24 || node.closest('[data-dsh-motion-ghost]')) return
-      node.setAttribute('data-dsh-motion-managed', '')
-      records.set(node, { node, animations: [], entered: false, snapshot: null, backing: null })
-      resize.observe(node)
-      dirty.add(node)
-    }
-    const discover = (node, subtree = true) => {
-      if (node.nodeType !== 1 || node.closest('[data-dsh-motion-ghost]')) return
-      if (node.matches(SURFACES)) register(node)
-      if (subtree) {
-        for (const surface of node.querySelectorAll(SURFACES)) register(surface)
-        // DSH submenus are descendants of their owned menu, not independent host menus.
-        for (const submenu of node.querySelectorAll('[role="menu"]')) {
-          if (submenu.parentElement?.closest(SURFACES)) register(submenu)
-        }
-      }
-      if (node.matches('[role="menu"]') && node.parentElement?.closest(SURFACES)) register(node)
-    }
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.target.parentElement?.closest('[data-dsh-motion-ghost]')) continue
-        if (mutation.type === 'childList') for (const node of mutation.addedNodes) discover(node)
-        if (mutation.type === 'attributes') discover(mutation.target, false)
-        const parent = (mutation.target.nodeType === 1 ? mutation.target : mutation.target.parentElement)
-          ?.closest('[data-dsh-motion-managed]')
-        if (records.has(parent)) dirty.add(parent)
-      }
-      for (const record of [...records.values()]) if (!record.node.isConnected) exit(record)
-      schedule()
-    })
-    const reset = () => {
-      observer.disconnect(); resize.disconnect()
-      if (frame !== null) cancelAnimationFrame(frame)
-      frame = null; dirty.clear(); clearGhosts()
-      for (const record of records.values()) {
-        cancel(record); record.node.removeAttribute('data-dsh-motion-managed')
-      }
-      records.clear()
-    }
-    const refresh = () => {
-      reset()
-      if (disposed || media.matches || typeof Element.prototype.animate !== 'function') return
-      discover(document.body)
-      observer.observe(document.body, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-dshe-native-model'] })
-      schedule()
-    }
-    const moved = (event) => {
-      if (event?.target?.closest?.('[data-dsh-motion-ghost]')) return
-      clearGhosts()
-      for (const node of records.keys()) dirty.add(node)
-      schedule()
-    }
-    media.addEventListener('change', refresh)
-    window.addEventListener('resize', moved)
-    window.addEventListener('scroll', moved, true)
-    window.visualViewport?.addEventListener('resize', moved)
-    window.visualViewport?.addEventListener('scroll', moved)
-    refresh()
-    return () => {
-      disposed = true; reset(); style.remove()
-      media.removeEventListener('change', refresh)
-      window.removeEventListener('resize', moved)
-      window.removeEventListener('scroll', moved, true)
-      window.visualViewport?.removeEventListener('resize', moved)
-      window.visualViewport?.removeEventListener('scroll', moved)
-    }
-  }
-  return { apply(ctx) { ctx.effect(install, 'ui motion: surfaces') } }
 })
 
     /* ================================================================== *
@@ -15975,6 +15735,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     }, [tooltip])
 
     const markHoverSurface = (button) => {
+      if (button.hasAttribute?.('data-dshq-handle') === true) return
       if (!isIconOnly(button)) return
       const style =
         typeof window.getComputedStyle === 'function' ? window.getComputedStyle(button) : null
@@ -16230,7 +15991,6 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-family: inherit;
   pointer-events: none;
   overflow-wrap: anywhere;
-  animation: dshhp-in 140ms ease-out;
 }
 .dshhp-label {
   min-width: 0;
@@ -16258,17 +16018,8 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   text-align: center;
   white-space: nowrap;
 }
-@keyframes dshhp-in {
-  from { opacity: 0; }
-}
-[data-dshhp-hover="icon"]:not(:disabled) {
-  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
-}
 [data-dshhp-hover="icon"]:not(:disabled):hover {
   background-color: var(--dsw-alias-interactive-bg-hover);
-}
-[data-dshhp-hover="icon"]:not(:disabled):active {
-  transform: scale(.97);
 }
 /* Align the shipped bubble with the same compact Codex-like surfaces. */
 [role="tooltip"]:not([data-dshhp-tooltip]) {
@@ -16292,9 +16043,6 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-size: 13px;
   font-weight: 500;
 }
-[role="tab"] {
-  transition: background-color 120ms ease, color 120ms ease;
-}
 /* Host Tooltips are inserted at their default side/alignment and only then
    receive our centered position. Keep them hidden for that insertion window
    so the first paint is already at the final top-center location. */
@@ -16309,11 +16057,6 @@ html[data-dshhp-hover] [role="tooltip"][data-side][data-dshhp-ready]:not([data-d
 }
 [role="tooltip"] [data-dshhp-duplicate] {
   display: none !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .dshhp-tooltip { animation: none; }
-  [data-dshhp-hover="icon"]:not(:disabled) { transition: none; }
-  [data-dshhp-hover="icon"]:not(:disabled):active { transform: none; }
 }
 `
 
@@ -16468,9 +16211,9 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-git-switch.summary': '查看和搜索当前工作区的本地分支。',
     'feature.dsh-git-switch.note': '切换前检查未提交改动、工作树占用和执行中的会话。',
     'feature.dsh-hover-polish.title': '悬停提示',
-    'feature.dsh-ui-motion.title': '界面动效',
-    'feature.dsh-ui-motion.summary': '统一菜单、面板、提示和按钮的过渡效果。',
-    'feature.dsh-ui-motion.note': '跟随系统的减少动态效果设置。',
+    'feature.dsh-instant-ui.title': '即时交互',
+    'feature.dsh-instant-ui.summary': '菜单、弹窗和提示即时开合。',
+    'feature.dsh-instant-ui.note': '保留键盘焦点提示。',
     'feature.dsh-hover-polish.summary': '统一图标按钮和标签的悬停反馈。',
     'feature.dsh-hover-polish.note': '跟随当前主题和系统的减少动态效果设置。',
     'feature.dsh-tab-middle-click.title': '中键关闭标签',
@@ -16552,9 +16295,9 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-git-switch.note':
       'Checks uncommitted changes, worktree occupancy and active sessions before switching.',
     'feature.dsh-hover-polish.title': 'Hover feedback',
-    'feature.dsh-ui-motion.title': 'Interface motion',
-    'feature.dsh-ui-motion.summary': 'Consistent transitions for menus, panels, hints and buttons.',
-    'feature.dsh-ui-motion.note': 'Follows the system reduced-motion preference.',
+    'feature.dsh-instant-ui.title': 'Immediate interactions',
+    'feature.dsh-instant-ui.summary': 'Open and close menus, dialogs and hints instantly.',
+    'feature.dsh-instant-ui.note': 'Keyboard focus indicators stay visible.',
     'feature.dsh-hover-polish.summary': 'Use consistent hover feedback for icon buttons and tabs.',
     'feature.dsh-hover-polish.note': 'Follows the active theme and reduced-motion preference.',
     'feature.dsh-tab-middle-click.title': 'Middle-click close',

@@ -213,7 +213,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     return stop
   }
 
-  function EffortSlider({ sessionId, directory, connected, t }) {
+  function EffortSlider({ sessionId, directory, connected, nativeT, t }) {
     const anchor = useRef(null),
       panel = useRef(null),
       range = useRef(null)
@@ -235,6 +235,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
     const view = describe(state, t('default'))
+    const translatedDefault = nativeT?.('effort.providerDefault')
+    const nativeDefault = translatedDefault && translatedDefault !== 'effort.providerDefault' ? translatedDefault : 'Default'
+    const metricsKey = JSON.stringify([view.model, nativeDefault])
     const latest = useRef(null)
     latest.current = { view, open, generation, directory }
     const ready = () =>
@@ -320,7 +323,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       button?.toggleAttribute('data-dshe-updating', pending)
     }, [button, pending])
     useLayoutEffect(() => {
-      if (!button || !view.model) return
+      if (!button || !view.model || !view.levels.length) return
       const effort = button.querySelector('.wq12jW_triggerEffort')
       if (!effort) return
       const context = document.createElement('canvas').getContext('2d')
@@ -331,9 +334,11 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
-        const labels = [...view.levels.map((level) => level.name), effort.textContent]
+        // The native implicit default is "Default", even in the Chinese UI.
+        // Reserve it before it is selected; the current text must not size the control.
+        const labels = view.levels.map((level) => level.id === undefined ? nativeDefault : level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
-        const effortWidth = Math.max(...labels.map(widthOf))
+        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
           ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
@@ -342,16 +347,21 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
         // Reserve the widest advertised level; the host's responsive max-width still applies.
         button.style.setProperty('--dshe-trigger-width', Math.ceil(width) + 'px')
+        button.style.setProperty('--dshe-effort-width', effortWidth + 'px')
         button.dataset.dsheTrigger = ''
       }
       measure()
+      const resize = new ResizeObserver(measure)
+      resize.observe(button.closest('[data-composer-card]') ?? button)
       document.fonts?.ready.then(measure)
       return () => {
         alive = false
+        resize.disconnect()
         button.removeAttribute('data-dshe-trigger')
         button.style.removeProperty('--dshe-trigger-width')
+        button.style.removeProperty('--dshe-effort-width')
       }
-    }, [button, view.model, view.effective])
+    }, [button, metricsKey])
     useLayoutEffect(() => {
       if (!button) return
       let menu = null, frame = null
@@ -600,8 +610,12 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                       })
                     },
                   },
-                  h('span', { className: 'dshe-level', 'aria-live': 'polite' },
-                    level?.name ?? view.effective ?? t('default')),
+                  h('span', { className: 'dshe-levelBox' },
+                    h('span', { className: 'dshe-level', 'aria-live': 'polite' },
+                      level?.name ?? view.effective ?? t('default')),
+                    view.levels.map((item) => h('span', {
+                      className: 'dshe-levelMeasure', key: item.id === undefined ? 'provider-default' : 'effort:' + item.id, 'aria-hidden': true,
+                    }, item.name))),
                   h('span', { className: 'dshe-modelCaption' },
                     h('span', null, view.model?.name),
                     h(IconChevronRightOutlineRegular, { size: 12 })),
@@ -711,6 +725,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
 
   const CSS = `
     .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
+    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
     .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
     .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
@@ -719,7 +734,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     .wq12jW_menu[data-dshe-native-model]{left:var(--dshe-native-model-left)!important;}
     .dshe-panel{position:fixed;z-index:1000;box-sizing:border-box;display:block;width:260px;min-width:0;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;box-shadow:var(--dsw-shadow-lv2);overflow:auto;overscroll-behavior:contain;color:var(--dsw-alias-label-primary);}
     .dshe-heading{display:flex;justify-content:center;min-width:0;padding:0 24px;text-align:center;}
-    .dshe-level{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dshe-levelBox{display:grid;max-width:100%;}.dshe-levelBox>span{grid-area:1/1;}
+    .dshe-levelMeasure{visibility:hidden;pointer-events:none;}
+    .dshe-level,.dshe-levelMeasure{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .dshe-model{display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;min-width:0;margin:-4px 0;padding:4px 8px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}
     .dshe-modelCaption{display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;}.dshe-model span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dshe-model svg{flex:none;}.dshe-model:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
     .dshe-reset{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}.dshe-reset:hover{background:var(--dsw-alias-interactive-bg-hover);}
@@ -759,6 +776,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   sessionId,
                   directory: ctx.modelDirectories.directoryFor(sessionId),
                   connected: ctx.connection.generation,
+                  nativeT: ctx.locale.bind('model'),
                 }
               },
             },

@@ -49,7 +49,7 @@ async (page) => {
   await page.locator('.wq12jW_trigger').click()
   await page.locator('.dshe-panel').waitFor()
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
-  await page.waitForFunction(()=>document.querySelector('.dshe-panel[data-dsh-motion-managed]')?.getAnimations().length===0)
+  await page.waitForFunction(()=>document.querySelector('.dshe-panel')?.getAnimations().length===0)
   await page.evaluate(()=>{
     review.effortPanel=document.querySelector('.dshe-panel');review.samples=[];review.recording=true
     const sample=()=>{

@@ -332,7 +332,7 @@ window.__DSH_CODEX_STYLE_FEATURES__ = [
   'dsh-workbench-pages',
   'dsh-git-switch',
   'dsh-hover-polish',
-  'dsh-ui-motion',
+  'dsh-instant-ui',
   'dsh-nav-back-forward',
   'dsh-long-paste',
   'dsh-composer-history',

@@ -1746,7 +1746,7 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 [data-queue-dock] [data-dshq-row] [class*="thumb"] { width: 28px; height: 28px; border-radius: 6px; }
 .dshqw-handle { gap: 1px; cursor: grab; touch-action: none; }
 .dshqw-handle > svg { flex: none; }
-.dshqw-grip { opacity: 0; transition: opacity 100ms ease; }
+.dshqw-grip { opacity: 0; }
 [data-dshq-row]:hover .dshqw-grip,
 [data-dshq-row]:focus-within .dshqw-grip,
 .dshqw-drag-source .dshqw-grip,
@@ -1767,10 +1767,10 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
   user-select: text;
 }
 .dshqw-more:hover:not(:disabled),
-.dshqw-more[aria-expanded="true"],
-.dshqw-handle:hover:not(:disabled) {
+.dshqw-more[aria-expanded="true"] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+[data-queue-dock] .dshqw-handle:is(:hover,:active) { background: transparent; }
 .dshqw-more:disabled,
 .dshqw-handle:disabled {
   cursor: default;
@@ -1783,7 +1783,6 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 }
 .dshqw-drag-source {
   opacity: .28;
-  transition: opacity 120ms ease;
 }
 .dshqw-drag-ghost {
   position: fixed;

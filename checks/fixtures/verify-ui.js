@@ -135,21 +135,16 @@ async (page) => {
     assert(await page.evaluate(()=>review.drafts.size)===0,'image deletion left its file resource')
     assert(await page.evaluate(()=>review.shell.snapshot.attachmentIds.length)===0,'image deletion left its attachment id')
   })
-  await check('exit snapshots show the current textarea once',async()=>{
+  await check('side chat closes immediately without retained visual copies',async()=>{
     await page.emulateMedia({reducedMotion:'no-preference'})
     await page.evaluate(()=>{review.sessionState.set({...review.sessionState.getSnapshot(),nodes:[]});review.fork('audit-snapshot')})
     await page.locator('.dshqf-input').waitFor()
-    await page.waitForFunction(()=>document.querySelector('.dshqf-panel[data-dsh-motion-managed]')?.getAnimations().length===0)
+    assert(await page.locator('.dshqf-panel').evaluate(node=>node.getAnimations().length)===0,'side chat entrance is animated')
     await page.locator('.dshqf-input').evaluate(node=>{node.defaultValue='obsolete text';node.value='current visible draft'})
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
-    const exit=await page.evaluate(()=>new Promise(resolve=>{
-      const observer=new MutationObserver(()=>{
-        const ghost=document.querySelector('[data-dsh-motion-ghost]');if(!ghost)return
-        observer.disconnect();resolve({text:ghost.textContent,inert:ghost.inert})
-      });observer.observe(document.body,{childList:true,subtree:true});review.closeFork()
-    }))
-    assert(exit.inert&&(exit.text.match(/current visible draft/g)||[]).length===1&&!exit.text.includes('obsolete text'),'textarea snapshot '+JSON.stringify(exit))
-    await page.waitForFunction(()=>!document.querySelector('[data-dsh-motion-ghost]'))
+    await page.evaluate(()=>review.closeFork())
+    await page.locator('.dshqf-panel').waitFor({state:'detached'})
+    assert(await page.locator('[data-dsh-motion-ghost]').count()===0,'closing retained a visual copy')
   })
   await check('unload restores hover attributes and native tooltip placement',async()=>{
     await page.evaluate(()=>{

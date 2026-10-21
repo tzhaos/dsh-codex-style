@@ -87,8 +87,8 @@
     "id": "interaction",
     "features": [
       {
-        "id": "dsh-ui-motion",
-        "source": "src/shared/motion.js"
+        "id": "dsh-instant-ui",
+        "source": "src/shared/instant-ui.js"
       },
       {
         "id": "dsh-hover-polish",

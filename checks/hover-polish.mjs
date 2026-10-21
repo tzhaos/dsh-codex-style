@@ -698,6 +698,14 @@ await check('role=tab controls get the same tooltip', () => {
   assert(textOf(tooltipOf(harness)[0]).includes('README.md'))
 })
 
+await check('queue drag handles keep their transparent background', () => {
+  const { fakeDocument } = scenario()
+  const button = createButton({ ariaLabel: '拖动排序排队消息' })
+  button.setAttribute('data-dshq-handle', '')
+  fakeDocument.dispatch('pointerover', eventFor(button))
+  assertEqual(button.getAttribute('data-dshhp-hover'), null, 'drag handle acquired generic hover fill')
+})
+
 await check('a visible text tab does not get a duplicate hover bubble', () => {
   const { harness, fakeDocument, fakeWindow } = scenario()
   const tab = createButton({ text: 'bilibili-article.md', title: 'D:\\dsh-plugins\\dsh-sidebar-sections\\docs\\bilibili-article.md' })

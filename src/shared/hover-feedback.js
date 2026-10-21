@@ -474,6 +474,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     }, [tooltip])
 
     const markHoverSurface = (button) => {
+      if (button.hasAttribute?.('data-dshq-handle') === true) return
       if (!isIconOnly(button)) return
       const style =
         typeof window.getComputedStyle === 'function' ? window.getComputedStyle(button) : null
@@ -729,7 +730,6 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-family: inherit;
   pointer-events: none;
   overflow-wrap: anywhere;
-  animation: dshhp-in 140ms ease-out;
 }
 .dshhp-label {
   min-width: 0;
@@ -757,17 +757,8 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   text-align: center;
   white-space: nowrap;
 }
-@keyframes dshhp-in {
-  from { opacity: 0; }
-}
-[data-dshhp-hover="icon"]:not(:disabled) {
-  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
-}
 [data-dshhp-hover="icon"]:not(:disabled):hover {
   background-color: var(--dsw-alias-interactive-bg-hover);
-}
-[data-dshhp-hover="icon"]:not(:disabled):active {
-  transform: scale(.97);
 }
 /* Align the shipped bubble with the same compact Codex-like surfaces. */
 [role="tooltip"]:not([data-dshhp-tooltip]) {
@@ -791,9 +782,6 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-size: 13px;
   font-weight: 500;
 }
-[role="tab"] {
-  transition: background-color 120ms ease, color 120ms ease;
-}
 /* Host Tooltips are inserted at their default side/alignment and only then
    receive our centered position. Keep them hidden for that insertion window
    so the first paint is already at the final top-center location. */
@@ -808,11 +796,6 @@ html[data-dshhp-hover] [role="tooltip"][data-side][data-dshhp-ready]:not([data-d
 }
 [role="tooltip"] [data-dshhp-duplicate] {
   display: none !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .dshhp-tooltip { animation: none; }
-  [data-dshhp-hover="icon"]:not(:disabled) { transition: none; }
-  [data-dshhp-hover="icon"]:not(:disabled):active { transform: none; }
 }
 `
 
