@@ -23,7 +23,7 @@ vm.runInNewContext(source, {
   document: { querySelectorAll: () => [], createElement: () => ({ dataset: {}, style: {} }) },
   window: { addEventListener() {}, removeEventListener() {} },
 })
-const { planStatusLayout, splitDock, GAP, RING_GAP } = build().__test
+const { planStatusLayout, splitDock, centeredPanelLeft, GAP, RING_GAP } = build().__test
 
 let checks = 0
 const check = (name, run) => {
@@ -142,6 +142,24 @@ check('the stylesheet floats the dock on the card row and keeps only icons', () 
   assert(source.includes('button>span{display:none'), 'only the ring survives in the context trigger')
   assert(source.includes('[class$="_label"]{display:none'), 'stat pills keep only their icon')
   assert(source.includes('margin-right:var(--dshcs-ring-right'), 'ring offset is driven by measurement')
+})
+
+check('the detail panel centers on the clicked status button, clamped to the viewport', () => {
+  assert.equal(
+    centeredPanelLeft({ anchorLeft: 1000, anchorWidth: 24, panelWidth: 300, viewportWidth: 1440 }),
+    862,
+    'button center and panel center coincide',
+  )
+  assert.equal(
+    centeredPanelLeft({ anchorLeft: 1400, anchorWidth: 20, panelWidth: 300, viewportWidth: 1440 }),
+    1128,
+    'right clamp',
+  )
+  assert.equal(
+    centeredPanelLeft({ anchorLeft: 0, anchorWidth: 20, panelWidth: 300, viewportWidth: 1440 }),
+    12,
+    'left clamp',
+  )
 })
 
 check('the three status controls stay separate icon buttons in the composer row', () => {

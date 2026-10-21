@@ -150,18 +150,18 @@ __DSH_FEATURE('dsh-composer-status', function () {
   }
 
   /**
-   * Horizontal position that centers a panel over the composer card without
-   * leaving the viewport. Pure so the package check can exercise the clamps.
+   * Horizontal position that centers a panel over the button that opened it,
+   * clamped to the viewport. Pure so the package check can exercise the clamps.
    * @param {object} input - measurements.
-   * @param {number} input.cardLeft - composer card left edge.
-   * @param {number} input.cardWidth - composer card width.
+   * @param {number} input.anchorLeft - left edge of the owning status button.
+   * @param {number} input.anchorWidth - width of the owning status button.
    * @param {number} input.panelWidth - panel width.
    * @param {number} input.viewportWidth - document client width.
    * @returns {number} panel left in px.
    */
-  function centeredPanelLeft({ cardLeft, cardWidth, panelWidth, viewportWidth }) {
+  function centeredPanelLeft({ anchorLeft, anchorWidth, panelWidth, viewportWidth }) {
     const max = Math.max(PANEL_MARGIN, viewportWidth - panelWidth - PANEL_MARGIN)
-    const centered = cardLeft + cardWidth / 2 - panelWidth / 2
+    const centered = anchorLeft + anchorWidth / 2 - panelWidth / 2
     return px(Math.max(PANEL_MARGIN, Math.min(centered, max)))
   }
 
@@ -278,9 +278,9 @@ __DSH_FEATURE('dsh-composer-status', function () {
     }
 
     /**
-     * Center one open panel over its composer card. The host anchors it to the
-     * small icon button; centering it on the card keeps the reading position
-     * stable across the three buttons.
+     * Center one open panel over the status button that opened it, clamped to
+     * the viewport. The Host anchors it to the small icon button, so the panel
+     * follows the clicked button instead of the whole composer card.
      * @param {Element} panel - portaled dialog panel.
      */
     function centerPopup(panel) {
@@ -290,12 +290,15 @@ __DSH_FEATURE('dsh-composer-status', function () {
         dropPopup(panel)
         return
       }
-      const card = dock.parentElement.querySelector(':scope > ' + CARD_SELECTOR)
-      if (card === null || panel.offsetWidth === 0) return
-      const cardRect = card.getBoundingClientRect()
+      // The Host writes `aria-expanded="true"` on the control that owns the
+      // open panel; both the stat pills and the ring use their own button.
+      const anchor = dock.querySelector('button[aria-expanded="true"]')
+      if (anchor === null || anchor === undefined || panel.offsetWidth === 0) return
+      const anchorRect = anchor.getBoundingClientRect()
+      if (anchorRect.width <= 0) return
       const left = centeredPanelLeft({
-        cardLeft: cardRect.left,
-        cardWidth: cardRect.width,
+        anchorLeft: anchorRect.left,
+        anchorWidth: anchorRect.width,
         panelWidth: panel.offsetWidth,
         viewportWidth: document.documentElement.clientWidth,
       })
