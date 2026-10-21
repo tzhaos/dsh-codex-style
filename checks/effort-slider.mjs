@@ -10,7 +10,7 @@ vm.runInNewContext(fs.readFileSync(new URL('../src/composer/effort.js', import.m
   },
   setTimeout, clearTimeout, queueMicrotask,
 })
-const { describe, selectionFor, selectAndConfirm, place } = build(() => ({})).__test
+const { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en } = build(() => ({})).__test
 const fixture = () => ({
   status: 'ready',
   pending: null,
@@ -42,6 +42,20 @@ const check = (name, run) => {
   console.log('ok ' + name)
 }
 const json = (value) => JSON.parse(JSON.stringify(value))
+check('standard effort names follow the UI language without confusing default with max', () => {
+  const ids = [undefined, 'default', 'low', 'medium', 'high', 'max']
+  assert.deepEqual(ids.map((id) => effortLabel({ id, name: 'provider label' }, (key) => zh[key])),
+    ['默认', '默认', '低', '中', '高', '最大'])
+  assert.deepEqual(ids.map((id) => effortLabel({ id, name: 'provider label' }, (key) => en[key])),
+    ['Default', 'Default', 'Low', 'Medium', 'High', 'Max'])
+})
+check('localizing effort display preserves provider-specific labels and selection IDs', () => {
+  const state = fixture(), before = JSON.stringify(state)
+  const view = describe(state, zh.default)
+  assert.deepEqual(json(view.levels.map((level) => effortLabel(level, (key) => zh[key]))), ['关闭', '标准', '自适应'])
+  assert.equal(selectionFor(state, view.key, 2).reasoningEffort, 'adaptive')
+  assert.equal(JSON.stringify(state), before)
+})
 check('provider order, IDs and names are preserved', () => {
   const state = fixture(),
     view = describe(state, '默认')

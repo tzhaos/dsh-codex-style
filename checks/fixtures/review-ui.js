@@ -195,7 +195,9 @@ const bindingFor = (id) => {
   return sessionBindings.get(id)
 }
 const closeHandlers = new Map()
+const language = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh'
 const dictionaries = new Map()
+dictionaries.set('model', modules['@deepseek-ai/dsh-client-ui-model-selection'][language === 'en' ? '__reviewEnglishLocale' : '__reviewLocale'])
 const tFor =
   (namespace) =>
   (key, params = {}) =>
@@ -307,7 +309,7 @@ const ctx = {
     bind: tFor,
     resolveText: (value) => typeof value === 'string' ? value : value?.zh ?? value?.en ?? '',
     register(namespace, dict) {
-      dictionaries.set(namespace, dict.zh)
+      dictionaries.set(namespace, dict[language] ?? dict.zh)
       return () => dictionaries.delete(namespace)
     },
   },
@@ -462,8 +464,7 @@ function renderSlot(name, owner = {}, options = {}) {
     modules['@deepseek-ai/dsh-client-ui-model-selection'].__review.ModelSelect,
     { ...owner, available: true, directory: modelState,
       load: modelDirectory.load, select: modelDirectory.select, renderSlot,
-      t: (key, params = {}) => (modules['@deepseek-ai/dsh-client-ui-model-selection'].__reviewLocale[key] ?? key)
-        .replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? '')) },
+      t: tFor('model') },
   )
   if (name === 'sidebar.settings') return h(NativeLauncher)
   if (name === 'sidebar.brand.name') return 'DeepSeek'

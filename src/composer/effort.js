@@ -14,6 +14,13 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const zh = {
     label: '推理强度',
     default: '默认',
+    none: '关闭',
+    minimal: '极低',
+    low: '低',
+    medium: '中',
+    high: '高',
+    xhigh: '极高',
+    max: '最大',
     reset: '恢复默认强度',
     model: '选择模型',
     failed: '强度设置失败，请重试。',
@@ -24,12 +31,26 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const en = {
     label: 'Reasoning effort',
     default: 'Default',
+    none: 'None',
+    minimal: 'Minimal',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    xhigh: 'Extra high',
+    max: 'Max',
     reset: 'Reset reasoning effort',
     model: 'Choose model',
     failed: 'Could not change reasoning effort. Try again.',
     unknown: 'The selection is unconfirmed. Showing the synchronized effort. Check the connection before retrying.',
     unsupported: 'This effort is no longer available. Reset it or choose a model.',
     loading: 'Updating…',
+  }
+
+  // Translate standard display names only; provider-specific IDs remain opaque.
+  function effortLabel(level, t) {
+    const key = level.id ?? 'default'
+    return ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
+      ? t(key) : level.name
   }
 
   function describe(state, defaultLabel) {
@@ -221,7 +242,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       pointer = useRef(null),
       flight = useRef(null)
     const bridge = useRef(() => {}),
-      bypass = useRef(false)
+      bypass = useRef(false),
+      syncNativeLabel = useRef(() => {})
     const focused = useRef(false)
     const live = useRef(false)
     const [button, setButton] = useState(null)
@@ -235,11 +257,12 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
     const view = describe(state, t('default'))
+    view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level, t) }))
     const translatedDefault = nativeT?.('effort.providerDefault')
     const nativeDefault = translatedDefault && translatedDefault !== 'effort.providerDefault' ? translatedDefault : 'Default'
-    const metricsKey = JSON.stringify([view.model, nativeDefault])
+    const metricsKey = JSON.stringify([view.model, view.levels.map((level) => level.name)])
     const latest = useRef(null)
-    latest.current = { view, open, generation, directory }
+    latest.current = { view, open, generation, directory, nativeT, nativeDefault }
     const ready = () =>
       !!button?.isConnected &&
       !button.disabled &&
@@ -323,6 +346,52 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       button?.toggleAttribute('data-dshe-updating', pending)
     }, [button, pending])
     useLayoutEffect(() => {
+      if (!button) return
+      const changed = new Map()
+      const write = (node, key, value, original) => {
+        const read = () => key === 'textContent' ? node.textContent : node.getAttribute(key)
+        const current = read()
+        let fields = changed.get(node)
+        if (!fields) changed.set(node, fields = new Map())
+        fields.set(key, { original, value, read })
+        if (current === value) return
+        if (key === 'textContent') node.textContent = value
+        else node.setAttribute(key, value)
+      }
+      const sync = () => {
+        const { view, nativeT, nativeDefault } = latest.current
+        const effort = button.querySelector('.wq12jW_triggerEffort')
+        const label = view.levels[view.index]?.name
+        if (!effort || !label) return
+        const original = view.effective === undefined ? nativeDefault
+          : view.model.reasoning.efforts.find((level) => level.id === view.effective)?.name ?? view.effective
+        // The host renders this leaf as a plain string, with no managed child elements.
+        write(effort, 'textContent', label, original)
+        const model = button.querySelector('.wq12jW_triggerLabel')?.textContent
+        const aria = nativeT?.('trigger.ariaEffort', { model, effort: label })
+        if (aria && aria !== 'trigger.ariaEffort')
+          write(button, 'aria-label', aria, nativeT('trigger.ariaEffort', { model, effort: original }))
+        // Hover feedback temporarily removes native titles; do not reintroduce them.
+        if (button.hasAttribute('title')) write(button, 'title', model + ' · ' + label, model + ' · ' + original)
+      }
+      syncNativeLabel.current = sync
+      sync()
+      const observer = new MutationObserver(sync)
+      observer.observe(button, { subtree: true, childList: true, characterData: true,
+        attributes: true, attributeFilter: ['aria-label', 'title'] })
+      return () => {
+        observer.disconnect()
+        syncNativeLabel.current = () => {}
+        for (const [node, fields] of changed) for (const [key, previous] of fields) {
+          if (previous.read() !== previous.value) continue
+          if (key === 'textContent') node.textContent = previous.original
+          else if (previous.original === null) node.removeAttribute(key)
+          else node.setAttribute(key, previous.original)
+        }
+      }
+    }, [button])
+    useLayoutEffect(() => syncNativeLabel.current(), [view.key, metricsKey])
+    useLayoutEffect(() => {
       if (!button || !view.model || !view.levels.length) return
       const effort = button.querySelector('.wq12jW_triggerEffort')
       if (!effort) return
@@ -334,9 +403,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
-        // The native implicit default is "Default", even in the Chinese UI.
-        // Reserve it before it is selected; the current text must not size the control.
-        const labels = view.levels.map((level) => level.id === undefined ? nativeDefault : level.name)
+        // Reserve all localized names before selection so the control never shifts.
+        const labels = view.levels.map((level) => level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
         const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
@@ -789,6 +857,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   return {
     inject: ['slots', 'locale', 'modelDirectories', 'connection'],
     apply,
-    __test: { describe, selectionFor, selectAndConfirm, place },
+    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en },
   }
 })

@@ -50,7 +50,7 @@ for (const [name, exports] of Object.entries(parts)) {
       'return module.exports;',
       'exports.__review = {' +
         exports +
-        '}; exports.__reviewLocale = typeof accessZh !== "undefined" ? accessZh : typeof zh === "undefined" ? {} : zh; return module.exports;',
+        '}; exports.__reviewLocale = typeof accessZh !== "undefined" ? accessZh : typeof zh === "undefined" ? {} : zh; exports.__reviewEnglishLocale = typeof en === "undefined" ? {} : en; return module.exports;',
     ),
   )
 }
