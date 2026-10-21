@@ -38,6 +38,8 @@ their per-release history remains in those repositories.
 
 - The queued row's **Edit** action works again: the withdrawal reads the previous draft from the published `snapshot.draft` string instead of the shell's structured `draftSnapshot` document, which was not text and made the action throw before it could withdraw anything (queued messages with image attachments included).
 - Native browser tooltips no longer leak from plugin-owned controls: the queue handle/lock no longer write the native `title` attribute (the custom hover layer owns the tooltip), the Host edit control's refusal title is stripped, and the back/forward, effort-model, long-paste, quote-annotation and removed-session controls lost their redundant native titles.
+- The context button's first-level menu renders its rows again: the icon-only `[data-dshcs-ring] > button > span { display: none }` scope no longer swallows the menu's own icon/text spans (the panel was previously an empty box).
+- The queue row's two leading icons sit together: the grip column is 16px wide and the message/lock toggle pulls 8px against it, closing the 24px glyph gap to 10px.
 
 ## [1.2.0] - 2026-10-20
 

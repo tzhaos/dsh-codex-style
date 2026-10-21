@@ -150,6 +150,7 @@ check('the three panels collapse into one context button with a two-level menu',
   assert(source.includes("button.setAttribute('aria-haspopup', 'menu')"), 'the context control advertises the menu')
   assert(source.includes('state.bypassRing = true'), 'selecting the ring entry lets the host dialog open')
   assert(source.includes('button[aria-haspopup="dialog"]'), 'the host panel controls are relayed')
+  assert(source.includes('[${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}'), 'the icon-only scope never hides menu rows')
   assert(source.includes('[${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;display:none;'), 'stat pills stay hidden in the row')
 })
 

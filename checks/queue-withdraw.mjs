@@ -736,6 +736,8 @@ await check('injected actions match the Host action geometry', () => {
   assert(toggle.includes('border-radius: 999px'), 'circle hit box')
   assert(toggle.includes('corner-shape: round'), 'circular superellipse like the native buttons')
   assert(toggle.includes('color: var(--dsw-alias-label-tertiary)'), 'native action color')
+  assert(toggle.includes('margin-left: -8px'), 'the toggle hugs the drag grip')
+  assert(styleRule(css, '.dshqw-handle {').includes('width: 16px;'), 'the grip column is compact')
   assert(!toggle.includes('order: -1'), 'the lock no longer lives in the Host action cluster')
   assert(!source.includes('actions.append(freeze)'), 'the lock is not appended to the action cluster')
   assert(css.includes('.dshqw-lockToggle > svg { width: 16px; height: 16px; }'), '16px leading glyph')

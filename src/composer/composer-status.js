@@ -46,9 +46,9 @@ __DSH_FEATURE('dsh-composer-status', function () {
     [${DOCK_ATTR}] [data-composer-stat] svg{width:16px;height:16px;}
     [${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]{position:relative;flex:none;pointer-events:auto;margin-right:var(--dshcs-ring-right,0px);}
-    [${DOCK_ATTR}]>[${RING_ATTR}] button{padding:2px;gap:0;border-radius:999px;corner-shape:round;}
-    [${DOCK_ATTR}]>[${RING_ATTR}] button>span{display:none;}
-    [${DOCK_ATTR}]>[${RING_ATTR}] button svg{width:16px;height:16px;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]>button{padding:2px;gap:0;border-radius:999px;corner-shape:round;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]>button>svg{width:16px;height:16px;}
     [data-dshcs-popup]{left:var(--dshcs-popup-left) !important;}
     .dshcs-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:6;display:flex;flex-direction:column;gap:2px;min-width:220px;max-width:min(360px,80vw);padding:4px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);}
     .dshcs-menuItem{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;}

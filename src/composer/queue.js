@@ -1389,6 +1389,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   place-items: center;
   width: 28px;
   height: 28px;
+  margin-left: -8px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -1419,7 +1420,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  width: 16px;
   height: 28px;
   padding: 0;
   border: 0;
