@@ -675,6 +675,24 @@ await check('clicking a control dismisses its explanatory tooltip', () => {
   assertEqual(tooltipOf(harness).length, 0, 'tooltip gone after click')
 })
 
+await check('a clicked control stays quiet until the pointer leaves', () => {
+  const { harness, fakeDocument, fakeWindow } = scenario()
+  const button = createButton({ ariaLabel: '锁定，本轮结束不发送' })
+  fakeDocument.dispatch('pointerover', eventFor(button))
+  reveal(harness, fakeWindow)
+  assertEqual(tooltipOf(harness).length, 1, 'tooltip before click')
+  fakeDocument.dispatch('pointerdown', eventFor(button))
+  harness.rerender()
+  assertEqual(tooltipOf(harness).length, 0, 'click dismisses it')
+  fakeDocument.dispatch('pointerover', eventFor(button))
+  reveal(harness, fakeWindow)
+  assertEqual(tooltipOf(harness).length, 0, 'suppressed while the pointer stays')
+  fakeDocument.dispatch('pointerout', eventFor(button))
+  fakeDocument.dispatch('pointerover', eventFor(button))
+  reveal(harness, fakeWindow)
+  assertEqual(tooltipOf(harness).length, 1, 're-entering shows it again')
+})
+
 await check('transparent icon buttons receive the shared hover surface', () => {
   const { fakeDocument } = scenario({ background: 'rgba(0, 0, 0, 0)' })
   const button = createButton({ ariaLabel: 'Pin chat' })

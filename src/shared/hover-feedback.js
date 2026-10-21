@@ -312,6 +312,12 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     const rootHideTimerRef = useRef(null)
     const tipBackups = useRef(new Map())
     const buttonBackups = useRef(new Map())
+    /**
+     * Controls whose hover bubble was dismissed by a click. The suppression
+     * lasts until the pointer leaves the control, so an action cannot pop a
+     * tooltip back over the panel it just opened.
+     */
+    const clickedControlsRef = useRef(new WeakSet())
     const restoreOwned = () => {
       document.documentElement?.removeAttribute?.('data-dshhp-hover')
       hostAnchorRef.current = null
@@ -523,6 +529,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (clickedControlsRef.current.has(button)) { hide(); return }
         if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
@@ -560,6 +567,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           button.contains?.(event.relatedTarget)
         )
           return
+        clickedControlsRef.current.delete(button)
         if (button === hostAnchorRef.current) stopHostCentering()
         if (button !== activeRef.current) return
         hide()
@@ -577,6 +585,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (clickedControlsRef.current.has(button)) return
         if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
@@ -625,9 +634,17 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         stopHostCentering()
         hide()
       }
-      const onPointerDown = () => {
+      const onPointerDown = (event) => {
         stopHostCentering()
         hide()
+        // A click on a control dismisses its bubble for the rest of this
+        // pointer visit: the action it opened must not be covered by the
+        // tooltip that reappears a moment later.
+        const target = event?.target
+        if (target !== null && target !== undefined && typeof target.closest === 'function') {
+          const control = target.closest(CONTROL_SELECTOR)
+          if (control !== null && control !== undefined) clickedControlsRef.current.add(control)
+        }
       }
       const onClick = () => {
         stopHostCentering()

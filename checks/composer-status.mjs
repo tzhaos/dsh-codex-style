@@ -144,14 +144,13 @@ check('the stylesheet floats the dock on the card row and keeps only icons', () 
   assert(source.includes('margin-right:var(--dshcs-ring-right'), 'ring offset is driven by measurement')
 })
 
-check('the three panels collapse into one context button with a two-level menu', () => {
-  assert(source.includes("className = 'dshcs-menu'"), 'first-level menu is built')
-  assert(source.includes('dshcs-menuItem'), 'menu rows exist')
-  assert(source.includes("button.setAttribute('aria-haspopup', 'menu')"), 'the context control advertises the menu')
-  assert(source.includes('state.bypassRing = true'), 'selecting the ring entry lets the host dialog open')
-  assert(source.includes('button[aria-haspopup="dialog"]'), 'the host panel controls are relayed')
-  assert(source.includes('[${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}'), 'the icon-only scope never hides menu rows')
-  assert(source.includes('[${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;display:none;'), 'stat pills stay hidden in the row')
+check('the three status controls stay separate icon buttons in the composer row', () => {
+  assert(source.includes('[${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;pointer-events:auto;}'), 'stat pills keep their row slot')
+  assert(source.includes('[${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}'), 'pills only hide when the fit plan drops them')
+  assert(source.includes('[${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}'), 'the ring keeps only its icon')
+  assert(source.includes('[${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;'), 'stat pills keep only their icon')
+  assert(!source.includes('dshcs-menu'), 'no merged menu surface')
+  assert(!source.includes('require('), 'no extra framework dependency')
 })
 
 check('the feature is a single lazy capability with no host service dependency', () => {

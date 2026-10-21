@@ -13446,7 +13446,7 @@ __DSH_FEATURE('dsh-composer-status', function () {
     [${DOCK_ATTR}][${ACTIVITY_ATTR}]{display:none;}
     [${DOCK_ATTR}]*{box-sizing:border-box;}
     [${DOCK_ATTR}]>*{pointer-events:auto;flex:none;}
-    [${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;display:none;pointer-events:auto;}
+    [${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;pointer-events:auto;}
     [${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}
     [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:2px 4px;border-radius:999px;corner-shape:round;}
     [${DOCK_ATTR}] [data-composer-stat] svg{width:16px;height:16px;}
@@ -13456,12 +13456,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>svg{width:16px;height:16px;}
     [data-dshcs-popup]{left:var(--dshcs-popup-left) !important;}
-    .dshcs-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:6;display:flex;flex-direction:column;gap:2px;min-width:220px;max-width:min(360px,80vw);padding:4px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);}
-    .dshcs-menuItem{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;}
-    .dshcs-menuItem:hover,.dshcs-menuItem:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none;}
-    .dshcs-menuIcon{display:inline-flex;flex:none;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary);}
-    .dshcs-menuIcon svg{width:16px;height:16px;}
-    .dshcs-menuText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   `
 
   /** @param {number} value - raw px. @returns {number} rounded px. */
@@ -13653,7 +13647,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
       dock.style.removeProperty(name)
     for (const ring of Array.from(dock.querySelectorAll('[' + RING_ATTR + ']')))
       ring.removeAttribute(RING_ATTR)
-    for (const menu of Array.from(dock.querySelectorAll?.('.dshcs-menu') ?? [])) menu.remove?.()
   }
 
   /**
@@ -13775,151 +13768,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
       state[name] = text
     }
 
-    /**
-     * Close one dock's first-level status menu.
-     * @param {object} state - per-dock applied values.
-     */
-    function closeMenu(state) {
-      if (state.menu === undefined || state.menu === null) return
-      state.menu.remove?.()
-      state.menu = null
-      const button = state.ringButton
-      if (button !== null && button !== undefined && button.isConnected !== false)
-        button.setAttribute('aria-expanded', 'false')
-    }
-
-    /** Close every open first-level status menu. */
-    function closeMenus() {
-      for (const state of states.values()) closeMenu(state)
-    }
-
-    /** @param {Element|null|undefined} node - host node. @returns {string} visible text. */
-    function domText(node) {
-      return typeof node?.textContent === 'string' ? node.textContent.trim() : ''
-    }
-
-    /** @param {Element|null|undefined} node - host control. @returns {string} icon markup. */
-    function iconHtml(node) {
-      const svg = node?.querySelector?.('svg')
-      return svg === null || svg === undefined ? '' : svg.outerHTML
-    }
-
-    /**
-     * Build the first-level menu: one row per hidden stat pill plus the context
-     * ring itself. Each row carries the host icon and its live info; selecting a
-     * row opens that panel (second level) by relaying to the host control.
-     * @param {Element} dock - dock row.
-     * @param {object} state - per-dock applied values.
-     * @param {Element|null} ring - ring container.
-     * @param {Element[]} pills - hidden stat anchors.
-     */
-    function openMenu(dock, state, ring, pills) {
-      closeMenus()
-      if (ring === null) return
-      const ringButton =
-        ring.querySelector?.('button[aria-haspopup="dialog"]') ?? ring.querySelector?.('button')
-      if (ringButton === null || ringButton === undefined) return
-      const menu = document.createElement('div')
-      menu.className = 'dshcs-menu'
-      menu.setAttribute('role', 'menu')
-      const entries = []
-      for (const pill of pills) {
-        const button = pill.querySelector?.('button') ?? null
-        if (button === null) continue
-        const label = pill.querySelector?.('[class$="_label"]')
-        const info = domText(label) || domText(pill) || (button.getAttribute?.('aria-label') ?? '')
-        entries.push({ icon: iconHtml(pill), info, button, ring: false })
-      }
-      entries.push({
-        icon: iconHtml(ringButton),
-        info: domText(ringButton) || ringButton.getAttribute?.('aria-label') || '',
-        button: ringButton,
-        ring: true,
-      })
-      for (const entry of entries) {
-        const item = document.createElement('button')
-        item.type = 'button'
-        item.className = 'dshcs-menuItem'
-        item.setAttribute('role', 'menuitem')
-        item.innerHTML =
-          '<span class="dshcs-menuIcon">' +
-          entry.icon +
-          '</span><span class="dshcs-menuText"></span>'
-        const text = item.querySelector?.('.dshcs-menuText') ?? null
-        if (text !== null) text.textContent = entry.info
-        item.addEventListener('click', (event) => {
-          event.preventDefault?.()
-          event.stopPropagation?.()
-          closeMenu(state)
-          if (entry.ring === true) {
-            // Let the host ring control own its own dialog this once.
-            state.bypassRing = true
-            entry.button.click?.()
-            return
-          }
-          entry.button.click?.()
-        })
-        menu.append(item)
-      }
-      ring.append(menu)
-      state.menu = menu
-      state.ringButton = ringButton
-      if (ringButton.getAttribute?.('aria-haspopup') !== 'menu')
-        ringButton.setAttribute('aria-haspopup', 'menu')
-      ringButton.setAttribute('aria-expanded', 'true')
-    }
-
-    /**
-     * Bind the single context control to the first-level menu.
-     * @param {Element} dock - dock row.
-     * @param {object} state - per-dock applied values.
-     * @param {Element|null} ring - ring container.
-     * @param {Element[]} pills - hidden stat anchors.
-     */
-    function bindStatusMenu(dock, state, ring, pills) {
-      if (ring === null) return
-      const button =
-        ring.querySelector?.('button[aria-haspopup="dialog"]') ?? ring.querySelector?.('button')
-      if (button === null || button === undefined) return
-      if (state.ringButton === button) {
-        if (button.getAttribute?.('aria-haspopup') !== 'menu')
-          button.setAttribute('aria-haspopup', 'menu')
-        if (button.getAttribute?.('aria-expanded') === null)
-          button.setAttribute('aria-expanded', 'false')
-        return
-      }
-      if (state.ringButton !== undefined && state.ringButton !== null && state.ringClick !== undefined)
-        state.ringButton.removeEventListener?.('click', state.ringClick, true)
-      state.ringButton = button
-      state.ringClick = (event) => {
-        if (state.bypassRing === true) {
-          state.bypassRing = false
-          return
-        }
-        event.preventDefault?.()
-        event.stopImmediatePropagation?.()
-        event.stopPropagation?.()
-        if (state.menu !== undefined && state.menu !== null) closeMenu(state)
-        else openMenu(dock, state, ring, pills)
-      }
-      button.addEventListener('click', state.ringClick, true)
-      button.setAttribute('aria-haspopup', 'menu')
-      button.setAttribute('aria-expanded', 'false')
-    }
-
-    /**
-     * Release one dock's menu, listener and markers.
-     * @param {Element} dock - dock row.
-     */
-    function disposeDock(dock) {
-      const state = states.get(dock)
-      if (state === undefined) return
-      closeMenu(state)
-      if (state.ringButton !== undefined && state.ringButton !== null && state.ringClick !== undefined)
-        state.ringButton.removeEventListener?.('click', state.ringClick, true)
-      delete state.ringButton
-      delete state.ringClick
-    }
 
     /**
      * Apply the plan to one dock.
@@ -13929,7 +13777,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
     function syncDock(dock) {
       const parts = composerParts(dock)
       if (parts === null) {
-        disposeDock(dock)
         clearDock(dock)
         states.delete(dock)
         return []
@@ -13946,7 +13793,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
 
       const { pills, ring } = splitDock(dock)
       if (ring !== null && !ring.hasAttribute(RING_ATTR)) ring.setAttribute(RING_ATTR, '')
-      bindStatusMenu(dock, state, ring, pills)
       const rootRect = rectOf(parts.root)
       const rowRect = rectOf(parts.row)
       const toolsRect = rectOf(parts.tools)
@@ -13992,7 +13838,6 @@ __DSH_FEATURE('dsh-composer-status', function () {
       const live = new Set(docks)
       for (const [dock] of states) {
         if (!live.has(dock)) {
-          disposeDock(dock)
           clearDock(dock)
           states.delete(dock)
         }
@@ -14049,30 +13894,13 @@ __DSH_FEATURE('dsh-composer-status', function () {
       }
     })
 
-    /** Close the first-level menu once focus/pointer leaves the control. */
-    const onMenuPointerDown = (event) => {
-      const target = event.target
-      for (const [dock, state] of states) {
-        if (state.menu === undefined || state.menu === null) continue
-        if (state.menu.contains?.(target) === true) continue
-        if (state.ringButton?.contains?.(target) === true) continue
-        closeMenu(state)
-      }
-    }
-    const onMenuKeyDown = (event) => {
-      if (event.key === 'Escape') closeMenus()
-    }
     const onResize = () => {
-      closeMenus()
       schedule()
     }
     const onScroll = () => {
-      if (document.querySelector('.dshcs-menu') !== null) closeMenus()
       if (popups.size > 0) schedule()
     }
     mutations.observe(document.body, { childList: true, subtree: true })
-    document.addEventListener('pointerdown', onMenuPointerDown, true)
-    document.addEventListener('keydown', onMenuKeyDown, true)
     window.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('resize', onResize)
     window.addEventListener('scroll', onScroll, true)
@@ -14085,14 +13913,10 @@ __DSH_FEATURE('dsh-composer-status', function () {
       mutations.disconnect()
       resize.disconnect()
       releasePopups()
-      closeMenus()
-      document.removeEventListener('pointerdown', onMenuPointerDown, true)
-      document.removeEventListener('keydown', onMenuKeyDown, true)
       window.removeEventListener('resize', onResize)
       window.visualViewport?.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll, true)
       for (const dock of Array.from(document.querySelectorAll(DOCK_SELECTOR))) clearDock(dock)
-      for (const dock of states.keys()) disposeDock(dock)
       for (const [dock] of states) clearDock(dock)
       states.clear()
       observed.clear()
@@ -17178,6 +17002,12 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     const rootHideTimerRef = useRef(null)
     const tipBackups = useRef(new Map())
     const buttonBackups = useRef(new Map())
+    /**
+     * Controls whose hover bubble was dismissed by a click. The suppression
+     * lasts until the pointer leaves the control, so an action cannot pop a
+     * tooltip back over the panel it just opened.
+     */
+    const clickedControlsRef = useRef(new WeakSet())
     const restoreOwned = () => {
       document.documentElement?.removeAttribute?.('data-dshhp-hover')
       hostAnchorRef.current = null
@@ -17389,6 +17219,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (clickedControlsRef.current.has(button)) { hide(); return }
         if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
@@ -17426,6 +17257,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           button.contains?.(event.relatedTarget)
         )
           return
+        clickedControlsRef.current.delete(button)
         if (button === hostAnchorRef.current) stopHostCentering()
         if (button !== activeRef.current) return
         hide()
@@ -17443,6 +17275,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (clickedControlsRef.current.has(button)) return
         if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
@@ -17491,9 +17324,17 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         stopHostCentering()
         hide()
       }
-      const onPointerDown = () => {
+      const onPointerDown = (event) => {
         stopHostCentering()
         hide()
+        // A click on a control dismisses its bubble for the rest of this
+        // pointer visit: the action it opened must not be covered by the
+        // tooltip that reappears a moment later.
+        const target = event?.target
+        if (target !== null && target !== undefined && typeof target.closest === 'function') {
+          const control = target.closest(CONTROL_SELECTOR)
+          if (control !== null && control !== undefined) clickedControlsRef.current.add(control)
+        }
       }
       const onClick = () => {
         stopHostCentering()
@@ -17783,9 +17624,9 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-effort-slider.title': '推理强度滑条',
     'feature.dsh-effort-slider.summary': '滑动选择当前模型支持的推理强度。',
     'feature.dsh-effort-slider.note': '松开后生效；可恢复默认强度，并保留原生模型菜单。',
-    'feature.dsh-composer-status.title': '上下文状态按钮',
-    'feature.dsh-composer-status.summary': '把上下文环与对话统计合并为一个上下文按钮：一级菜单选面板，二级菜单看详情。',
-    'feature.dsh-composer-status.note': '上下文按钮位于模型名左侧；只保留一个图标，点击先出三个面板的图标与信息，再展开详情。',
+    'feature.dsh-composer-status.title': '输入框内联状态',
+    'feature.dsh-composer-status.summary': '把上下文环和对话统计作为图标按钮移进输入框底部工具行。',
+    'feature.dsh-composer-status.note': '上下文环位于模型名左侧；只保留图标，悬停或点开可看详情。',
     'feature.dsh-continue.summary': '输入为空时，用继续按钮接着处理当前对话。',
     'feature.dsh-continue.note': '仅在已有对话且未运行时显示；发送结果不明时等待确认。',
     'feature.dsh-selection-toolbar.title': '选区工具栏',
@@ -17864,11 +17705,11 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-effort-slider.title': 'Reasoning effort slider',
     'feature.dsh-effort-slider.summary': 'Slide through the current model’s supported reasoning levels.',
     'feature.dsh-effort-slider.note': 'Applies on release, with reset and the native model menu.',
-    'feature.dsh-composer-status.title': 'Context status button',
+    'feature.dsh-composer-status.title': 'Inline composer status',
     'feature.dsh-composer-status.summary':
-      'Merge the context ring and conversation stats into one context button: pick a panel in the first-level menu, read details in the second.',
+      'Move the context ring and conversation stats into the composer row as icon buttons.',
     'feature.dsh-composer-status.note':
-      'The context button sits before the model name; one icon opens the three panel entries with their icons and info, then the detail panel.',
+      'The ring sits before the model name; only icons stay, with details on hover or click.',
     'feature.dsh-continue.summary': 'Continue the current conversation when the composer is empty.',
     'feature.dsh-continue.note':
       'Shown for idle existing conversations; uncertain sends await confirmation.',

@@ -27,7 +27,7 @@ their per-release history remains in those repositories.
 - The queued row's leading message icon is now the lock toggle: it keeps the native message glyph while idle and swaps to the closed lock when held, so the icon is useful and the separate action-cluster lock button is gone. Dragging moves to the dedicated grip at its left, keeping click-to-lock and drag apart.
 - Queue attachment previews use the Host `ImageLightbox` primitive (the same surface as composer and transcript images) instead of a bespoke modal, and queue thumbnails/files answer right-click with the shared attachment menu (copy image/address, save image, view image, copy file name and size).
 - Merging queued messages now keeps every attachment: the drag-merge writes the combined text plus both messages' image/file blocks through the update route and only then removes the source, instead of relying on the text-only Host merge.
-- The three composer status controls collapse into one context button: its first-level menu lists the two stat rows and the context ring with their host icons and live info, and picking a row opens that Host detail panel as the second level.
+- The two composer stat pills and the context ring stay three separate icon buttons moved into the composer control row, each keeping its own Host tooltip and detail panel.
 - The Host **steer** action keeps its native icon, tooltip, order and label; the custom 「引导」 mask glyph and text pill are removed, and only the remove control is still intercepted.
 - The queue handle's leading glyph is the Host's own message icon (`IconQueueOutlineRegular`) instead of a bespoke queue arrow, matching the native icon grid and stroke.
 - Queued messages are always expanded: the Host dock header (count + collapse chevron) is removed and a collapsed list state is forced open, so queued rows and their actions cannot be hidden behind a collapse toggle.
@@ -38,8 +38,8 @@ their per-release history remains in those repositories.
 
 - The queued row's **Edit** action works again: the withdrawal reads the previous draft from the published `snapshot.draft` string instead of the shell's structured `draftSnapshot` document, which was not text and made the action throw before it could withdraw anything (queued messages with image attachments included).
 - Native browser tooltips no longer leak from plugin-owned controls: the queue handle/lock no longer write the native `title` attribute (the custom hover layer owns the tooltip), the Host edit control's refusal title is stripped, and the back/forward, effort-model, long-paste, quote-annotation and removed-session controls lost their redundant native titles.
-- The context button's first-level menu renders its rows again: the icon-only `[data-dshcs-ring] > button > span { display: none }` scope no longer swallows the menu's own icon/text spans (the panel was previously an empty box).
 - The queue row's two leading icons sit together: the grip column is 16px wide and the message/lock toggle pulls 8px against it, closing the 24px glyph gap to 10px.
+- Clicking a control now dismisses its hover bubble for the rest of that pointer visit: the tooltip no longer reappears over the action or panel the click just opened, and it returns once the pointer leaves and re-enters the control.
 
 ## [1.2.0] - 2026-10-20
 
