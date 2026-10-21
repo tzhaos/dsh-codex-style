@@ -72,13 +72,14 @@ function scenario(options = {}) {
   const removed = []
   const released = []
   const shell = {
+    removeAttachment(id) { if (this.snapshot.phase === 'submitting') return false; removed.push(id); return true },
     actions: {
-      addAttachments(ids) { added.push(...ids); return true },
+      addAttachments(ids) { if (options.rejectAttachments) return false; added.push(...ids); return true },
       setDraft(text) { draft.value = text },
       removeAttachment(id) { removed.push(id) },
     },
     notify(level, text) { notices.push({ level, text }) },
-    snapshot: { get draft() { return draft.value } },
+    snapshot: { get draft() { return draft.value }, phase: options.phase ?? 'plain' },
   }
   const conversation = {
     input: { for: () => shell },
@@ -174,7 +175,7 @@ function pasteEvent(target, text, { files = [] } = {}) {
 // Static contract
 await check('manifest declares a DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -305,6 +306,21 @@ await check('cleanup removes the paste listener', () => {
   const applied = scenario()
   applied.cleanups[0]()
   assert.equal(applied.listeners.size, 0)
+})
+
+await check('busy admission preserves the attachment and draft when expanding', async () => {
+  const applied = scenario({ phase: 'submitting' })
+  await applied.injected.actions.attach('x'.repeat(2000), 'failed')
+  const name = applied.drafts[0].files[0].name
+  assert.equal(applied.injected.actions.showInText(name, 'expand', 'remove'), false)
+  assert.deepEqual(applied.released, [])
+  assert.equal(applied.draft.value, '')
+})
+
+await check('rejected attachment admission releases the newly created draft', async () => {
+  const applied = scenario({ rejectAttachments: true })
+  assert.equal(await applied.injected.actions.attach('x'.repeat(2000), 'failed'), false)
+  assert.deepEqual(applied.released, ['draft-1'])
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

@@ -14,10 +14,15 @@ import os from 'node:os'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { apply as applyHostPlugin } from '../index.js'
+import { apply as applyHostPlugin, inject as hostDependencies } from '../index.js'
 
 // Keep the Host-side frozen-id file inside a scratch directory.
-process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-queue-withdraw-check-'))
+const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-queue-withdraw-check-'))
+process.env.DSH_HOME = fixtureHome
+process.once('exit', () => {
+  const resolved = path.resolve(fixtureHome)
+  if (path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith('dsh-queue-withdraw-check-')) fs.rmSync(resolved, { recursive: true, force: true })
+})
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
@@ -60,7 +65,7 @@ function featureSource(id) {
 
 await check('manifest declares the merged DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -88,7 +93,7 @@ await check('bundle patch inserts exactly one codex-style row', () => {
 })
 
 await check('merged host half keeps the queue routes and inject union', () => {
-  assert(indexSource.includes("export const inject = ['webServer', 'agents', 'sessions', 'attachments']"), 'inject union')
+  assert(['webServer', 'agents', 'sessions', 'attachments'].every((name) => hostDependencies.includes(name)), 'inject union')
   for (const route of [
     '/dsh-queue-withdraw/reorder',
     '/dsh-queue-withdraw/update',
@@ -516,6 +521,7 @@ function loadClient({ react, document, sessions, locale, fetch }) {
     plugin: loaded.factory((id) => {
       if (id === 'react') return react
       if (id === 'react-dom') return { createPortal: (node) => node }
+      if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: () => null, Modal: () => null }
       throw new Error('unexpected require ' + id)
     }),
     storage,
@@ -541,6 +547,9 @@ function scenario(options = {}) {
   const releasedDrafts = []
   const draftCalls = []
   const readCalls = []
+  const draftRegistry = new Map()
+  const stateListeners = new Set()
+  const publish = () => { for (const listener of stateListeners) listener() }
   const session = {
     updateQueue: async (itemId, action) => {
       updates.push({ itemId, action })
@@ -559,28 +568,47 @@ function scenario(options = {}) {
   }
   const notification = {
     notify: (level, text) => { notices.push({ level, text }) },
+    // The real InputShell method reads instance state and returns whether the
+    // UI may release the draft resource. Arrow-only mocks concealed this bug.
+    removeAttachment(id) {
+      const ids = this.snapshot.attachmentIds
+      const index = ids.indexOf(id)
+      if (index < 0) return false
+      ids.splice(index, 1)
+      removedAttachments.push(id)
+      publish()
+      return true
+    },
     actions: {
       setDraft: (text) => { draft.value = text },
-      addAttachments: (ids) => { addedAttachments.push(...ids); return true },
-      removeAttachment: (id) => { removedAttachments.push(id) },
+      addAttachments: (ids) => { addedAttachments.push(...ids); attachmentIds.push(...ids); publish(); return true },
+      removeAttachment: (id) => { notification.removeAttachment(id) },
     },
     snapshot: {
+      phase: options.phase ?? 'plain',
       get draft() { return draft.value },
       get attachmentIds() { return attachmentIds },
     },
   }
+  notification.state = { getSnapshot: () => notification.snapshot, subscribe(listener) { stateListeners.add(listener); return () => stateListeners.delete(listener) } }
   const updateQueueCalls = []
   const conversation = {
     input: { for: () => notification },
     createDrafts: (sessionId, files) => {
       draftCalls.push({ sessionId, files })
-      return files.map((file, index) => ({ kind: 'image', id: 'draft-' + (index + 1), file, previewUrl: 'blob:draft' }))
+      return files.map((file, index) => {
+        const draft = { kind: file.type?.startsWith('image/') ? 'image' : 'file', id: 'draft-' + draftCalls.length + '-' + index, file, previewUrl: 'blob:draft' }
+        draftRegistry.set(draft.id, draft)
+        return draft
+      })
     },
     updateQueue: async (itemId, action) => {
       updateQueueCalls.push({ itemId, action })
       return { ok: true }
     },
-    releaseDraftAttachment: (id) => { releasedDrafts.push(id) },
+    releaseDraftAttachment: (id) => { releasedDrafts.push(id); draftRegistry.delete(id) },
+    resolveDraftAttachments: (ids) => ids.map((id) => draftRegistry.get(id)).filter(Boolean),
+    fileUploads: { getSnapshot: () => Object.fromEntries([...draftRegistry].map(([id, draft]) => [id, { status: 'ready', file: { attachmentId: 'file-1', name: draft.file.name, bytes: draft.file.size } }])), subscribe: () => () => {} },
   }
   const scope = { get: (name) => name === 'conversation' ? conversation : undefined }
   const sessions = {
@@ -597,7 +625,10 @@ function scenario(options = {}) {
   const ctx = {
     effect: (factory) => { factory(); return () => {} },
     sessions,
-    locale: { register: (ns, dicts) => { localeRegistrations.push({ ns, dicts }); return () => {} } },
+    locale: {
+      register: (ns, dicts) => { localeRegistrations.push({ ns, dicts }); return () => {} },
+      bind: (ns) => (key, params = {}) => translator(localeRegistrations.find((entry) => entry.ns === ns).dicts.zh)(key, params),
+    },
     slots: {
       inject: (_slot, callback) => callback(),
       register: (entryOptions, component) => {
@@ -606,6 +637,7 @@ function scenario(options = {}) {
       },
     },
   }
+  const nativeUpdateQueue = conversation.updateQueue
   plugin.apply(ctx)
   const registration = registrations[0]
   const t = translator(localeRegistrations[0].dicts.zh)
@@ -613,8 +645,17 @@ function scenario(options = {}) {
   return {
     plugin, registration, registrations, localeRegistrations, document, reactRuntime,
     updates, notices, draft, attachmentIds, session, scope, notification, t, injected, conversation,
-    addedAttachments, removedAttachments, releasedDrafts, draftCalls, readCalls, storage, updateQueueCalls,
+    addedAttachments, removedAttachments, releasedDrafts, draftCalls, readCalls, storage, updateQueueCalls, nativeUpdateQueue, draftRegistry,
   }
+}
+
+/** Native admission publishes ids before submission consumes and releases them. */
+function cacheSubmittedFile(applied,file) {
+ const drafts=applied.conversation.createDrafts('session-a',[file])
+ applied.notification.actions.addAttachments(drafts.map(draft=>draft.id))
+ applied.injected.actions.saveDraftAttachments()
+ for(const draft of drafts){applied.notification.removeAttachment(draft.id);applied.conversation.releaseDraftAttachment(draft.id)}
+ applied.addedAttachments.length=0
 }
 
 /** One queue item. */
@@ -658,14 +699,13 @@ await check('locked rows use a strikethrough and a per-row lock instead of a blu
   assert(source.includes('readFrozen'))
   assert(!source.includes('dshqw-frozen-item'), 'no synthetic rows')
   assert(!source.includes('box-shadow: inset 0 0 0 1px color-mix'), 'no outline indicator')
-  assert(source.includes('li [class*="lead"]'), 'the redundant Host queue icon is hidden')
+  assert(source.includes('[data-dshq-row] > [class*="lead"]'), 'only decorated rows hide the redundant Host queue icon')
 })
 
-await check('layout churn diagnostics are wired', () => {
+await check('queue layout does not upload diagnostics or append unbounded host logs', () => {
   const source = featureSource('dsh-queue-withdraw')
-  assert(source.includes("reportLayout('dock-geometry'"))
-  assert(source.includes("reportLayout('buttons-dropped'"))
-  assert(source.includes('noteDecoration('))
+  assert(!source.includes('/dsh-queue-withdraw/diag'))
+  assert(!indexSource.includes('appendFileSync'))
   assert(source.includes('data-submission-echo'))
 })
 
@@ -715,7 +755,7 @@ await check('an empty conversation renders no overlay tree', () => {
 
 await check('factory registers one queue-dock decoration', () => {
   const { plugin, registrations, registration, localeRegistrations } = scenario()
-  equal(plugin.inject.slice().sort(), ['locale', 'sessions', 'slots'])
+  equal(plugin.inject.slice().sort(), ['connection', 'locale', 'sessions', 'slots'])
   assert.equal(registrations.length, 1)
   assert.equal(registration.options.name, 'conversation.input.dock')
   assert.equal(registration.options.id, 'queue-withdraw')
@@ -766,6 +806,20 @@ await check('withdraw appends text to the draft and removes the queue item', asy
   equal(applied.notices, [], 'successful withdraw is silent')
 })
 
+await check('native image removal retains the InputShell receiver and boolean result', () => {
+  const applied = scenario({ attachmentIds: ['draft-image'] })
+  assert.equal(applied.notification.removeAttachment('draft-image'), true)
+  assert.deepEqual(applied.attachmentIds, [])
+  assert.equal(applied.notification.removeAttachment('draft-image'), false)
+})
+
+await check('withdraw refuses to change a draft during admission', async () => {
+  const applied = scenario({ draft: 'in-flight text', phase: 'submitting' })
+  assert.equal(await applied.injected.actions.withdraw(queueItem('queued text'), 'empty', 'failed', 'attachment'), false)
+  assert.equal(applied.draft.value, 'in-flight text')
+  equal(applied.updates, [])
+})
+
 await check('withdraw restores the draft when the Host rejects removal', async () => {
   const applied = scenario({ draft: 'existing', updateResult: { ok: false } })
   const ok = await applied.injected.actions.withdraw(queueItem('queued text'), 'empty', 'failed', 'attachment')
@@ -790,7 +844,7 @@ await check('withdraw rehydrates image attachments into the draft', async () => 
   const ok = await applied.injected.actions.withdraw(item, 'empty', 'failed', 'attachment')
   assert.equal(ok, true)
   equal(applied.readCalls, ['image-1'])
-  equal(applied.addedAttachments, ['draft-1'])
+  equal(applied.addedAttachments, ['draft-1-0'])
   assert.equal(applied.draftCalls.length, 1, 'draft file registered')
   equal(applied.updates, [{ itemId: 'item-1', action: { kind: 'remove' } }])
   equal(applied.notices, [], 'successful withdraw is silent')
@@ -799,7 +853,7 @@ await check('withdraw rehydrates image attachments into the draft', async () => 
 await check('withdraw restores a file attachment from the temporary cache', async () => {
   const applied = scenario({ draft: 'existing' })
   const file = { name: 'notes.txt', size: 10, type: 'text/plain', lastModified: 1 }
-  applied.conversation.createDrafts('session-a', [file])
+  cacheSubmittedFile(applied, file)
   const item = queueItem('queued text', [{ type: 'file', attachment: { attachmentId: 'file-1', name: 'notes.txt', bytes: 10 } }])
   const ok = await applied.injected.actions.withdraw(item, 'empty', 'failed', 'attachment', 'cache-missing')
   assert.equal(ok, true)
@@ -807,12 +861,12 @@ await check('withdraw restores a file attachment from the temporary cache', asyn
   assert.equal(applied.draft.value, 'queued text')
   equal(applied.notices, [], 'successful withdraw is silent')
   assert.equal(applied.draftCalls.length, 2, 'restored file registered')
-  equal(applied.addedAttachments, ['draft-1'])
+  equal(applied.addedAttachments, ['draft-2-0'])
 })
 
 await check('forgetCached drops files after their queue message leaves', async () => {
   const applied = scenario({ draft: 'existing' })
-  applied.conversation.createDrafts('session-a', [{ name: 'notes.txt', size: 10, type: 'text/plain' }])
+  cacheSubmittedFile(applied, { name: 'notes.txt', size: 10, type: 'text/plain' })
   applied.injected.actions.forgetCached([{ name: 'notes.txt', size: 10 }])
   await new Promise((resolve) => setTimeout(resolve, 0))
   const item = queueItem('queued text', [{ type: 'file', attachment: { attachmentId: 'file-1', name: 'notes.txt', bytes: 10 } }])
@@ -830,12 +884,13 @@ await check('text messages keep the Host native inline editor', () => {
   assert.equal(hostEdit.getAttribute('data-dshq-edit'), null, 'no interception marker')
 })
 
-await check('native text edits keep the message attachments', async () => {
-  const applied = scenario()
-  const image = { type: 'image', attachment: { attachmentId: 'image-1', mediaType: 'image/png' } }
-  mountDecoration(applied, [queueItem('queued text', [image])])
-  await applied.conversation.updateQueue('item-1', { kind: 'edit', content: [{ type: 'text', text: 'edited' }] })
-  equal(applied.updateQueueCalls[0].action.content, [{ type: 'text', text: 'edited' }, image])
+await check('native queue services retain their receiver-sensitive method identity', async () => {
+  const applied=scenario()
+  mountDecoration(applied,[queueItem('queued text',[{type:'image',attachment:{attachmentId:'image-1'}}])])
+  assert.equal(applied.conversation.updateQueue,applied.nativeUpdateQueue)
+  await applied.conversation.updateQueue('item-1',{kind:'edit',content:[{type:'text',text:'edited'}]})
+  equal(applied.updateQueueCalls[0].action.content,[{type:'text',text:'edited'}])
+
 })
 
 await check('attachment-only messages fall back to the plugin editor', () => {
@@ -863,13 +918,13 @@ await check('a separate withdraw control is injected into the Host row', () => {
   assert(source.includes('withdrawThrough(withdraw'))
 })
 
-await check('rows are draggable without a drag handle icon', () => {
+await check('rows expose a hover drag handle alongside their queue status', () => {
   const source = featureSource('dsh-queue-withdraw')
   assert(source.includes('dshqw-drag-ghost'))
   assert(source.includes('dshqw-drag-source'))
-  assert(source.includes("row.addEventListener('pointerdown'"))
-  assert(!source.includes('data-dshq-handle'), 'no handle button')
-  assert(!source.includes('dshqw-handle'), 'no handle styles')
+  assert(source.includes("listen(row, 'pointerdown'"))
+  assert(source.includes('data-dshq-handle'), 'dedicated handle button')
+  assert(source.includes('dshqw-grip'), 'hover grip styles')
   assert(source.includes('onRowControl'), 'row controls keep their own presses')
 })
 
@@ -894,7 +949,7 @@ await check('dragging the row body posts the complete new order', async () => {
   first._rect = { left: 0, top: 0, width: 400, height: 36 }
   last._rect = { left: 0, top: 36, width: 400, height: 36 }
   assert.equal(last.getAttribute('data-dshq-row'), '', 'the row is the drag source')
-  assert.equal(last.getAttribute('data-dshq-handle'), null, 'no handle injected')
+  assert(last.querySelector('[data-dshq-handle]'), 'handle injected')
   await last.dispatch('pointerdown', { button: 0, clientX: 200, clientY: 54, target: last })
   applied.document._hit = first
   await applied.document.dispatch('pointermove', { clientX: 200, clientY: 10 })
@@ -912,7 +967,37 @@ await check('composer attachments are restored after the session component unmou
   applied.injected.actions.saveDraftAttachments()
   applied.attachmentIds.length = 0
   await applied.injected.actions.restoreDraftAttachments()
-  assert.deepEqual(applied.addedAttachments, ['draft-1'])
+  assert.deepEqual(applied.addedAttachments, ['draft-2-0'])
+})
+
+await check('a fresh empty InputShell retains pending files until restoration succeeds', async () => {
+  const applied = scenario()
+  const file = { name: 'notes.txt', size: 10, type: 'text/plain' }
+  const drafts = applied.conversation.createDrafts('session-a', [file])
+  applied.notification.actions.addAttachments(drafts.map((draft) => draft.id))
+  const ids = []
+  let refuse = true
+  const fresh = { snapshot: { phase: 'plain', draft: '', attachmentIds: ids }, state: { subscribe: () => () => {} },
+    actions: { addAttachments(next) { if (refuse) return false; ids.push(...next); return true } } }
+  applied.conversation.input.for = () => fresh
+  const next = applied.registration.options.inject('session-a')
+  assert.equal(await next.actions.restoreDraftAttachments(), false)
+  assert.equal(applied.releasedDrafts.length, 1)
+  refuse = false
+  assert.equal(await next.actions.restoreDraftAttachments(), true)
+  assert.equal(ids.length, 1)
+  assert.equal(applied.draftRegistry.get(ids[0]).file, file)
+})
+
+await check('failed withdraw does not erase text typed while queue removal was pending', async () => {
+  const applied = scenario({ draft: 'original' })
+  let complete
+  applied.session.updateQueue = () => new Promise((resolve) => { complete = resolve })
+  const pending = applied.injected.actions.withdraw(queueItem('queued'), 'empty', 'failed', 'attachment')
+  applied.draft.value = 'new draft'
+  complete({ ok: false })
+  assert.equal(await pending, false)
+  assert.equal(applied.draft.value, 'new draft')
 })
 
 // ---------------------------------------------------------------------------
@@ -984,7 +1069,7 @@ function hostScenario() {
     await definition.handler(req, res)
     return { response, messages }
   }
-  return { route, updateRoute, freezeRoute, thawRoute, frozenRoute, invoke, invokeUpdate, invokeOn, messages }
+  return { route, updateRoute, freezeRoute, thawRoute, frozenRoute, invoke, invokeUpdate, invokeOn, messages, attachments: ctx.attachments }
 }
 
 await check('the Host route applies a complete next-turn order through inbox.splice', async () => {
@@ -1045,6 +1130,34 @@ await check('the Host freeze route keeps the message queued and reports its slot
   equal(frozen.response.payload.ids, ['item-1'])
 })
 
+await check('an upload edit preserves a message enqueued while the upload was pending', async () => {
+  const host = hostScenario()
+  let finish; let started
+  const ready = new Promise((resolve) => { started = resolve })
+  host.attachments.saveFile = () => { started(); return new Promise((resolve) => { finish = resolve }) }
+  const pending = host.invokeUpdate({ sessionId: 'session-a', action: 'edit', itemId: 'item-1', text: 'edited', files: [{ data: 'YQ==', kind: 'file' }] })
+  await ready
+  host.messages.push({ id: 'new-item', content: [{ type: 'text', text: 'new' }] })
+  finish({ attachmentId: 'uploaded', name: 'new.txt', bytes: 1 })
+  const { response } = await pending
+  assert.equal(response.status, 200)
+  equal(host.messages.map((item) => item.id), ['item-1', 'item-2', 'new-item'])
+})
+
+await check('an upload edit never resurrects a message claimed during the upload', async () => {
+  const host = hostScenario()
+  let finish; let started
+  const ready = new Promise((resolve) => { started = resolve })
+  host.attachments.saveFile = () => { started(); return new Promise((resolve) => { finish = resolve }) }
+  const pending = host.invokeUpdate({ sessionId: 'session-a', action: 'edit', itemId: 'item-1', text: 'edited', files: [{ data: 'YQ==', kind: 'file' }] })
+  await ready
+  host.messages.shift()
+  finish({ attachmentId: 'uploaded', name: 'new.txt', bytes: 1 })
+  const { response } = await pending
+  assert.equal(response.status, 409)
+  equal(host.messages.map((item) => item.id), ['item-2'])
+})
+
 await check('the Host freeze route rejects an item that is not queued', async () => {
   const host = hostScenario()
   const { response } = await host.invokeOn(host.freezeRoute, { sessionId: 'session-missing', itemId: 'missing' })
@@ -1061,6 +1174,19 @@ await check('the Host thaw route releases a held id', async () => {
   const frozen = await host.invokeOn(host.frozenRoute, { sessionId: 'session-thaw' })
   equal(frozen.response.payload.ids, [])
   equal(host.messages.map((entry) => entry.id), ['item-1', 'item-2'])
+})
+
+await check('failed persistence refuses a freeze and rolls back the in-memory lock', async () => {
+  const host = hostScenario()
+  const original = fs.writeFileSync
+  fs.writeFileSync = () => { throw new Error('disk unavailable') }
+  try {
+    const { response } = await host.invokeOn(host.freezeRoute, { sessionId: 'session-persist-failure', itemId: 'item-1' })
+    assert.equal(response.status, 500)
+    assert.equal(response.payload.reason, 'persist-failed')
+  } finally { fs.writeFileSync = original }
+  const state = await host.invokeOn(host.frozenRoute, { sessionId: 'session-persist-failure' })
+  equal(state.response.payload.ids, [])
 })
 
 await check('the Host frozen route reports only that session ids', async () => {

@@ -21,31 +21,26 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { registerGit } from './host/git.js'
+import { registerActivityPreview } from './host/activity-preview.js'
 
 const REORDER_PATH = '/dsh-queue-withdraw/reorder'
 const UPDATE_PATH = '/dsh-queue-withdraw/update'
 const FREEZE_PATH = '/dsh-queue-withdraw/freeze'
 const THAW_PATH = '/dsh-queue-withdraw/thaw'
 const FROZEN_PATH = '/dsh-queue-withdraw/frozen'
-const DIAG_PATH = '/dsh-queue-withdraw/diag'
 const MAX_BODY = 32 * 1024 * 1024
 
 /** Per-session ids the loop must not claim; mirrored to `$DSH_HOME`. */
 const frozenSessions = new Map()
-
-/** @returns {string} the layout-diagnostic log path. */
-function diagFile() {
-  const home = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
-    ? process.env.DSH_HOME
-    : path.join(os.homedir(), '.dsh')
-  return path.join(home, 'queue-withdraw-diag.jsonl')
-}
+const claimPatches = new Map()
 
 /** @returns {string} the persistent frozen-id file. */
 function frozenFile() {
-  const home = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
-    ? process.env.DSH_HOME
-    : path.join(os.homedir(), '.dsh')
+  const home =
+    typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
+      ? process.env.DSH_HOME
+      : path.join(os.homedir(), '.dsh')
   return path.join(home, 'queue-withdraw-frozen.json')
 }
 
@@ -71,11 +66,26 @@ function saveFrozen() {
   for (const [sessionId, ids] of frozenSessions) {
     if (ids.size > 0) sessions[sessionId] = [...ids]
   }
+  const target = frozenFile()
+  const temporary = target + '.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp'
   try {
-    fs.mkdirSync(path.dirname(frozenFile()), { recursive: true })
-    fs.writeFileSync(frozenFile(), JSON.stringify({ version: 1, sessions }, null, 2) + '\n', 'utf8')
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(temporary, JSON.stringify({ version: 1, sessions }, null, 2) + '\n', {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+      flush: true,
+    })
+    fs.renameSync(temporary, target)
+    return true
   } catch {
-    // The in-memory set still enforces this process lifetime.
+    return false
+  } finally {
+    try {
+      fs.unlinkSync(temporary)
+    } catch {
+      /* moved, absent, or unwritable */
+    }
   }
 }
 
@@ -101,12 +111,12 @@ function installClaimPatch(inbox) {
   if (inbox === null || inbox === undefined || typeof inbox !== 'object') return
   const proto = Object.getPrototypeOf(inbox)
   if (proto === null || typeof proto.claim !== 'function') return
-  if (proto.__dshQueueWithdrawClaimPatched === true) return
+  if (claimPatches.has(proto)) return
   const original = proto.claim
-  proto.claim = function patchedClaim(target, turn) {
+  const patched = function patchedClaim(target, turn) {
     if (target !== 'next-turn') return original.call(this, target, turn)
-    const held = frozenIdsOf(this.session?.id)
-    if (held.size === 0) return original.call(this, target, turn)
+    const held = frozenSessions.get(this.session?.id)
+    if (held === undefined || held.size === 0) return original.call(this, target, turn)
     const claimed = this.mutate('next-step', 0, this.nextStep.length, [], false)
     const queue = this.nextTurn
     const index = queue.findIndex((message) => !held.has(String(message.id)))
@@ -114,7 +124,8 @@ function installClaimPatch(inbox) {
     for (const message of claimed) this.dispatch.emit('agent/inbox/claimed', { message, turn })
     return claimed
   }
-  Object.defineProperty(proto, '__dshQueueWithdrawClaimPatched', { value: true, enumerable: false })
+  proto.claim = patched
+  claimPatches.set(proto, { original, patched })
 }
 
 /**
@@ -191,11 +202,13 @@ async function saveUpload(attachments, file) {
   if (typeof file?.data !== 'string' || file.data === '') throw new Error('empty upload')
   const bytes = Uint8Array.from(Buffer.from(file.data, 'base64'))
   if (file.kind === 'image') {
-    const refs = await attachments.saveImages([{
-      data: bytes,
-      mediaType: typeof file.mediaType === 'string' ? file.mediaType : 'image/png',
-      ...(typeof file.name === 'string' && file.name !== '' ? { name: file.name } : {}),
-    }])
+    const refs = await attachments.saveImages([
+      {
+        data: bytes,
+        mediaType: typeof file.mediaType === 'string' ? file.mediaType : 'image/png',
+        ...(typeof file.name === 'string' && file.name !== '' ? { name: file.name } : {}),
+      },
+    ])
     return { type: 'image', attachment: refs[0] }
   }
   const ref = await attachments.saveFile({
@@ -210,244 +223,287 @@ async function saveUpload(attachments, file) {
  * @param {object} ctx - Host context.
  */
 export function apply(ctx) {
+  registerActivityPreview(ctx)
+  registerGit(ctx)
   if (ctx?.webServer?.register === undefined || ctx?.agents?.get === undefined) return
   loadFrozen()
+  ctx.effect(
+    () => () => {
+      for (const [proto, { original, patched }] of claimPatches) {
+        if (proto.claim === patched) proto.claim = original
+      }
+      claimPatches.clear()
+      frozenSessions.clear()
+    },
+    'queue-withdraw: claim patch lifetime',
+  )
   armAgents(ctx)
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: REORDER_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      if (body === null || typeof body !== 'object') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-body' })
-        return
-      }
-      const sessionId = body.sessionId
-      const order = body.order
-      if (typeof sessionId !== 'string' || sessionId === ''
-        || !Array.isArray(order) || order.some((id) => typeof id !== 'string')) {
-        sendJson(res, 400, { ok: false, reason: 'invalid-request' })
-        return
-      }
-      const agent = ctx.agents.get(sessionId)
-      if (agent === undefined || agent?.inbox === undefined) {
-        sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
-        return
-      }
-      const current = [...agent.inbox.nextTurn]
-      if (order.length !== current.length || new Set(order).size !== order.length) {
-        sendJson(res, 409, { ok: false, reason: 'queue-changed' })
-        return
-      }
-      const byId = new Map(current.map((message) => [String(message.id), message]))
-      if (order.some((id) => !byId.has(id))) {
-        sendJson(res, 409, { ok: false, reason: 'queue-changed' })
-        return
-      }
-      const reordered = order.map((id) => byId.get(id))
-      try {
-        agent.inbox.splice('next-turn', 0, current.length, reordered)
-        sendJson(res, 200, { ok: true })
-      } catch {
-        sendJson(res, 500, { ok: false, reason: 'reorder-failed' })
-      }
-    },
-  }), 'queue-withdraw: reorder route')
+  ctx.effect(
+    () =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: REORDER_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          if (body === null || typeof body !== 'object') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-body' })
+            return
+          }
+          const sessionId = body.sessionId
+          const order = body.order
+          if (
+            typeof sessionId !== 'string' ||
+            sessionId === '' ||
+            !Array.isArray(order) ||
+            order.some((id) => typeof id !== 'string')
+          ) {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          const agent = ctx.agents.get(sessionId)
+          if (agent === undefined || agent?.inbox === undefined) {
+            sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
+            return
+          }
+          const current = [...agent.inbox.nextTurn]
+          if (order.length !== current.length || new Set(order).size !== order.length) {
+            sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+            return
+          }
+          const byId = new Map(current.map((message) => [String(message.id), message]))
+          if (order.some((id) => !byId.has(id))) {
+            sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+            return
+          }
+          const reordered = order.map((id) => byId.get(id))
+          try {
+            agent.inbox.splice('next-turn', 0, current.length, reordered)
+            sendJson(res, 200, { ok: true })
+          } catch {
+            sendJson(res, 500, { ok: false, reason: 'reorder-failed' })
+          }
+        },
+      }),
+    'queue-withdraw: reorder route',
+  )
 
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: UPDATE_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      if (body === null || typeof body !== 'object') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-body' })
-        return
-      }
-      const sessionId = body.sessionId
-      const action = body.action
-      if (typeof sessionId !== 'string' || (action !== 'edit' && action !== 'merge')) {
-        sendJson(res, 400, { ok: false, reason: 'invalid-request' })
-        return
-      }
-      const agent = ctx.agents.get(sessionId)
-      if (agent === undefined || agent?.inbox === undefined) {
-        sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
-        return
-      }
-      const current = [...agent.inbox.nextTurn]
-      if (action === 'merge') {
-        const targetId = String(body.targetId ?? '')
-        const sourceId = String(body.sourceId ?? '')
-        const target = current.find((message) => String(message.id) === targetId)
-        const source = current.find((message) => String(message.id) === sourceId)
-        if (target === undefined || source === undefined || targetId === sourceId) {
-          sendJson(res, 409, { ok: false, reason: 'queue-changed' })
-          return
-        }
-        const merged = { ...target, content: [...target.content, ...source.content] }
-        const next = current.flatMap((message) => {
-          if (String(message.id) === sourceId) return []
-          if (String(message.id) === targetId) return [merged]
-          return [message]
-        })
-        try {
-          agent.inbox.splice('next-turn', 0, current.length, next)
+  ctx.effect(
+    () =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: UPDATE_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          if (body === null || typeof body !== 'object') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-body' })
+            return
+          }
+          const sessionId = body.sessionId
+          const action = body.action
+          if (typeof sessionId !== 'string' || (action !== 'edit' && action !== 'merge')) {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          const agent = ctx.agents.get(sessionId)
+          if (agent === undefined || agent?.inbox === undefined) {
+            sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
+            return
+          }
+          const current = [...agent.inbox.nextTurn]
+          if (action === 'merge') {
+            const targetId = String(body.targetId ?? '')
+            const sourceId = String(body.sourceId ?? '')
+            const target = current.find((message) => String(message.id) === targetId)
+            const source = current.find((message) => String(message.id) === sourceId)
+            if (target === undefined || source === undefined || targetId === sourceId) {
+              sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+              return
+            }
+            const merged = { ...target, content: [...target.content, ...source.content] }
+            const next = current.flatMap((message) => {
+              if (String(message.id) === sourceId) return []
+              if (String(message.id) === targetId) return [merged]
+              return [message]
+            })
+            try {
+              agent.inbox.splice('next-turn', 0, current.length, next)
+              sendJson(res, 200, { ok: true })
+            } catch {
+              sendJson(res, 500, { ok: false, reason: 'merge-failed' })
+            }
+            return
+          }
+          const itemId = String(body.itemId ?? '')
+          const target = current.find((message) => String(message.id) === itemId)
+          if (target === undefined) {
+            sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+            return
+          }
+          if (ctx.attachments === undefined) {
+            sendJson(res, 500, { ok: false, reason: 'attachments-unavailable' })
+            return
+          }
+          try {
+            const blocks = attachmentBlocks(body.blocks)
+            const files = Array.isArray(body.files) ? body.files : []
+            for (const file of files) blocks.push(await saveUpload(ctx.attachments, file))
+            const text = typeof body.text === 'string' ? body.text : ''
+            const content = [...(text.trim() === '' ? [] : [{ type: 'text', text }]), ...blocks]
+            if (content.length === 0) {
+              sendJson(res, 400, { ok: false, reason: 'empty-content' })
+              return
+            }
+            // Uploads yield to the agent loop. Re-read the live queue so an edit
+            // cannot resurrect a claimed message or discard a concurrent enqueue.
+            const live = [...agent.inbox.nextTurn]
+            if (live.find((message) => String(message.id) === itemId) !== target) {
+              sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+              return
+            }
+            const edited = { ...target, content }
+            const next = live.map((message) => (String(message.id) === itemId ? edited : message))
+            agent.inbox.splice('next-turn', 0, live.length, next)
+            sendJson(res, 200, { ok: true })
+          } catch {
+            sendJson(res, 500, { ok: false, reason: 'edit-failed' })
+          }
+        },
+      }),
+    'queue-withdraw: update route',
+  )
+
+  ctx.effect(
+    () =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: FREEZE_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          if (body === null || typeof body !== 'object') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-body' })
+            return
+          }
+          const sessionId = body.sessionId
+          const itemId = body.itemId
+          if (
+            typeof sessionId !== 'string' ||
+            sessionId === '' ||
+            typeof itemId !== 'string' ||
+            itemId === ''
+          ) {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          const agent = ctx.agents.get(sessionId)
+          if (agent === undefined || agent?.inbox === undefined) {
+            sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
+            return
+          }
+          installClaimPatch(agent.inbox)
+          const current = [...agent.inbox.nextTurn]
+          const index = current.findIndex((message) => String(message.id) === itemId)
+          if (index < 0) {
+            sendJson(res, 409, { ok: false, reason: 'queue-changed' })
+            return
+          }
+          // The message stays queued so every native control still works; only the
+          // turn boundary is told to skip it.
+          const held = frozenIdsOf(sessionId)
+          const existed = held.has(itemId)
+          held.add(itemId)
+          if (!existed && !saveFrozen()) {
+            held.delete(itemId)
+            sendJson(res, 500, { ok: false, reason: 'persist-failed' })
+            return
+          }
+          sendJson(res, 200, { ok: true, index })
+        },
+      }),
+    'queue-withdraw: freeze route',
+  )
+
+  ctx.effect(
+    () =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: THAW_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          if (body === null || typeof body !== 'object') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-body' })
+            return
+          }
+          const sessionId = body.sessionId
+          const itemId = String(body.itemId ?? '')
+          if (typeof sessionId !== 'string' || sessionId === '' || itemId === '') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          const held = frozenSessions.get(sessionId)
+          const existed = held?.delete(itemId) === true
+          if (existed && !saveFrozen()) {
+            held.add(itemId)
+            sendJson(res, 500, { ok: false, reason: 'persist-failed' })
+            return
+          }
+          if (held?.size === 0) frozenSessions.delete(sessionId)
           sendJson(res, 200, { ok: true })
-        } catch {
-          sendJson(res, 500, { ok: false, reason: 'merge-failed' })
-        }
-        return
-      }
-      const itemId = String(body.itemId ?? '')
-      const target = current.find((message) => String(message.id) === itemId)
-      if (target === undefined) {
-        sendJson(res, 409, { ok: false, reason: 'queue-changed' })
-        return
-      }
-      if (ctx.attachments === undefined) {
-        sendJson(res, 500, { ok: false, reason: 'attachments-unavailable' })
-        return
-      }
-      try {
-        const blocks = attachmentBlocks(body.blocks)
-        const files = Array.isArray(body.files) ? body.files : []
-        for (const file of files) blocks.push(await saveUpload(ctx.attachments, file))
-        const text = typeof body.text === 'string' ? body.text : ''
-        const content = [
-          ...(text.trim() === '' ? [] : [{ type: 'text', text }]),
-          ...blocks,
-        ]
-        if (content.length === 0) {
-          sendJson(res, 400, { ok: false, reason: 'empty-content' })
-          return
-        }
-        const edited = { ...target, content }
-        const next = current.map((message) => String(message.id) === itemId ? edited : message)
-        agent.inbox.splice('next-turn', 0, current.length, next)
-        sendJson(res, 200, { ok: true })
-      } catch {
-        sendJson(res, 500, { ok: false, reason: 'edit-failed' })
-      }
-    },
-  }), 'queue-withdraw: update route')
+        },
+      }),
+    'queue-withdraw: thaw route',
+  )
 
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: FREEZE_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      if (body === null || typeof body !== 'object') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-body' })
-        return
-      }
-      const sessionId = body.sessionId
-      const itemId = body.itemId
-      if (typeof sessionId !== 'string' || sessionId === ''
-        || typeof itemId !== 'string' || itemId === '') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-request' })
-        return
-      }
-      const agent = ctx.agents.get(sessionId)
-      if (agent === undefined || agent?.inbox === undefined) {
-        sendJson(res, 409, { ok: false, reason: 'agent-unavailable' })
-        return
-      }
-      installClaimPatch(agent.inbox)
-      const current = [...agent.inbox.nextTurn]
-      const index = current.findIndex((message) => String(message.id) === itemId)
-      if (index < 0) {
-        sendJson(res, 409, { ok: false, reason: 'queue-changed' })
-        return
-      }
-      // The message stays queued so every native control still works; only the
-      // turn boundary is told to skip it.
-      frozenIdsOf(sessionId).add(itemId)
-      saveFrozen()
-      sendJson(res, 200, { ok: true, index })
-    },
-  }), 'queue-withdraw: freeze route')
-
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: THAW_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      if (body === null || typeof body !== 'object') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-body' })
-        return
-      }
-      const sessionId = body.sessionId
-      const itemId = String(body.itemId ?? '')
-      if (typeof sessionId !== 'string' || sessionId === '' || itemId === '') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-request' })
-        return
-      }
-      frozenIdsOf(sessionId).delete(itemId)
-      saveFrozen()
-      sendJson(res, 200, { ok: true })
-    },
-  }), 'queue-withdraw: thaw route')
-
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: FROZEN_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      const sessionId = body !== null && typeof body === 'object' ? body.sessionId : undefined
-      if (typeof sessionId !== 'string' || sessionId === '') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-request' })
-        return
-      }
-      const agent = ctx.agents.get(sessionId)
-      if (agent?.inbox !== undefined) installClaimPatch(agent.inbox)
-      sendJson(res, 200, { ok: true, ids: [...frozenIdsOf(sessionId)] })
-    },
-  }), 'queue-withdraw: frozen route')
-
-  // Temporary layout probe: the client reports the geometry whenever visible
-  // space appears between the queue dock and the composer.
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: DIAG_PATH,
-    handler: async (req, res) => {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
-        return
-      }
-      const body = await readJson(req)
-      if (body === null || typeof body !== 'object') {
-        sendJson(res, 400, { ok: false, reason: 'invalid-body' })
-        return
-      }
-      try {
-        fs.mkdirSync(path.dirname(diagFile()), { recursive: true })
-        fs.appendFileSync(diagFile(), JSON.stringify({ at: new Date().toISOString(), ...body }) + '\n', 'utf8')
-      } catch {
-        // A failed diagnostic write never affects the conversation.
-      }
-      sendJson(res, 200, { ok: true })
-    },
-  }), 'queue-withdraw: layout diagnostic route')
+  ctx.effect(
+    () =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: FROZEN_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          const sessionId = body !== null && typeof body === 'object' ? body.sessionId : undefined
+          if (typeof sessionId !== 'string' || sessionId === '') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          const agent = ctx.agents.get(sessionId)
+          if (agent?.inbox !== undefined) installClaimPatch(agent.inbox)
+          sendJson(res, 200, { ok: true, ids: [...frozenIdsOf(sessionId)] })
+        },
+      }),
+    'queue-withdraw: frozen route',
+  )
 }
 
-export const inject = ['webServer', 'agents', 'sessions', 'attachments']
+export const inject = [
+  'webServer',
+  'agents',
+  'sessions',
+  'attachments',
+  'typert',
+  'fs',
+  'subprocess',
+  'sandbox',
+  'sandboxPolicy',
+  'sessionQuery',
+  'workingDirectory',
+]

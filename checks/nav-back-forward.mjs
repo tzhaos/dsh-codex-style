@@ -71,7 +71,7 @@ function textOf(element) {
   return textOf(element.props?.children)
 }
 
-function scenario() {
+function scenario(options = {}) {
   const listeners = new Map()
   let value
   const sessionListeners = new Set()
@@ -91,6 +91,7 @@ function scenario() {
   const uiWorkspace = {
     openSession(sessionId) {
       opened.push(sessionId)
+      if (options.openSession) return options.openSession(sessionId)
       return Promise.resolve()
     },
   }
@@ -160,7 +161,7 @@ function scenario() {
   const t = translator(locale.dicts.zh)
   const injected = registration.options.inject()
   const render = () => registration.component({ ...injected, t })
-  return { setSession, opened, registration, render, listeners }
+  return { setSession, opened, registration, render, listeners, nav: injected.nav }
 }
 
 function buttons(tree) {
@@ -170,7 +171,7 @@ function buttons(tree) {
 // Static contract
 await check('manifest declares a DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -276,9 +277,22 @@ await check('Alt+Left and Alt+Right trigger navigation', async () => {
   assert.deepEqual(applied.opened, ['s1', 's2'])
 })
 
-await check('the controls render nothing before a session is known', () => {
+await check('caption controls keep their seats while no session is known', () => {
   const applied = scenario()
-  assert.equal(applied.render(), null)
+  const controls = buttons(applied.render())
+  assert.equal(controls.length, 2)
+  assert(controls.every((control) => control.props.disabled))
+})
+
+await check('an older failed navigation cannot rewind a newer successful navigation', async () => {
+  let rejectFirst
+  const applied = scenario({ openSession: (id) => id === 's2' ? new Promise((_resolve, reject) => { rejectFirst = reject }) : Promise.resolve() })
+  applied.setSession('s1'); applied.setSession('s2'); applied.setSession('s3')
+  applied.nav.back(); applied.nav.back(); applied.setSession('s1')
+  rejectFirst(new Error('late refusal'))
+  await Promise.resolve()
+  assert.equal(applied.nav.getSnapshot().index, 0)
+  assert.equal(applied.nav.getSnapshot().canBack, false)
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

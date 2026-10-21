@@ -122,6 +122,7 @@ function scenario(options = {}) {
     __DSH_CODEX_STYLE_FEATURES__: ['dsh-sidebar-file-drop'],
     window: { __ModuleLoader__: { load(definition) { loaded = definition } } },
     document,
+    URL,
     console,
   }
   if (options.desktopPath !== undefined) {
@@ -168,7 +169,7 @@ function scenario(options = {}) {
 // Static contract
 await check('manifest declares a DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -295,6 +296,19 @@ await check('cleanup removes all four listeners', () => {
   const applied = scenario()
   applied.cleanups[0]()
   assert.equal(applied.listeners.size, 0)
+})
+
+await check('file references preserve legal closing parentheses and brackets', async () => {
+  const applied = scenario()
+  await applied.injected.actions.addPath('C:\\repo\\report (final)', 'failed', 'missing')
+  await applied.injected.actions.addPath('C:\\repo\\array[0]', 'failed', 'missing')
+  assert.equal(applied.added[0].references[0].label, 'report (final)')
+  assert.equal(applied.added[1].references[0].label, 'array[0]')
+})
+await check('file URI paths are decoded before constructing a reference', async () => {
+  const applied = scenario()
+  assert.equal(await applied.injected.actions.addPath('file:///C:/repo/a%20b.txt', 'failed', 'missing'), true)
+  assert.equal(applied.added[0].references[0].label, 'a b.txt')
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

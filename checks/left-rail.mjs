@@ -1,354 +1,179 @@
-/**
- * Zero-dependency verification for the merged left-rail feature.
- *
- * Run with `node checks/left-rail.mjs` from the package root. The shipped
- * merged bundle is loaded with only this feature built (the bundle's test
- * filter), then the overlay is mounted through a miniature React runtime and
- * driven against a fake layout/settings environment.
- */
-
+/** Host adapter behavior; real primitives and geometry are exercised by review-fixture. */
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import path from 'node:path'
 import vm from 'node:vm'
-import { fileURLToPath } from 'node:url'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
-const manifest = JSON.parse(read('package.json'))
-const clientSource = read('client.js')
-
-/**
- * Slice one merged feature out of the generated bundle, so feature-scoped
- * assertions do not see code from the other merged features.
- * @param {string} id - merged feature id.
- * @returns {string} the feature block of client.js.
- */
-function featureSlice(id) {
-  const marker = `__DSH_FEATURE('${id}',`
-  const start = clientSource.indexOf(marker)
-  assert(start !== -1, id + ' feature is built into client.js')
-  const next = clientSource.indexOf('__DSH_FEATURE(', start + marker.length)
-  return clientSource.slice(start, next === -1 ? clientSource.length : next)
-}
-
-const featureSource = featureSlice('dsh-left-rail')
-
+const source = fs.readFileSync(new URL('../client.js', import.meta.url), 'utf8')
 let checks = 0
-
 async function check(name, body) {
-  try {
-    await body()
-    checks += 1
-    console.log('ok ' + name)
-  } catch (error) {
-    console.error('FAIL ' + name)
-    console.error('     ' + (error?.message ?? error))
-    process.exitCode = 1
-  }
+  try { await body(); checks += 1; console.log('ok ' + name) }
+  catch (error) { process.exitCode = 1; console.error('FAIL ' + name + '\n     ' + error.stack) }
 }
-
-function translator(dictionary) {
-  return (key, params = {}) => (dictionary[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? ''))
+class Node {
+  constructor(attributes = {}) {
+    this.attributes = new Map(Object.entries(attributes)); this.children = []; this.listeners = new Map()
+    this.classes = new Set(); this.classList = { add: (x) => this.classes.add(x), remove: (x) => this.classes.delete(x) }
+    this.dataset = {}; this.clicks = 0
+  }
+  getAttribute(key) { return this.attributes.get(key) ?? null }
+  setAttribute(key, value) { this.attributes.set(key, value) }
+  removeAttribute(key) { this.attributes.delete(key) }
+  addEventListener(key, fn) { this.listeners.set(key, fn) }
+  removeEventListener(key, fn) { if (this.listeners.get(key) === fn) this.listeners.delete(key) }
+  appendChild(child) { child.parentElement = this; this.children.push(child) }
+  querySelector() { return this.identity ?? null }
+  remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((x) => x !== this) }
+  click() { this.clicks += 1 }
 }
-
-function findAll(root, predicate) {
-  const found = []
-  const walk = (node) => {
-    if (node === null || node === undefined || typeof node !== 'object') return
-    if (Array.isArray(node)) { for (const child of node) walk(child); return }
-    if (predicate(node)) found.push(node)
-    walk(node.children)
-  }
-  walk(root)
-  return found
-}
-
-function scenario(options = {}) {
-  const listeners = new Map()
-  const selected = []
-  const panelListeners = new Set()
-  let activePanel = options.activePanel ?? null
-  const has = new Set(options.panels ?? ['plugins', 'schedules'])
-  const panelInfo = {
-    getSnapshot: () => ({ activePanelId: activePanel }),
-    subscribe(listener) {
-      panelListeners.add(listener)
-      return () => panelListeners.delete(listener)
+function fixture({ panels = ['plugins', 'schedules'], active = null, preferenceStatus = 'ready', mutate } = {}) {
+  const brand = new Node({ 'aria-label': '新建会话' }); brand.identity = new Node()
+  const settings = new Node({ 'aria-label': '账号菜单' })
+  const rows = ['插件', '自动化任务'].map((label) => new Node({ 'aria-label': label }))
+  const root = new Node(); const disposers = []; const registrations = []
+  const document = { documentElement: root, body: new Node(), head: new Node(), createElement: () => new Node(),
+    querySelector: (selector) => selector.includes('_logoRow') ? brand : selector.includes('_settingsArea') ? settings : null,
+    querySelectorAll: () => rows }
+  const selected = []; const subscribers = new Set(); let current = active; let definition; let dictionary
+  const layout = { panelInfo: { getSnapshot: () => ({ activePanelId: current }), subscribe: (fn) => { subscribers.add(fn); return () => subscribers.delete(fn) } },
+    hasMainPanel: (id) => panels.includes(id), selectPanel: (id) => { current = id; selected.push(id); for (const fn of subscribers) fn() } }
+  const workspaces = { items: [{ workspaceId: 'w1', path: 'C:/project', title: 'project', sessionIds: ['s1'] }], archivedSessionIds: [] }
+  const opened = []
+  const preferenceListeners = new Set(), writes = []
+  let preferences = { status: preferenceStatus, writable: preferenceStatus === 'ready', value: { transcriptView: 'standard', collapseTiming: 'completion', performanceUsage: 'compact', linkOpening: 'sidebar' } }
+  const form = {
+    getSnapshot: () => preferences,
+    subscribe: (fn) => { preferenceListeners.add(fn); return () => preferenceListeners.delete(fn) },
+    mutate: async (patch) => {
+      writes.push(patch)
+      if (mutate) return mutate(patch)
+      const value = { ...preferences.value }
+      for (const operation of patch) value[operation.path[0]] = operation.value
+      preferences = { ...preferences, value }
+      for (const fn of preferenceListeners) fn()
+      return true
     },
   }
-  const setActive = (id) => {
-    activePanel = id
-    for (const listener of panelListeners) listener()
-  }
-  const layout = {
-    panelInfo,
-    hasMainPanel: (id) => has.has(id),
-    selectPanel(id) {
-      selected.push(id)
-      setActive(id)
-    },
-  }
-  const settingsClicks = []
-  const settings = {
-    getAttribute(name) { return name === 'aria-label' ? '设置' : null },
-    click() { settingsClicks.push(true) },
-  }
-  const panelButtons = ['插件', '自动化任务'].map((label) => ({
-    hidden: false,
-    getAttribute(name) { return name === 'aria-label' ? label : null },
-    setAttribute(name) { if (name === 'data-dshlr-hidden') this.hidden = true },
-    removeAttribute(name) { if (name === 'data-dshlr-hidden') this.hidden = false },
-  }))
-  const document = {
-    addEventListener(type, handler) { listeners.set(type, handler) },
-    removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type) },
-    createElement: () => ({ dataset: {}, textContent: '', remove() {} }),
-    head: { appendChild() {} },
-    querySelectorAll: (selector) => selector === 'button[aria-label]' ? [settings, ...panelButtons] : [],
-  }
-  const registrations = []
-  let locale
-  let loaded
-  const sandbox = {
-    // The merged bundle builds only the feature named by this test filter, so
-    // the ported check sees the same standalone behavior as the old package.
-    __DSH_CODEX_STYLE_FEATURES__: ['dsh-left-rail'],
-    window: {
-      __ModuleLoader__: { load(definition) { loaded = definition } },
-      localStorage: {
-        getItem: () => null,
-        setItem: () => {},
-        removeItem: () => {},
-      },
-    },
-    document,
-    console,
-  }
-  vm.runInNewContext(clientSource, sandbox, { filename: 'client.js' })
-  const plugin = loaded.factory((id) => {
-    if (id === 'react') {
-      const hooks = []
-      const state = []
-      let cursor = 0
-      return {
-        createElement(type, props, ...children) {
-          if (typeof type === 'function') return type({ ...props, children: children.length === 1 ? children[0] : children })
-          const element = { type, props: { ...props, children: children.length === 1 ? children[0] : children } }
-          element.children = children.length === 1 ? children[0] : children
-          return element
-        },
-        useRef(initial) { return { current: initial } },
-        useState(initial) {
-          const index = cursor++
-          if (!(index in state)) state[index] = initial
-          return [state[index], (next) => { state[index] = typeof next === 'function' ? next(state[index]) : next }]
-        },
-        useEffect(effect) { effect() },
-      }
-    }
-    throw new Error('unexpected require ' + id)
-  })
-  const ctx = {
-    get(name) {
-      if (name === 'layout') return layout
-      return undefined
-    },
-    effect(factory) { factory(); return () => {} },
-    locale: { register(ns, dicts) { locale = { ns, dicts }; return () => {} } },
-    slots: {
-        register(options, component) { registrations.push({ options, component }); return () => {} },
-        inject(name, callback) { return callback() },
-      },
-  }
-  plugin.apply(ctx)
-  const registration = registrations[0]
-  const t = translator(locale.dicts.zh)
-  const injected = registration.options.inject()
+  const workspace = { workspaces: { list: { getSnapshot: () => workspaces, subscribe: () => () => {} } },
+    sessions: { list: { getSnapshot: () => ({ byId: { s1: {} } }) } }, openSession: async (id) => opened.push(id) }
+  const react = { Fragment: 'fragment', useId: () => 'fixture-icon', createElement(type, props, ...children) {
+    const next = { ...props, children: children.flat() }
+    return typeof type === 'function' ? type(next) : { type, props: next }
+  }, useState: (value) => [typeof value === 'function' ? value() : value, () => {}], useEffect: (fn) => { const off = fn(); if (off) disposers.push(off) } }
+  const primitives = { Tooltip: ({ children }) => children, Menu: (props) => ({ type: 'Menu', props }) }
+  for (const name of ['IconQueueOutlineRegular', 'IconQueueOutlineMedium', 'IconClockOutlineRegular', 'IconClockOutlineMedium', 'IconPluginPinwheelOutlineRegular', 'IconPluginPinwheelOutlineMedium', 'IconSettingsOutlineRegular', 'IconSettingsOutlineMedium', 'IconChevronDownOutlineRegular']) primitives[name] = () => ({ type: name })
+  vm.runInNewContext(source, { __DSH_CODEX_STYLE_FEATURES__: ['dsh-left-rail'], window: { __ModuleLoader__: { load: (value) => { definition = value } } },
+    document, MutationObserver: class { observe() {} disconnect() {} }, console })
+  const plugin = definition.factory((id) => id === 'react' ? react : id === 'react-dom' ? { createPortal: (node) => node } : primitives)
+  const services = { layout, configForms: { get: (id) => { assert.equal(id, 'ui-chat'); return form } }, uiWorkspace: workspace, uiSession: { current: { value: 's0' } } }
+  const t = (key, params = {}) => (dictionary?.[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => params[name])
+  plugin.apply({ get: (name) => services[name], effect: (fn) => { const off = fn(); if (off) disposers.push(off); return () => {} },
+    locale: { register: (_ns, dicts) => { dictionary = dicts.zh; return () => {} }, bind: () => t },
+    slots: { inject: (_name, fn) => fn(), register: (options, component) => { registrations.push({ options, component }); return () => {} } } })
+  const registration = registrations[0]; const injected = registration.options.inject()
   const render = () => registration.component({ ...injected, t })
-  return { selected, setActive, settingsClicks, render, registration, injected, panelButtons }
+  return { root, brand, settings, rows, selected, opened, writes, form, preferenceListeners, injected, render, dispose: () => disposers.reverse().forEach((fn) => fn()) }
 }
-
-function buttons(tree) {
-  return findAll(tree, (element) => element.type === 'button')
+function all(node, predicate) {
+  if (Array.isArray(node)) return node.flatMap((value) => all(value, predicate))
+  if (!node || typeof node !== 'object') return []
+  return [...(predicate(node) ? [node] : []), ...all(node.props?.children, predicate)]
 }
+const button = (app, name) => all(app.render(), (node) => node.props?.['data-dshlr-button'] === name)[0]
 
-// Static contract
-await check('manifest declares a DSH bundle and web client half', () => {
-  assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
-  assert.equal(manifest.license, 'MIT')
-  assert.equal(manifest.main, 'index.js')
-  assert.equal(manifest.exports['./client'], './client.js')
-  assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
-  assert.equal(manifest.dsh.client.platform, 'web')
-  assert(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
-  assert(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-locale'))
-  assert.equal(manifest.scripts.check, 'node scripts/check.mjs')
+await check('rail uses host layout navigation and panel availability', () => {
+  const app = fixture({ panels: ['plugins'] })
+  button(app, 'chat').props.onClick(); button(app, 'plugins').props.onClick()
+  assert.deepEqual(app.selected, [null, 'plugins'])
+  assert.equal(button(app, 'automation').props.disabled, true)
 })
-
-await check('all manifest files exist on disk', () => {
-  for (const relative of [
-    manifest.main, 'client.js', manifest.dsh.bundle.patch,
-    'locale/en.json', 'locale/zh.json', 'icon.svg', 'README.md', 'README.en.md',
-    'CHANGELOG.md', 'LICENSE',
-  ]) assert(fs.existsSync(path.join(ROOT, relative)), relative + ' exists')
+await check('active panel exposes an accessible current-page state', () => {
+  const app = fixture({ active: 'plugins' })
+  assert.equal(button(app, 'plugins').props['aria-current'], 'page')
+  assert.equal(button(app, 'chat').props['aria-current'], undefined)
 })
-
-await check('bundle patch inserts exactly one codex-style row', () => {
-  const patch = read('cordis.patch.yml')
-  assert(patch.includes('- insert:'))
-  assert(patch.includes('id: codex-style'))
-  assert(patch.includes("name: 'dsh-codex-style'"))
-  assert.equal((patch.match(/- insert:/g) ?? []).length, 1)
+await check('brand opens display preferences without navigation or creating a session', () => {
+  const app = fixture(); const event = { preventDefault() { this.prevented = true }, stopImmediatePropagation() { this.stopped = true } }
+  app.brand.listeners.get('click')(event)
+  assert.equal(event.stopped, true)
+  assert.equal(app.brand.getAttribute('aria-label'), '工作模式')
+  assert.equal(app.injected.adapter.snapshot().open, true)
+  assert.equal(app.brand.getAttribute('aria-expanded'), 'true')
+  app.injected.adapter.close(); assert.equal(app.brand.getAttribute('aria-expanded'), 'false')
 })
-
-await check('client only requires platform-seeded modules', () => {
-  const requires = [...new Set([...clientSource.matchAll(/require\('([^']+)'\)/g)].map((match) => match[1]))].sort()
-  assert.deepEqual(requires, [
-    '@deepseek-ai/dsh-client-store',
-    '@deepseek-ai/dsh-client-ui-primitives',
-    'react',
-    'react-dom',
+await check('settings keeps the actual native launcher and its menu anchor', () => {
+  const app = fixture()
+  assert.equal(app.settings.getAttribute('data-dshlr-button'), 'settings')
+  app.injected.adapter.openSettings(); assert.equal(app.settings.clicks, 1)
+  assert.equal(app.injected.adapter.snapshot().launcher, app.settings)
+})
+await check('Code atomically updates native display fields and preserves unrelated settings', async () => {
+  const app = fixture()
+  assert.equal(await app.injected.display.select('code'), true)
+  assert.equal(app.writes.length, 1)
+  assert.deepEqual(JSON.parse(JSON.stringify(app.writes[0])), [
+    { op: 'set', path: ['transcriptView'], value: 'detailed' },
+    { op: 'set', path: ['collapseTiming'], value: 'next-input' },
   ])
-  // The merged left-rail feature itself still only needs the frozen React module.
-  assert.deepEqual([...featureSource.matchAll(/require\('([^']+)'\)/g)].map((match) => match[1]), ['react'])
+  assert.equal(app.form.getSnapshot().value.performanceUsage, 'compact')
+  assert.equal(app.form.getSnapshot().value.linkOpening, 'sidebar')
+  assert.deepEqual(app.opened, [])
 })
-
-await check('locale files carry title and description', () => {
-  for (const locale of ['zh', 'en']) {
-    const value = JSON.parse(read('locale/' + locale + '.json'))
-    assert.equal(typeof value.meta.title, 'string')
-    assert.equal(typeof value.meta.description, 'string')
+await check('the menu contains only Work and Code and retains the accepted selection', () => {
+  const app = fixture()
+  app.brand.listeners.get('click')({ preventDefault() {}, stopImmediatePropagation() {} })
+  const menu = all(app.render(), (node) => node.type === 'Menu')[0]
+  assert.deepEqual(Array.from(menu.props.items, (item) => item.id), ['work', 'code'])
+  assert.deepEqual(Array.from(menu.props.selectedIds), ['work'])
+  assert.equal(menu.props.footer, undefined)
+  assert.equal(app.writes.length, 0, 'opening does not migrate existing preferences')
+})
+await check('Work and Code round trip, unchanged selections do not write and old actions are rejected', async () => {
+  const app = fixture()
+  assert.equal(await app.injected.display.select('work'), true)
+  assert.equal(app.injected.display.getSnapshot().mode, 'compact')
+  assert.equal(app.injected.display.getSnapshot().timing, 'completion')
+  assert.equal(await app.injected.display.select('code'), true)
+  assert.equal(app.injected.display.getSnapshot().profile, 'code')
+  assert.equal(await app.injected.display.select('code'), true)
+  assert.equal(app.writes.length, 2)
+  assert.equal(await app.injected.display.select('work'), true)
+  assert.equal(app.injected.display.getSnapshot().profile, 'work')
+  for (const id of ['mode:compact', 'timing:completion', 'preset:verbose', 'toString'])
+    assert.equal(await app.injected.display.select(id), false)
+})
+await check('loading preferences cannot be overwritten and failures retain accepted values', async () => {
+  const loading = fixture({ preferenceStatus: 'loading' })
+  assert.equal(await loading.injected.display.select('work'), false)
+  assert.equal(loading.writes.length, 0)
+  for (const mutate of [async () => false, async () => { throw new Error('disconnected') }]) {
+    const app = fixture({ mutate })
+    assert.equal(await app.injected.display.select('code'), false)
+    assert.equal(app.injected.display.getSnapshot().mode, 'standard')
+    assert.equal(app.injected.display.getSnapshot().failed, true)
+    assert.equal(app.injected.display.getSnapshot().saving, false)
   }
 })
-
-await check('icon is a valid accent SVG', () => {
-  const icon = read('icon.svg')
-  assert(icon.includes('<svg'))
-  assert(icon.includes('#4D6BFE'))
+await check('a pending write cannot be duplicated and disposal releases only our subscription', async () => {
+  let resolve
+  const app = fixture({ mutate: () => new Promise((done) => { resolve = done }) })
+  const saving = app.injected.display.select('work')
+  assert.equal(await app.injected.display.select('code'), false)
+  assert.equal(app.writes.length, 1)
+  app.dispose()
+  assert.equal(app.preferenceListeners.size, 0)
+  resolve(true)
+  await saving
 })
-
-// Behaviour
-await check('rail exposes chat, automation, plugins and settings buttons', () => {
-  const applied = scenario()
-  const labels = buttons(applied.render()).map((button) => button.props['data-dshlr-button']).filter(Boolean)
-  assert.deepEqual(labels, ['chat', 'plugins', 'automation', 'settings'])
+await check('disposal restores native attributes, listeners, visibility and geometry', () => {
+  const app = fixture()
+  assert(app.rows.every((row) => row.getAttribute('data-dshlr-hidden') === ''))
+  app.dispose()
+  assert.equal(app.brand.getAttribute('aria-label'), '新建会话')
+  assert.equal(app.brand.getAttribute('aria-haspopup'), null)
+  assert.equal(app.brand.listeners.size, 0)
+  assert.equal(app.settings.getAttribute('aria-label'), '账号菜单')
+  assert.equal(app.settings.getAttribute('data-dshlr-button'), null)
+  assert(app.rows.every((row) => row.getAttribute('data-dshlr-hidden') === null))
+  assert.equal(app.root.getAttribute('data-dshlr-active'), null)
 })
-
-await check('chat button selects the conversation panel', () => {
-  const applied = scenario()
-  buttons(applied.render()).find((button) => button.props['data-dshlr-button'] === 'chat').props.onClick()
-  assert.deepEqual(applied.selected, [null])
-})
-
-await check('plugins button selects the built-in plugins panel', () => {
-  const applied = scenario()
-  buttons(applied.render()).find((button) => button.props['data-dshlr-button'] === 'plugins').props.onClick()
-  assert.deepEqual(applied.selected, ['plugins'])
-})
-
-await check('unavailable automation panel is disabled', () => {
-  const applied = scenario({ panels: ['plugins'] })
-  const automation = buttons(applied.render()).find((button) => button.props['data-dshlr-button'] === 'automation')
-  assert.equal(automation.props.disabled, true)
-  assert(automation.props['aria-label'].includes('未安装'))
-})
-
-await check('active panel highlights the matching rail button', () => {
-  const applied = scenario({ activePanel: 'plugins' })
-  const pluginButton = buttons(applied.render()).find((button) => button.props['data-dshlr-button'] === 'plugins')
-  assert(String(pluginButton.props.className).includes('dshlr-active'))
-})
-
-await check('the brand is never hidden by the collapsed-session rule', () => {
-  assert(clientSource.includes('/brand/i.test(className)'))
-  assert(clientSource.includes("button.removeAttribute?.('data-dshlr-hidden')"))
-})
-
-await check('the brand and chevron sit in one rounded pill', () => {
-  assert(clientSource.includes('dshlr-brand-pill'))
-  assert(clientSource.includes('border-radius: 7px'))
-  assert(clientSource.includes('padding: 3px 7px 3px 6px'))
-  assert(clientSource.includes('width: fit-content'))
-})
-
-await check('the brand and chevron are one workspace-menu button', () => {
-  assert(clientSource.includes('dshlr-brand-chevron'))
-  assert(clientSource.includes("brand.addEventListener?.('click', activateBrand, true)"))
-  assert(clientSource.includes('openMenu'))
-  assert(clientSource.includes('dshlr-workspace-menu'))
-})
-
-await check('the brand no longer starts a new conversation', () => {
-  assert(clientSource.includes('activateBrand'))
-  assert(clientSource.includes('stopImmediatePropagation'))
-})
-
-await check('the three titlebar controls share one neutral button style', () => {
-  assert(clientSource.includes('width: 14px'))
-  assert(clientSource.includes('background: transparent'))
-  assert(clientSource.includes('.dshlr-toggle:hover'))
-})
-
-await check('the rail owns the top sidebar toggle', () => {
-  assert(clientSource.includes("'data-dshlr-toggle': ''"))
-  assert(clientSource.includes("button.hasAttribute?.('data-dshlr-toggle') === true"))
-})
-
-await check('sidebar content fades before and after the width transition', () => {
-  assert(clientSource.includes('data-dshlr-collapsing'))
-  assert(clientSource.includes('data-dshlr-expanding'))
-  assert(clientSource.includes('@keyframes dshlr-content-in'))
-})
-
-await check('the shell keeps a transition for plugin-triggered sidebar toggles', () => {
-  assert(clientSource.includes('grid-template-columns var(--ds-transition-duration-slow)'))
-  assert(clientSource.includes(':not([data-dragging])'))
-})
-
-await check('the collapsed new-session titlebar button is hidden', () => {
-  assert(clientSource.includes('hideCollapsedNewSession'))
-  assert(clientSource.includes("top < 60"))
-})
-
-await check('cloned host glyphs keep one fixed size across sidebar states', () => {
-  assert(clientSource.includes('width: 18px !important'))
-  assert(clientSource.includes('height: 18px !important'))
-})
-
-await check('native plugin and automation sidebar rows are hidden', () => {
-  const applied = scenario()
-  assert.deepEqual(applied.panelButtons.map((button) => button.hidden), [true, true])
-})
-
-await check('the active item renders a solid filled glyph', () => {
-  assert(clientSource.includes('FILLED_ICONS'))
-  assert(clientSource.includes('function FilledIcon'))
-  assert(clientSource.includes("fill: 'currentColor'"))
-})
-
-await check('active filling does not reuse the broken outline-fill CSS', () => {
-  assert(!clientSource.includes('.dshlr-button.dshlr-active .dshlr-glyph svg'))
-})
-
-await check('active state is indicated by the button style, not a different glyph', () => {
-  const tree = scenario({ activePanel: 'plugins' }).render()
-  const pluginButton = buttons(tree).find((button) => button.props['data-dshlr-button'] === 'plugins')
-  assert(String(pluginButton.props.className).includes('dshlr-active'))
-})
-
-await check('settings menu exposes account, settings, feedback and logout', () => {
-  assert(clientSource.includes("'data-dshlr-menu-item': 'settings'"))
-  assert(clientSource.includes("'data-dshlr-menu-item': 'feedback'"))
-  assert(clientSource.includes("'data-dshlr-menu-item': 'logout'"))
-  assert(clientSource.includes("'rail.account'"))
-})
-
-await check('settings action clicks the host settings control', () => {
-  const applied = scenario()
-  applied.injected.actions.openSettings()
-  assert.equal(applied.settingsClicks.length, 1)
-})
-
-console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))
+console.log(`\n${process.exitCode ? 'some checks failed' : 'all checks passed (' + checks + ')'}`)

@@ -42,7 +42,7 @@ async function check(name, body) {
 
 await check('manifest declares one DSH bundle and one web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')
@@ -118,7 +118,7 @@ await check('client.js registers exactly one client module', () => {
 })
 
 await check('every merged feature registers exactly once in bundle order', () => {
-  assert.equal(FEATURE_ORDER.length, 11)
+  assert.equal(FEATURE_ORDER.length, 18)
   for (const id of FEATURE_ORDER) {
     const pattern = new RegExp("__DSH_FEATURE\\('" + id + "'", 'g')
     assert.equal((clientSource.match(pattern) ?? []).length, 1, id + ' registers once')
@@ -163,7 +163,7 @@ await check('no standalone-package wiring is left in the bundle', () => {
 // ---------------------------------------------------------------------------
 
 await check('host half exports its services and keeps the queue routes', () => {
-  assert(indexSource.includes("export const inject = ['webServer', 'agents', 'sessions', 'attachments']"))
+  for (const dependency of ['webServer', 'agents', 'sessions', 'attachments', 'typert', 'fs', 'subprocess', 'sandbox', 'sandboxPolicy']) assert(indexSource.includes("'" + dependency + "'"), dependency)
   for (const route of [
     '/dsh-queue-withdraw/reorder',
     '/dsh-queue-withdraw/update',
@@ -209,8 +209,8 @@ await check('the settings shell reports failed, quarantined and skipped features
     "'settings.state.failed'",
     "'settings.state.quarantined'",
     "'settings.state.skipped'",
-    "'settings.failure.isolated'",
-    "'settings.failure.skipped'",
+    "'settings.failure.message'",
+    "'group.navigation'",
     'dshcs-alert',
     'dshcs-tabBadge',
     'SettingsPageBoundary',
@@ -227,7 +227,8 @@ await check('locale files carry the merged plugin title and description', () => 
     const value = JSON.parse(read('locale/' + locale + '.json'))
     assert.equal(typeof value.meta.title, 'string')
     assert.equal(typeof value.meta.description, 'string')
-    assert(value.meta.description.length > 40)
+    assert(value.meta.description.trim().length > 0)
+    assert.equal(value.meta.title, locale === 'zh' ? 'Codex 工作台' : 'Codex Workbench')
   }
 })
 

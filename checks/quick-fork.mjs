@@ -25,11 +25,12 @@ async function check(name, body) {
 }
 
 /** Load the merged module with only quick-fork built and a minimal DOM/localStorage sandbox. */
-function load() {
-  const storage = new Map()
+function load(feature = 'dsh-quick-fork', seedStorage = {}) {
+  const storage = new Map(Object.entries(seedStorage))
+  let sequence = 0
   let loaded
   const sandbox = {
-    __DSH_CODEX_STYLE_FEATURES__: ['dsh-quick-fork'],
+    __DSH_CODEX_STYLE_FEATURES__: [feature],
     window: { __ModuleLoader__: { load(definition) { loaded = definition } }, addEventListener() {}, removeEventListener() {} },
     document: {
       addEventListener() {}, removeEventListener() {}, querySelectorAll() { return [] },
@@ -40,7 +41,7 @@ function load() {
       setItem: (key, value) => storage.set(key, String(value)),
       removeItem: (key) => storage.delete(key),
     },
-    crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000' },
+    crypto: { randomUUID: () => 'fixture-' + (++sequence) },
     console,
   }
   vm.runInNewContext(clientSource, sandbox, { filename: 'client.js' })
@@ -55,7 +56,7 @@ function load() {
 
 await check('manifest declares a DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -174,7 +175,7 @@ await check('selected text becomes a Markdown quote block', () => {
 })
 
 await check('selected text becomes numbered model context', () => {
-  const { plugin } = load()
+  const { plugin } = load('dsh-selection-quotes')
   assert.equal(plugin.__test.annotationContextOf([]), '')
   assert.equal(
     plugin.__test.annotationContextOf([{ text: 'one' }, { text: '  two  ' }]),
@@ -183,7 +184,7 @@ await check('selected text becomes numbered model context', () => {
 })
 
 await check('annotation store adds, removes and persists per session', () => {
-  const { plugin, storage } = load()
+  const { plugin, storage } = load('dsh-selection-quotes')
   assert.equal(plugin.__test.addAnnotation('s1', 'alpha'), true)
   assert.equal(plugin.__test.addAnnotation('s1', '   '), false)
   assert.equal(plugin.__test.annotationItemsOf('s1').length, 1)
@@ -195,7 +196,7 @@ await check('annotation store adds, removes and persists per session', () => {
 })
 
 await check('pending annotations ride on the next prompt and clear on success', async () => {
-  const { plugin } = load()
+  const { plugin } = load('dsh-selection-quotes')
   const calls = []
   const session = {
     async prompt(content, mode) {
@@ -221,7 +222,7 @@ await check('pending annotations ride on the next prompt and clear on success', 
 })
 
 await check('a rejected prompt restores the annotations', async () => {
-  const { plugin } = load()
+  const { plugin } = load('dsh-selection-quotes')
   const session = {
     async prompt() {
       return { ok: false, error: { code: 'test', message: 'rejected' } }
@@ -235,8 +236,20 @@ await check('a rejected prompt restores the annotations', async () => {
   assert.equal(plugin.__test.annotationItemsOf('s2').length, 1)
 })
 
+await check('failed sends preserve quotes added while the send was pending, including across reload', () => {
+  const { plugin, storage } = load('dsh-selection-quotes')
+  for (let i = 0; i < 12; i++) plugin.__test.addAnnotation('s1', 'old ' + i)
+  const pending = [...plugin.__test.annotationItemsOf('s1')]
+  plugin.__test.forgetAnnotations('s1', pending)
+  for (let i = 0; i < 12; i++) plugin.__test.addAnnotation('s1', 'new ' + i)
+  plugin.__test.restoreAnnotations('s1', pending)
+  assert.equal(plugin.__test.annotationItemsOf('s1').length, 24)
+  const restored = load('dsh-selection-quotes', { 'dsh.quickFork.annotations': storage.get('dsh.quickFork.annotations') })
+  assert.equal(restored.plugin.__test.annotationItemsOf('s1').length, 24)
+})
+
 await check('selection capsule and composer annotation layer are present', () => {
-  assert(clientSource.includes('dshqf-capsule'))
+  assert(clientSource.includes('dsh-selection-toolbar'))
   assert(clientSource.includes("'bubble.addToChat'"))
   assert(clientSource.includes("'bubble.addToTempChat'"))
   assert(clientSource.includes('dshqf-annotationPanel'))
@@ -254,16 +267,15 @@ await check('the side chat is listed in the right-sidebar guide', () => {
   assert.equal(typeof definition.guide[0].icon, 'function')
 })
 
-await check('selection gate rejects panel selections and temp children', () => {
-  const { plugin, storage } = load()
-  storage.set('dsh.quickFork.children', JSON.stringify(['child-1']))
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: 'parent', inPanel: false }), true)
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: 'parent', inPanel: false, inEditable: false }), true)
-  assert.equal(plugin.__test.canOfferSelection({ text: '   ', sessionId: 'parent', inPanel: false }), false)
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: 'child-1', inPanel: false }), false)
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: 'parent', inPanel: true }), false)
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: 'parent', inPanel: false, inEditable: true }), false)
-  assert.equal(plugin.__test.canOfferSelection({ text: 'x', sessionId: '', inPanel: false }), false)
+await check('selection tools ignore content outside a conversation and editable surfaces', () => {
+ const {plugin}=load('dsh-selection-toolbar')
+ const owner={getAttribute:()=> 's1'}
+ const content={closest:selector=>selector==='[data-conversation-session]'?owner:null}
+ const editable={closest:selector=>selector.includes('contenteditable')?{}:owner}
+ assert.equal(plugin.__test.ownerOf(content),owner)
+ assert.equal(plugin.__test.ownerOf(editable),null)
+ assert.equal(plugin.__test.ownerOf(null),null)
+
 })
 
 await check('factory exposes apply and the expected injected services', () => {

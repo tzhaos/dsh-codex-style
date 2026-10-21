@@ -495,4 +495,29 @@ await check('legacy mode still reports every feature failure without throwing', 
   assert(booted.scratch.log.includes('healthy:apply'))
 })
 
+await check('nested service effects belong to the service context that installed them', () => {
+  const runtime = createReactRuntime()
+  const loaded = loadBundle({ React: runtime, isolation: true, filter: ['test-service-lifetime'], synthetics: [`
+__DSH_FEATURE('test-service-lifetime', () => ({
+  inject: [],
+  apply(ctx) {
+    ctx.inject(['dynamic'], (child) => child.effect(() => {
+      __isoScratch.log.push('child:active')
+      return () => __isoScratch.log.push('child:disposed')
+    }, 'child-owned-effect'))
+  },
+}))`] })
+  const { host, effects } = createHost()
+  const childCleanups = []
+  const child = { ...host, effect(factory) {
+    const cleanup = factory(); childCleanups.push(cleanup); return () => cleanup?.()
+  } }
+  host.inject = (_deps, callback) => { callback(child); return () => {} }
+  loaded.module.apply(host)
+  assert.equal(childCleanups.length, 1)
+  assert(!effects.includes('child-owned-effect'))
+  childCleanups[0]()
+  assert(loaded.scratch.log.includes('child:disposed'))
+})
+
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

@@ -1,17 +1,12 @@
 /**
- * Settings shell — Settings → Codex Style, one tab per merged feature.
- *
- * The section owns the tab row and the shared enable switch; every feature tab
- * either renders the page that feature registered through
- * `env.registerSettingsPage(...)` (sidebar sections, prompt history) or a
- * generated page that explains the feature, shows its enable switch and lists
- * the data/limitation note. Enable preferences are browser-local and take
- * effect on the next full DSH restart, because features install their client
- * patches once at boot.
+ * Codex Workbench settings: task groups over independently isolated capabilities.
+ * Capability IDs and preference keys are stable across the source reorganization.
+ * Each custom settings page remains inside its own feature boundary.
  */
 
 __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
   const React = require('react')
+  const { Switch } = require('@deepseek-ai/dsh-client-ui-primitives')
   const { useEffect, useId, useRef, useState } = React
   const h = React.createElement
 
@@ -47,20 +42,8 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
   /** Locale namespace owned by the merged plugin shell. */
   const NS = 'codexStyle'
 
-  /** Feature ids in bundle order; mirrors scripts/build-client.mjs. */
-  const FEATURES = [
-    'dsh-sidebar-sections',
-    'dsh-left-rail',
-    'dsh-nav-back-forward',
-    'dsh-hover-polish',
-    'dsh-tab-middle-click',
-    'dsh-long-paste',
-    'dsh-sidebar-file-drop',
-    'dsh-file-link-actions',
-    'dsh-composer-history',
-    'dsh-queue-withdraw',
-    'dsh-quick-fork',
-  ]
+  /** Task groups from the shared build catalog. */
+  const GROUPS = env.featureGroups()
 
   /** @param {string} id - feature id. @returns {string} title dictionary key. */
   function titleKey(id) {
@@ -78,109 +61,168 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
   }
 
   const zh = {
-    'settings.nav': 'Codex 风格',
-    'settings.title': 'Codex 风格插件',
-    'settings.intro': '11 个子插件合并成一个 bundle，每个子插件占一个 tab：可以单独启用/禁用，并在各自的页面里管理它自己的设置。禁用和设置在完全退出并重新启动 DSH 后生效。',
-    'settings.tabs': '子插件设置页',
+    'group.navigation': '会话与导航',
+    'group.composer': '消息输入',
+    'group.content': '内容操作',
+    'group.panels': '侧边面板',
+    'group.interaction': '通用交互',
+    'feature.dsh-selection-quotes.title': '选区引用',
+    'feature.dsh-selection-quotes.summary': '将选中文字作为引用加入当前消息。',
+    'feature.dsh-selection-quotes.note': '引用保存在浏览器；发送成功后移除，失败后恢复。',
+    'feature.dsh-continue.title': '继续对话',
+    'feature.dsh-effort-slider.title': '推理强度滑条',
+    'feature.dsh-effort-slider.summary': '滑动选择当前模型支持的推理强度。',
+    'feature.dsh-effort-slider.note': '松开后生效；可恢复默认强度，并保留原生模型菜单。',
+    'feature.dsh-continue.summary': '输入为空时，用继续按钮接着处理当前对话。',
+    'feature.dsh-continue.note': '仅在已有对话且未运行时显示；发送结果不明时等待确认。',
+    'feature.dsh-selection-toolbar.title': '选区工具栏',
+    'feature.dsh-selection-toolbar.summary': '选中文字后显示当前可用的操作。',
+    'feature.dsh-selection-toolbar.note': '仅显示已启用功能的操作入口。',
+
+    'settings.nav': 'Codex 工作台',
+    'settings.title': 'Codex 工作台',
+    'settings.intro': '设置界面与交互功能。',
+    'settings.tabs': '功能设置',
     'settings.restart': '启用或禁用后需要完全退出并重新启动 DSH 才会生效。',
     'settings.enabled': '已启用',
     'settings.disabled': '已停用',
-    'settings.noOptions': '这个子插件没有额外可配置项，使用上方开关控制它是否加载。',
-    'settings.disabledHint': '该子插件当前已停用；重新启用并重启 DSH 后生效。',
-    'settings.dataHint': '数据与限制',
     'settings.state.failed': '启动失败',
     'settings.state.quarantined': '已隔离',
     'settings.state.skipped': '已跳过',
     'settings.failure.message': '原因：{message}',
-    'settings.failure.isolated': '该子插件已停止运行，其他子插件不受影响；重启 DSH 会重新尝试。',
-    'settings.failure.skipped': '它依赖的子插件本次启动失败，因此被跳过；修复依赖后重启 DSH 会重新加载。',
-    'settings.failure.previous': '上次启动的失败记录',
-    'feature.dsh-sidebar-sections.title': '侧边栏分区',
-    'feature.dsh-sidebar-sections.summary': '把侧边栏分成置顶 / 项目 / 最近 / 归档四个分区，支持拖拽排序、行菜单与安全删除。',
-    'feature.dsh-sidebar-sections.note': '排序、折叠与安全删除记录保存在浏览器 localStorage；已删除会话的恢复在下方设置里。',
-    'feature.dsh-left-rail.title': '左侧图标栏',
-    'feature.dsh-left-rail.summary': '最左侧 Codex 风格 46px 图标栏：会话、插件、自动化任务、设置与品牌菜单。',
-    'feature.dsh-left-rail.note': '自动化任务图标依赖宿主注册 schedules 主面板；设置按钮依赖宿主按钮的 aria-label 文案。',
-    'feature.dsh-nav-back-forward.title': '会话前进 / 后退',
-    'feature.dsh-nav-back-forward.summary': '在 Windows 标题栏、侧边栏开关右侧提供会话前进/后退按钮，并支持 Alt+← / Alt+→。',
-    'feature.dsh-nav-back-forward.note': '只记录主视图的 Session 切换，不含右侧标签页与滚动位置；刷新后从当前会话重新开始。',
-    'feature.dsh-hover-polish.title': 'Hover 与 Tooltip',
-    'feature.dsh-hover-polish.summary': '统一按钮 / 标签的 hover 反馈，并给图标按钮加 Codex 风格 Tooltip。',
-    'feature.dsh-hover-polish.note': '只处理带 title / aria-label 的按钮；菜单项、下拉选项与 data-dshhp-skip 控件跳过；自定义气泡延迟 650ms。',
-    'feature.dsh-tab-middle-click.title': '标签中键关闭',
-    'feature.dsh-tab-middle-click.summary': '在侧边栏或停靠标签上按鼠标中键，复用标签自带的关闭控件关闭。',
-    'feature.dsh-tab-middle-click.note': '依赖 DockKit 标签 DOM 契约；没有关闭控件的标签不处理，也不新增快捷键。',
+    'feature.dsh-sidebar-sections.title': '会话列表',
+    'feature.dsh-sidebar-sections.summary': '按置顶、项目、最近和归档整理会话。',
+    'feature.dsh-sidebar-sections.note': '排序、折叠和移除记录保存在此浏览器。',
+    'feature.dsh-left-rail.title': '左侧导航栏',
+    'feature.dsh-left-rail.summary': '切换会话、自动化任务、插件及 Work、Code 模式。',
+    'feature.dsh-left-rail.note': '侧栏收起后，导航入口仍然可用。',
+    'feature.dsh-workbench-pages.title': '管理页面',
+    'feature.dsh-workbench-pages.summary': '统一任务、插件和技能的导航与列表布局。',
+    'feature.dsh-workbench-pages.note': '技能目录跟随当前聊天；任务与插件保留原生操作。',
+    'feature.dsh-nav-back-forward.title': '会话前进与后退',
+    'feature.dsh-nav-back-forward.summary': '在本次打开过的会话之间前进和后退。',
+    'feature.dsh-nav-back-forward.note': '快捷键：Alt+← / Alt+→。刷新后重新记录。',
+    'feature.dsh-git-switch.title': 'Git 分支切换',
+    'feature.dsh-git-switch.summary': '查看和搜索当前工作区的本地分支。',
+    'feature.dsh-git-switch.note': '切换前检查未提交改动、工作树占用和执行中的会话。',
+    'feature.dsh-hover-polish.title': '悬停提示',
+    'feature.dsh-ui-motion.title': '界面动效',
+    'feature.dsh-ui-motion.summary': '统一菜单、面板、提示和按钮的过渡效果。',
+    'feature.dsh-ui-motion.note': '跟随系统的减少动态效果设置。',
+    'feature.dsh-hover-polish.summary': '统一图标按钮和标签的悬停反馈。',
+    'feature.dsh-hover-polish.note': '跟随当前主题和系统的减少动态效果设置。',
+    'feature.dsh-tab-middle-click.title': '中键关闭标签',
+    'feature.dsh-tab-middle-click.summary': '用鼠标中键关闭面板标签。',
+    'feature.dsh-tab-middle-click.note': '仅作用于带关闭按钮的标签。',
     'feature.dsh-long-paste.title': '长文本粘贴',
-    'feature.dsh-long-paste.summary': '超长纯文本粘贴时自动变成 .txt 附件，并可从附件卡片展开回输入框。',
-    'feature.dsh-long-paste.note': '阈值固定 2000 字符；模型收到的是文件附件而不是内联文本。',
-    'feature.dsh-sidebar-file-drop.title': '侧栏文件拖入',
-    'feature.dsh-sidebar-file-drop.summary': '从侧边栏文件列表把文件拖进输入框，生成文件引用 chip；Desktop 上桥接宿主文件路径。',
-    'feature.dsh-sidebar-file-drop.note': '文件行需要提供绝对路径（title / aria-label / data-path）；生成的是引用，不是上传副本。',
-    'feature.dsh-file-link-actions.title': '文件链接右键',
-    'feature.dsh-file-link-actions.summary': '对话里的本地文件链接右键可默认应用打开、在文件管理器中定位、复制绝对路径。',
-    'feature.dsh-file-link-actions.note': '只处理本地文件链接；没有可用工作区路径时无法定位；左键预览与宿主数据不变。',
+    'feature.dsh-long-paste.summary': '长文本粘贴自动转为附件，可展开回输入框。',
+    'feature.dsh-long-paste.note': '达到 2,000 个字符的粘贴会转为文本附件。',
+    'feature.dsh-sidebar-file-drop.title': '拖入文件引用',
+    'feature.dsh-sidebar-file-drop.summary': '把文件从文件列表拖入输入框，插入文件引用。',
+    'feature.dsh-sidebar-file-drop.note': '文件列表需要提供完整路径。',
+    'feature.dsh-file-link-actions.title': '文件操作菜单',
+    'feature.dsh-file-link-actions.summary': '右键打开文件、定位文件夹或复制完整路径。',
+    'feature.dsh-file-link-actions.note': '打开操作在运行 DSH 的设备上执行。',
     'feature.dsh-composer-history.title': '输入历史',
-    'feature.dsh-composer-history.summary': '给输入框补上可搜索的历史输入面板：↑ 取回上一条，Ctrl/Cmd+↑ 打开搜索面板。',
-    'feature.dsh-composer-history.note': '只记录文本，不含附件；记录保存在浏览器 localStorage，上限 500 条，清空或删除只影响本地记录。',
+    'feature.dsh-composer-history.summary': '搜索历史输入，或用 ↑ 取回上一条。',
+    'feature.dsh-composer-history.note': '历史保存在此浏览器，最多 500 条，仅包含文本。',
     'feature.dsh-queue-withdraw.title': '排队消息',
-    'feature.dsh-queue-withdraw.summary': '排队消息可撤回输入栏、原生行内编辑、整行拖动排序，也可以锁定不发。',
-    'feature.dsh-queue-withdraw.note': '锁定依赖宿主侧 inbox.claim 补丁；只覆盖插件加载后选择的文件缓存；切换会话会恢复草稿附件。',
-    'feature.dsh-quick-fork.title': '划选复创',
-    'feature.dsh-quick-fork.summary': '划选对话文字后点「复创」，在右侧栏开一个临时侧边对话。',
-    'feature.dsh-quick-fork.note': '侧聊是空白子会话的精简面板，不是主对话的完整复刻；关闭标签后从视图消失。',
+    'feature.dsh-queue-withdraw.summary': '撤回、编辑、排序和锁定排队消息。',
+    'feature.dsh-queue-withdraw.note': '锁定状态在重启后保留。文件撤回需要此浏览器的附件缓存。',
+    'feature.dsh-quick-fork.title': '临时侧聊',
+    'feature.dsh-quick-fork.summary': '在侧边面板独立追问选中内容。',
+    'feature.dsh-quick-fork.note': '关闭标签时停止并归档临时会话，保留历史消息。',
   }
 
   const en = {
-    'settings.nav': 'Codex Style',
-    'settings.title': 'Codex Style plugin',
-    'settings.intro': 'Eleven plugins ship as one bundle. Each sub-plugin has its own tab: enable or disable it and manage its settings there. Toggles and settings take effect after a full DSH restart.',
-    'settings.tabs': 'Sub-plugin settings pages',
+    'group.navigation': 'Sessions and navigation',
+    'group.composer': 'Composer',
+    'group.content': 'Content actions',
+    'group.panels': 'Side panels',
+    'group.interaction': 'Interaction',
+    'feature.dsh-selection-quotes.title': 'Selection quotes',
+    'feature.dsh-selection-quotes.summary': 'Add selected text as context for the next message.',
+    'feature.dsh-selection-quotes.note':
+      'Quotes remain in this browser until a successful send; failed sends restore them.',
+    'feature.dsh-continue.title': 'Continue conversation',
+    'feature.dsh-effort-slider.title': 'Reasoning effort slider',
+    'feature.dsh-effort-slider.summary': 'Slide through the current model’s supported reasoning levels.',
+    'feature.dsh-effort-slider.note': 'Applies on release, with reset and the native model menu.',
+    'feature.dsh-continue.summary': 'Continue the current conversation when the composer is empty.',
+    'feature.dsh-continue.note':
+      'Shown for idle existing conversations; uncertain sends await confirmation.',
+    'feature.dsh-selection-toolbar.title': 'Selection toolbar',
+    'feature.dsh-selection-toolbar.summary':
+      'Show available actions when conversation text is selected.',
+    'feature.dsh-selection-toolbar.note': 'Only actions from enabled capabilities are shown.',
+
+    'settings.nav': 'Codex Workbench',
+    'settings.title': 'Codex Workbench',
+    'settings.intro': 'Configure the workspace and conversation tools.',
+    'settings.tabs': 'Capability settings',
     'settings.restart': 'Enable or disable takes effect after fully quitting and restarting DSH.',
     'settings.enabled': 'Enabled',
     'settings.disabled': 'Disabled',
-    'settings.noOptions': 'This sub-plugin has no extra options; use the switch above to control whether it loads.',
-    'settings.disabledHint': 'This sub-plugin is disabled; re-enable it and restart DSH to apply.',
-    'settings.dataHint': 'Data and limitations',
     'settings.state.failed': 'Failed to start',
     'settings.state.quarantined': 'Quarantined',
     'settings.state.skipped': 'Skipped',
     'settings.failure.message': 'Reason: {message}',
-    'settings.failure.isolated': 'This sub-plugin has been stopped; the other sub-plugins keep running. Restart DSH to retry it.',
-    'settings.failure.skipped': 'A sub-plugin it depends on failed to start, so it was skipped. Fix the dependency and restart DSH to load it.',
-    'settings.failure.previous': 'Failure from the previous start',
-    'feature.dsh-sidebar-sections.title': 'Sidebar sections',
-    'feature.dsh-sidebar-sections.summary': 'Pinned / Projects / Recent / Archived sidebar sections with drag ordering, row menus and safe delete.',
-    'feature.dsh-sidebar-sections.note': 'Ordering, collapse and safe-delete records live in browser localStorage; restoring removed conversations is in the settings below.',
-    'feature.dsh-left-rail.title': 'Left icon rail',
-    'feature.dsh-left-rail.summary': 'A 46px Codex-style icon rail: conversations, plugins, automation, settings and the brand menu.',
-    'feature.dsh-left-rail.note': 'The automation icon depends on the host registering a schedules panel; the settings button depends on the host aria-label text.',
-    'feature.dsh-nav-back-forward.title': 'Session back / forward',
-    'feature.dsh-nav-back-forward.summary': 'Back/forward controls in the Windows caption row next to the sidebar toggle, plus Alt+Left / Alt+Right.',
-    'feature.dsh-nav-back-forward.note': 'Tracks main-view Session switches only; right-sidebar tabs and scroll positions are not included, and history restarts after a refresh.',
-    'feature.dsh-hover-polish.title': 'Hover and tooltips',
-    'feature.dsh-hover-polish.summary': 'One hover surface for buttons and tabs, and Codex-style tooltips for icon buttons.',
-    'feature.dsh-hover-polish.note': 'Only buttons with title / aria-label; menu items, dropdown options and data-dshhp-skip controls are skipped; custom bubbles wait 650ms.',
-    'feature.dsh-tab-middle-click.title': 'Tab middle-click',
-    'feature.dsh-tab-middle-click.summary': 'Middle-click a sidebar or dock tab to close it through the tab\'s own close control.',
-    'feature.dsh-tab-middle-click.note': 'Depends on the DockKit tab DOM contract; tabs without a close control are left alone and no shortcut is added.',
+    'feature.dsh-sidebar-sections.title': 'Session list',
+    'feature.dsh-sidebar-sections.summary':
+      'Organize sessions into pinned, projects, recent and archived sections.',
+    'feature.dsh-sidebar-sections.note':
+      'Ordering, collapse state and removed-session records stay in this browser.',
+    'feature.dsh-left-rail.title': 'Navigation rail',
+    'feature.dsh-left-rail.summary':
+      'Switch between conversations, automation, plugins and Work or Code mode.',
+    'feature.dsh-left-rail.note':
+      'Navigation stays available while the session sidebar is collapsed.',
+    'feature.dsh-workbench-pages.title': 'Management pages',
+    'feature.dsh-workbench-pages.summary': 'Align task, plugin and skill navigation and lists.',
+    'feature.dsh-workbench-pages.note': 'Skills follow the current chat. Task and plugin actions stay native.',
+    'feature.dsh-nav-back-forward.title': 'Session navigation',
+    'feature.dsh-nav-back-forward.summary':
+      'Go back and forward through sessions opened in this page.',
+    'feature.dsh-nav-back-forward.note':
+      'Shortcuts: Alt+Left / Alt+Right. Reloading resets this history.',
+    'feature.dsh-git-switch.title': 'Git branches',
+    'feature.dsh-git-switch.summary': 'Browse and search local branches in the current workspace.',
+    'feature.dsh-git-switch.note':
+      'Checks uncommitted changes, worktree occupancy and active sessions before switching.',
+    'feature.dsh-hover-polish.title': 'Hover feedback',
+    'feature.dsh-ui-motion.title': 'Interface motion',
+    'feature.dsh-ui-motion.summary': 'Consistent transitions for menus, panels, hints and buttons.',
+    'feature.dsh-ui-motion.note': 'Follows the system reduced-motion preference.',
+    'feature.dsh-hover-polish.summary': 'Use consistent hover feedback for icon buttons and tabs.',
+    'feature.dsh-hover-polish.note': 'Follows the active theme and reduced-motion preference.',
+    'feature.dsh-tab-middle-click.title': 'Middle-click close',
+    'feature.dsh-tab-middle-click.summary': 'Close a panel tab with the middle mouse button.',
+    'feature.dsh-tab-middle-click.note': 'Only tabs with an existing close control can be closed.',
     'feature.dsh-long-paste.title': 'Long paste',
-    'feature.dsh-long-paste.summary': 'Very long plain-text pastes become a .txt attachment that can be expanded back into the composer.',
-    'feature.dsh-long-paste.note': 'The threshold is fixed at 2000 characters; the model receives a file attachment rather than inline text.',
-    'feature.dsh-sidebar-file-drop.title': 'Sidebar file drop',
-    'feature.dsh-sidebar-file-drop.summary': 'Drag a sidebar file into the composer as a file-reference chip; on Desktop the host file-path bridge is used.',
-    'feature.dsh-sidebar-file-drop.note': 'The row must expose an absolute path (title / aria-label / data-path); the result is a reference, not an uploaded copy.',
-    'feature.dsh-file-link-actions.title': 'File-link actions',
-    'feature.dsh-file-link-actions.summary': 'Right-click a local file link to open it, reveal it in the file manager, or copy its absolute path.',
-    'feature.dsh-file-link-actions.note': 'Local file links only; no workspace path means no reveal; left-click preview and host data stay unchanged.',
+    'feature.dsh-long-paste.summary':
+      'Keep long pasted text as an attachment and expand it into the editor.',
+    'feature.dsh-long-paste.note':
+      'Plain-text pastes of 2,000 characters or more become text files.',
+    'feature.dsh-sidebar-file-drop.title': 'File references',
+    'feature.dsh-sidebar-file-drop.summary':
+      'Drag a file from the file list into the composer as a reference.',
+    'feature.dsh-sidebar-file-drop.note': 'The file list must provide the complete path.',
+    'feature.dsh-file-link-actions.title': 'File actions',
+    'feature.dsh-file-link-actions.summary':
+      'Open, reveal or copy the full path of a file from its context menu.',
+    'feature.dsh-file-link-actions.note': 'Open and reveal run on the device hosting DSH.',
     'feature.dsh-composer-history.title': 'Prompt history',
-    'feature.dsh-composer-history.summary': 'Searchable prompt-history panel plus arrow-up recall for the composer.',
-    'feature.dsh-composer-history.note': 'Text only, no attachments; records stay in browser localStorage capped at 500; clearing or deleting only touches local records.',
+    'feature.dsh-composer-history.summary':
+      'Search earlier prompts or recall the previous one with ArrowUp.',
+    'feature.dsh-composer-history.note': 'This browser stores up to 500 text-only records.',
     'feature.dsh-queue-withdraw.title': 'Queued messages',
-    'feature.dsh-queue-withdraw.summary': 'Withdraw queued messages back to the composer, edit in place, drag reorder, or lock a message so it is not sent.',
-    'feature.dsh-queue-withdraw.note': 'Locking relies on a host-side inbox.claim patch; only files selected after the plugin loaded are cached; switching conversations restores draft attachments.',
-    'feature.dsh-quick-fork.title': 'Selection fork',
-    'feature.dsh-quick-fork.summary': 'Select text in a conversation, click Fork, and open a temporary side conversation in the right sidebar.',
-    'feature.dsh-quick-fork.note': 'The side chat is a compact panel over a blank child session, not a full replica of the main conversation; closing the tab removes it from view.',
+    'feature.dsh-queue-withdraw.summary': 'Withdraw, edit, reorder and hold queued messages.',
+    'feature.dsh-queue-withdraw.note':
+      'Holds survive a restart. File withdrawal requires this browser to retain the attachment cache.',
+    'feature.dsh-quick-fork.title': 'Side chat',
+    'feature.dsh-quick-fork.summary': 'Ask about selected content in a separate side conversation.',
+    'feature.dsh-quick-fork.note':
+      'Closing a tab stops and archives its temporary session while retaining messages.',
   }
 
   const CSS = [
@@ -200,20 +242,12 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     '.dshcs-cardSummary{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);}',
     '.dshcs-restart{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
     '.dshcs-switch{display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:2px;font:inherit;cursor:pointer;color:var(--dsw-alias-label-secondary);flex:none;}',
-    '.dshcs-switchTrack{display:inline-flex;align-items:center;width:36px;height:20px;border-radius:10px;padding:2px;background:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));transition:background .15s ease;}',
-    '.dshcs-switchOn .dshcs-switchTrack{background:var(--dsw-alias-state-business-primary);}',
-    '.dshcs-switchKnob{width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s ease;}',
-    '.dshcs-switchOn .dshcs-switchKnob{transform:translateX(16px);}',
     '.dshcs-switchLabel{font-size:12px;line-height:18px;white-space:nowrap;}',
     '.dshcs-page{min-width:0;}',
-    '.dshcs-generic{margin:0;}',
-    '.dshcs-genericText{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);}',
-    '.dshcs-notes{border-style:dashed;}',
-    '.dshcs-notesTitle{margin:0;font-size:12px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-tertiary);text-transform:uppercase;letter-spacing:.04em;}',
     '.dshcs-note{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);}',
-    '.dshcs-tabBadge{display:inline-block;margin-left:5px;padding:0 4px;border-radius:6px;font-size:10px;line-height:15px;font-weight:700;color:#fff;background:var(--dsw-alias-state-error-primary,#d03050);vertical-align:1px;}',
-    '.dshcs-alert{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding:10px 12px;border-radius:8px;border:.5px solid var(--dsw-alias-state-error-primary,#d03050);background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d03050) 8%,transparent);}',
-    '.dshcs-alertTitle{font-size:13px;line-height:20px;color:var(--dsw-alias-state-error-primary,#d03050);}',
+    '.dshcs-tabBadge{display:inline-block;margin-left:5px;padding:0 4px;border-radius:6px;font-size:10px;line-height:15px;font-weight:700;color:var(--dsw-alias-bg-base);background:var(--dsw-alias-state-error-primary);vertical-align:1px;}',
+    '.dshcs-alert{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding:10px 12px;border-radius:8px;border:.5px solid var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent);}',
+    '.dshcs-alertTitle{font-size:13px;line-height:20px;color:var(--dsw-alias-state-error-primary);}',
     '.dshcs-alertText{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;}',
     '.dshcs-alert[data-state="skipped"]{border-color:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));background:transparent;}',
     '.dshcs-alert[data-state="skipped"] .dshcs-alertTitle{color:var(--dsw-alias-label-secondary);}',
@@ -227,15 +261,20 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
   function FeatureSwitch(props) {
     const t = props.t
     const checked = props.checked
-    return h('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': checked ? 'true' : 'false',
-      className: 'dshcs-switch' + (checked ? ' dshcs-switchOn' : ''),
-      onClick: () => props.onChange(!checked),
-    },
-    h('span', { className: 'dshcs-switchTrack' }, h('span', { className: 'dshcs-switchKnob' })),
-    h('span', { className: 'dshcs-switchLabel' }, checked ? t('settings.enabled') : t('settings.disabled')))
+    return h(
+      'span',
+      { className: 'dshcs-switch' },
+      h(Switch, {
+        checked,
+        label: checked ? t('settings.enabled') : t('settings.disabled'),
+        onChange: props.onChange,
+      }),
+      h(
+        'span',
+        { className: 'dshcs-switchLabel' },
+        checked ? t('settings.enabled') : t('settings.disabled'),
+      ),
+    )
   }
 
   /**
@@ -243,121 +282,142 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
    * @param {{ t: Function }} props - slot-provided locale binding.
    * @returns {object} rendered section.
    */
-  function CodexStyleSettings(props) {
-    const t = props.t
+  function CodexStyleSettings({ t }) {
     const tabsId = useId()
     const tabRefs = useRef([])
-    const [activeId, setActiveId] = useState(() => FEATURES[0])
+    const [activeId, setActiveId] = useState(() => GROUPS[0].id)
     const [enabledMap, setEnabledMap] = useState(() => env.readEnabledFeatures())
     const [statuses, setStatuses] = useState(() => env.featureStatuses())
     useEffect(() => env.subscribeStatus(() => setStatuses(env.featureStatuses())), [])
     const persisted = env.persistedFailures()
-
-    const rows = FEATURES.map((id) => ({
-      id,
-      label: t(titleKey(id)),
-      problem: statuses[id] ?? persisted[id],
-    }))
-    const active = rows.find((row) => row.id === activeId)?.id ?? rows[0]?.id
-    const enabled = enabledMap[active] !== false
-    const health = statuses[active] ?? persisted[active]
-    const page = env.settingsPages().find((entry) => entry.id === active)
-
-    /** @param {number} index - tab index to move to. */
-    function focusTab(index) {
-      const row = rows[(index + rows.length) % rows.length]
-      setActiveId(row.id)
-      tabRefs.current[(index + rows.length) % rows.length]?.focus?.()
+    const active = GROUPS.find((group) => group.id === activeId) ?? GROUPS[0]
+    const focusTab = (index) => {
+      const position = (index + GROUPS.length) % GROUPS.length
+      setActiveId(GROUPS[position].id)
+      tabRefs.current[position]?.focus?.()
     }
-
-    const tabList = h('div', {
-      className: 'dshcs-tabs',
-      role: 'tablist',
-      'aria-label': t('settings.tabs'),
-    }, rows.map((row, index) => {
-      const selected = row.id === active
-      return h('button', {
-        key: row.id,
-        ref: (element) => { tabRefs.current[index] = element },
-        id: tabsId + '-tab-' + row.id,
-        type: 'button',
-        role: 'tab',
-        className: 'dshcs-tab',
-        'aria-selected': selected ? 'true' : 'false',
-        'aria-controls': tabsId + '-panel-' + row.id,
-        'data-active': selected ? 'true' : 'false',
-        tabIndex: selected ? 0 : -1,
-        onClick: () => setActiveId(row.id),
-        onKeyDown: (event) => {
-          switch (event.key) {
-            case 'ArrowRight': focusTab(index + 1); break
-            case 'ArrowLeft': focusTab(index - 1); break
-            case 'Home': focusTab(0); break
-            case 'End': focusTab(rows.length - 1); break
-            default: return
-          }
-          event.preventDefault?.()
-        },
-      }, row.label !== '' && row.problem !== undefined
-        ? [
-          row.label,
-          h('span', {
-            key: 'badge',
-            className: 'dshcs-tabBadge',
-            'data-state': row.problem.state,
-            role: 'status',
-            'aria-label': t('settings.state.' + (row.problem.state === 'skipped' ? 'skipped' : row.problem.state === 'quarantined' ? 'quarantined' : 'failed')),
-          }, '!'),
-        ]
-        : row.label)
-    }))
-
-    const pageBody = page !== undefined && typeof page.render === 'function'
-      ? h(SettingsPageBoundary, { key: active, featureId: active },
-        h('div', { className: 'dshcs-page' }, page.render()))
-      : h('section', { className: 'dshcs-card dshcs-generic' },
-        h('p', { className: 'dshcs-genericText' }, enabled ? t('settings.noOptions') : t('settings.disabledHint')))
-
-    return h('div', { className: 'dshcs-section' },
+    return h(
+      'div',
+      { className: 'dshcs-section' },
       h('h2', { className: 'dshcs-heading' }, t('settings.title')),
       h('p', { className: 'dshcs-intro' }, t('settings.intro')),
-      tabList,
-      h('div', {
-        className: 'dshcs-panel',
-        role: 'tabpanel',
-        id: tabsId + '-panel-' + active,
-        'aria-labelledby': tabsId + '-tab-' + active,
-      },
-      h('section', { className: 'dshcs-card', 'data-enabled': enabled ? 'true' : 'false' },
-        h('div', { className: 'dshcs-cardHead' },
-          h('div', { className: 'dshcs-cardText' },
-            h('h3', { className: 'dshcs-cardTitle' }, t(titleKey(active))),
-            h('p', { className: 'dshcs-cardSummary' }, t(summaryKey(active))),
-          ),
-          h(FeatureSwitch, {
-            t,
-            checked: enabled,
-            onChange: (next) => setEnabledMap(env.writeEnabledFeature(active, next)),
-          }),
-        ),
-        h('p', { className: 'dshcs-restart' }, t('settings.restart')),
-        health !== undefined
-          ? h('div', { className: 'dshcs-alert', 'data-state': health.state, role: 'status' },
-            h('strong', { className: 'dshcs-alertTitle' },
-              t('settings.state.' + (health.state === 'skipped' ? 'skipped' : health.state === 'quarantined' ? 'quarantined' : 'failed'))),
-            health.message !== undefined && health.message !== ''
-              ? h('p', { className: 'dshcs-alertText' }, t('settings.failure.message', { message: health.message }))
+      h(
+        'div',
+        { className: 'dshcs-tabs', role: 'tablist', 'aria-label': t('settings.tabs') },
+        GROUPS.map((group, index) => {
+          const selected = group.id === active.id
+          const problem = group.features.some(({ id }) => statuses[id] ?? persisted[id])
+          return h(
+            'button',
+            {
+              key: group.id,
+              ref: (node) => {
+                tabRefs.current[index] = node
+              },
+              type: 'button',
+              role: 'tab',
+              id: tabsId + '-tab-' + group.id,
+              className: 'dshcs-tab',
+              'data-active': String(selected),
+              'aria-selected': String(selected),
+              'aria-controls': tabsId + '-panel-' + group.id,
+              tabIndex: selected ? 0 : -1,
+              onClick: () => setActiveId(group.id),
+              onKeyDown: (event) => {
+                if (event.key === 'ArrowRight') focusTab(index + 1)
+                else if (event.key === 'ArrowLeft') focusTab(index - 1)
+                else if (event.key === 'Home') focusTab(0)
+                else if (event.key === 'End') focusTab(GROUPS.length - 1)
+                else return
+                event.preventDefault?.()
+              },
+            },
+            t('group.' + group.id),
+            problem
+              ? h(
+                  'span',
+                  {
+                    className: 'dshcs-tabBadge',
+                    role: 'status',
+                    'aria-label': t('settings.state.failed'),
+                  },
+                  '!',
+                )
               : null,
-            h('p', { className: 'dshcs-alertText' },
-              t(health.state === 'skipped' ? 'settings.failure.skipped' : 'settings.failure.isolated')),
           )
-          : null,
+        }),
       ),
-      pageBody,
-      h('section', { className: 'dshcs-card dshcs-notes' },
-        h('h4', { className: 'dshcs-notesTitle' }, t('settings.dataHint')),
-        h('p', { className: 'dshcs-note' }, t(noteKey(active))),
-      )))
+      h('p', { className: 'dshcs-restart' }, t('settings.restart')),
+      h(
+        'div',
+        {
+          className: 'dshcs-panel',
+          role: 'tabpanel',
+          id: tabsId + '-panel-' + active.id,
+          'aria-labelledby': tabsId + '-tab-' + active.id,
+        },
+        active.features.map(({ id }) => {
+          const enabled = enabledMap[id] !== false
+          const health = statuses[id] ?? persisted[id]
+          const page = env.settingsPages().find((entry) => entry.id === id)
+          return h(
+            'section',
+            {
+              key: id,
+              className: 'dshcs-card',
+              'data-feature': id,
+              'data-enabled': String(enabled),
+            },
+            h(
+              'div',
+              { className: 'dshcs-cardHead' },
+              h(
+                'div',
+                { className: 'dshcs-cardText' },
+                h('h3', { className: 'dshcs-cardTitle' }, t(titleKey(id))),
+                h('p', { className: 'dshcs-cardSummary' }, t(summaryKey(id))),
+              ),
+              h(FeatureSwitch, {
+                t,
+                checked: enabled,
+                onChange: (next) => setEnabledMap(env.writeEnabledFeature(id, next)),
+              }),
+            ),
+            health === undefined
+              ? null
+              : h(
+                  'div',
+                  { className: 'dshcs-alert', 'data-state': health.state, role: 'status' },
+                  h(
+                    'strong',
+                    { className: 'dshcs-alertTitle' },
+                    t(
+                      'settings.state.' +
+                        (health.state === 'skipped'
+                          ? 'skipped'
+                          : health.state === 'quarantined'
+                            ? 'quarantined'
+                            : 'failed'),
+                    ),
+                  ),
+                  h(
+                    'p',
+                    { className: 'dshcs-alertText' },
+                    t('settings.failure.message', { message: health.message ?? '' }),
+                  ),
+                ),
+            enabled && page?.render
+              ? h(
+                  SettingsPageBoundary,
+                  { featureId: id },
+                  h('div', { className: 'dshcs-page' }, page.render()),
+                )
+              : null,
+            h('p', { className: 'dshcs-note' }, t(noteKey(id))),
+          )
+        }),
+      ),
+    )
   }
 
   /** Register dictionaries, styles and the settings section. */
@@ -365,23 +425,33 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'codex-style: dictionaries')
     const t = ctx.locale.bind(NS)
     ctx.effect(() => {
-      if (typeof document === 'undefined' || typeof document.createElement !== 'function') return () => {}
+      if (typeof document === 'undefined' || typeof document.createElement !== 'function')
+        return () => {}
       const style = document.createElement('style')
       style.dataset.dshPlugin = 'dsh-codex-style'
       style.textContent = CSS
       document.head.appendChild(style)
-      return () => { style.remove?.() }
+      return () => {
+        style.remove?.()
+      }
     }, 'codex-style: styles')
-    ctx.effect(() => ctx.slots.inject('settings.section', () => {
-      const dispose = ctx.slots.register({
-        name: 'settings.section',
-        id: 'codex-style',
-        order: 70,
-        label: () => t('settings.nav'),
-        locale: NS,
-      }, CodexStyleSettings)
-      return () => dispose?.()
-    }), 'codex-style: settings section')
+    ctx.effect(
+      () =>
+        ctx.slots.inject('settings.section', () => {
+          const dispose = ctx.slots.register(
+            {
+              name: 'settings.section',
+              id: 'codex-style',
+              order: 70,
+              label: () => t('settings.nav'),
+              locale: NS,
+            },
+            CodexStyleSettings,
+          )
+          return () => dispose?.()
+        }),
+      'codex-style: settings section',
+    )
   }
 
   return {

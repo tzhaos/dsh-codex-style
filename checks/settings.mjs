@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { FEATURE_ORDER } from '../scripts/build-client.mjs'
+import { FEATURE_ORDER, FEATURE_GROUPS } from '../scripts/build-client.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
@@ -171,6 +171,9 @@ function loadBundle(React, seedStorage = {}) {
   assert.equal(registrations.length, 1, 'one bundle registration')
   const module = registrations[0].factory((specifier) => {
     if (specifier === 'react') return React
+    if (specifier === '@deepseek-ai/dsh-client-ui-primitives') return {
+      Switch: ({ checked, label, onChange }) => React.createElement('button', { role: 'switch', 'aria-checked': String(checked), 'aria-label': label, onClick: () => onChange(!checked) }),
+    }
     if (specifier === 'react-dom') return { createPortal: (node) => node }
     throw new Error('unexpected require ' + specifier)
   })
@@ -230,250 +233,81 @@ function mount(language = 'zh', seedStorage = {}) {
 }
 
 const tabsOf = (tree) => findAll(tree, (node) => node.props?.role === 'tab')
-const switchOf = (tree) => findOne(tree, (node) => node.props?.role === 'switch')
+const cardsOf = (tree) => findAll(tree, (node) => node.props?.['data-feature'])
+const switchOf = (node) => findOne(node, (item) => item.props?.role === 'switch')
+const selectGroup = (mounted, id) => { const i = FEATURE_GROUPS.findIndex((group) => group.id === id); tabsOf(mounted.render())[i].props.onClick(); return mounted.render() }
 
-// ---------------------------------------------------------------------------
-// Registration and copy
-// ---------------------------------------------------------------------------
-
-await check('shell registers one settings section on a locale namespace', () => {
-  const mounted = mount()
-  assert.equal(mounted.section.options.id, 'codex-style')
-  assert.equal(mounted.section.options.order, 70)
-  assert.equal(typeof mounted.section.options.label, 'function')
-  assert.equal(mounted.section.options.locale, 'codexStyle')
-  assert.equal(mounted.section.options.label(), 'Codex 风格')
-  mounted.setLanguage('en')
-  assert.equal(mounted.section.options.label(), 'Codex Style')
+await check('settings registers the Codex Workbench section in both locales', () => {
+ const mounted=mount(); assert.equal(mounted.section.options.id,'codex-style'); assert.equal(mounted.section.options.label(),'Codex 工作台')
+ mounted.setLanguage('en'); assert.equal(mounted.section.options.label(),'Codex Workbench')
 })
-
-await check('shell registers zh and en dictionaries for every feature page', () => {
-  const mounted = mount()
-  const dicts = mounted.dictionaries.codexStyle
-  assert(dicts !== undefined, 'codexStyle dictionaries')
-  for (const key of ['settings.nav', 'settings.title', 'settings.intro', 'settings.tabs', 'settings.restart', 'settings.dataHint']) {
-    assert.equal(typeof dicts.zh[key], 'string', 'zh ' + key)
-    assert.equal(typeof dicts.en[key], 'string', 'en ' + key)
-  }
-  for (const id of FEATURE_ORDER) {
-    for (const suffix of ['title', 'summary', 'note']) {
-      assert.equal(typeof dicts.zh['feature.' + id + '.' + suffix], 'string', 'zh ' + id + ' ' + suffix)
-      assert.equal(typeof dicts.en['feature.' + id + '.' + suffix], 'string', 'en ' + id + ' ' + suffix)
-    }
-  }
+await check('all capabilities have bilingual copy and exactly one task group', () => {
+ const mounted=mount(); const ids=FEATURE_GROUPS.flatMap(group=>group.features.map(feature=>feature.id))
+ assert.equal(new Set(ids).size,FEATURE_ORDER.length)
+ for(const lang of ['zh','en'])for(const id of ids)for(const suffix of ['title','summary','note'])assert.equal(typeof mounted.dictionaries.codexStyle[lang]['feature.'+id+'.'+suffix],'string')
 })
-
-await check('manifest exposes the merged settings dependency, not the old tab slot package', () => {
-  assert(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings-general'))
-  assert(!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings-plugins'))
+await check('task groups replace the old one-tab-per-package navigation', () => {
+ const mounted=mount(); const tree=mounted.render(); assert.equal(tabsOf(tree).length,5)
+ assert.equal(textOf(tabsOf(tree)[0]),'会话与导航')
+ assert.deepEqual(cardsOf(tree).map(card=>card.props['data-feature']),FEATURE_GROUPS[0].features.map(feature=>feature.id))
 })
-
-// ---------------------------------------------------------------------------
-// Rendered section
-// ---------------------------------------------------------------------------
-
-await check('section renders a heading, intro and one tab per merged feature', () => {
-  const mounted = mount()
-  const tree = mounted.render()
-  const heading = findOne(tree, (node) => node.type === 'h2')
-  assert.equal(textOf(heading), 'Codex 风格插件')
-  const tabs = tabsOf(tree)
-  assert.equal(tabs.length, FEATURE_ORDER.length)
-  for (const [index, id] of FEATURE_ORDER.entries()) {
-    assert(tabs[index].props.id.includes('-' + id), 'tab ' + index + ' owns ' + id)
-    assert.equal(typeof tabs[index].props.onClick, 'function')
-  }
-  assert.equal(tabs[0].props['aria-selected'], 'true')
-  assert.equal(tabs[1].props['aria-selected'], 'false')
-  assert.equal(tabs[0].props.tabIndex, 0)
-  assert.equal(tabs[1].props.tabIndex, -1)
+await check('composer capabilities share a page and retain independent switches', () => {
+ const mounted=mount(); const tree=selectGroup(mounted,'composer'); const cards=cardsOf(tree)
+ assert.equal(cards.length,7)
+ const queue=cards.find(card=>card.props['data-feature']==='dsh-queue-withdraw')
+ switchOf(queue).props.onClick()
+ assert.deepEqual(JSON.parse(mounted.storage.get('dsh.codexStyle.features')),{'dsh-queue-withdraw':false})
+ const updated=cardsOf(mounted.render()).find(card=>card.props['data-feature']==='dsh-queue-withdraw')
+ assert.equal(switchOf(updated).props['aria-checked'],'false')
 })
-
-await check('every tab carries a distinct localized title', () => {
-  const mounted = mount()
-  const tree = mounted.render()
-  const labels = tabsOf(tree).map((tab) => textOf(tab))
-  assert.equal(new Set(labels).size, FEATURE_ORDER.length)
-  assert.equal(labels[0], '侧边栏分区')
-  assert.equal(labels[FEATURE_ORDER.indexOf('dsh-queue-withdraw')], '排队消息')
-  mounted.setLanguage('en')
-  const english = tabsOf(mounted.render()).map((tab) => textOf(tab))
-  assert.equal(english[0], 'Sidebar sections')
-  assert.equal(english[FEATURE_ORDER.indexOf('dsh-quick-fork')], 'Selection fork')
+await check('keyboard arrows and Home/End navigate task groups', () => {
+ const mounted=mount(); const event=(key)=>({key,preventDefault(){}})
+ tabsOf(mounted.render())[0].props.onKeyDown(event('ArrowRight'))
+ assert.equal(tabsOf(mounted.render())[1].props['aria-selected'],'true')
+ tabsOf(mounted.render())[1].props.onKeyDown(event('End'))
+ assert.equal(tabsOf(mounted.render()).at(-1).props['aria-selected'],'true')
+ tabsOf(mounted.render()).at(-1).props.onKeyDown(event('ArrowRight'))
+ assert.equal(tabsOf(mounted.render())[0].props['aria-selected'],'true')
 })
-
-await check('the first tab shows its summary, enable switch and data note', () => {
-  const mounted = mount()
-  const tree = mounted.render()
-  const panel = findOne(tree, (node) => node.props?.role === 'tabpanel')
-  assert.equal(panel.props['aria-labelledby'], tabsOf(tree)[0].props.id)
-  const title = findOne(tree, (node) => node.type === 'h3')
-  assert.equal(textOf(title), '侧边栏分区')
-  const notes = findAll(tree, (node) => node.type === 'p' && textOf(node).includes('localStorage'))
-  assert(notes.length >= 1, 'data note rendered')
-  const control = switchOf(tree)
-  assert.equal(control.props['aria-checked'], 'true')
-  assert.equal(textOf(control), '已启用')
+await check('tab and panel ARIA references follow the selected task group', () => {
+ const mounted=mount(); const tree=selectGroup(mounted,'content'); const tab=tabsOf(tree)[2]
+ const panel=findOne(tree,node=>node.props?.role==='tabpanel')
+ assert.equal(panel.props['aria-labelledby'],tab.props.id); assert.equal(tab.props['aria-controls'],panel.props.id)
 })
-
-await check('clicking a tab switches the panel, the switch and the note', () => {
-  const mounted = mount()
-  let tree = mounted.render()
-  const quickForkIndex = FEATURE_ORDER.indexOf('dsh-quick-fork')
-  tabsOf(tree)[quickForkIndex].props.onClick()
-  tree = mounted.render()
-  const tabs = tabsOf(tree)
-  assert.equal(tabs[quickForkIndex].props['aria-selected'], 'true')
-  assert.equal(tabs[0].props['aria-selected'], 'false')
-  assert.equal(textOf(findOne(tree, (node) => node.type === 'h3')), '划选复创')
-  assert.equal(textOf(switchOf(tree)), '已启用')
-  assert(textOf(findOne(tree, (node) => node.props?.role === 'tabpanel')).includes('精简面板'))
+await check('a malformed preference document keeps capabilities enabled', () => {
+ const mounted=mount('zh',{'dsh.codexStyle.features':'{bad json'})
+ assert(cardsOf(mounted.render()).every(card=>switchOf(card).props['aria-checked']==='true'))
 })
-
-await check('keyboard arrows and Home/End move the active tab', () => {
-  const mounted = mount()
-  let tree = mounted.render()
-  const preventDefault = () => {}
-  tabsOf(tree)[0].props.onKeyDown({ key: 'ArrowRight', preventDefault })
-  tree = mounted.render()
-  assert.equal(tabsOf(tree)[1].props['aria-selected'], 'true')
-  tabsOf(tree)[1].props.onKeyDown({ key: 'End', preventDefault })
-  tree = mounted.render()
-  assert.equal(tabsOf(tree)[FEATURE_ORDER.length - 1].props['aria-selected'], 'true')
-  tabsOf(tree)[FEATURE_ORDER.length - 1].props.onKeyDown({ key: 'ArrowRight', preventDefault })
-  tree = mounted.render()
-  assert.equal(tabsOf(tree)[0].props['aria-selected'], 'true', 'ArrowRight wraps')
-  tabsOf(tree)[0].props.onKeyDown({ key: 'ArrowLeft', preventDefault })
-  tree = mounted.render()
-  assert.equal(tabsOf(tree)[FEATURE_ORDER.length - 1].props['aria-selected'], 'true', 'ArrowLeft wraps')
+await check('legacy quick-fork preferences migrate without re-enabling its selection actions', () => {
+ const mounted=mount('zh',{'dsh.codexStyle.features':JSON.stringify({'dsh-quick-fork':false})})
+ const quotes=cardsOf(selectGroup(mounted,'composer')).find(card=>card.props['data-feature']==='dsh-selection-quotes')
+ assert.equal(switchOf(quotes).props['aria-checked'],'false')
+ const toolbar=cardsOf(selectGroup(mounted,'content')).find(card=>card.props['data-feature']==='dsh-selection-toolbar')
+ assert.equal(switchOf(toolbar).props['aria-checked'],'false')
 })
-
-await check('features are enabled by default', () => {
-  const mounted = mount()
-  const tree = mounted.render()
-  assert.equal(switchOf(tree).props['aria-checked'], 'true')
-  assert.equal(mounted.storage.size, 0)
+await check('explicit selection preferences override the legacy umbrella toggle', () => {
+ const mounted=mount('zh',{'dsh.codexStyle.features':JSON.stringify({'dsh-quick-fork':false,'dsh-selection-quotes':true})})
+ const quotes=cardsOf(selectGroup(mounted,'composer')).find(card=>card.props['data-feature']==='dsh-selection-quotes')
+ assert.equal(switchOf(quotes).props['aria-checked'],'true')
 })
-
-await check('the switch persists the per-feature preference and renders the disabled state', () => {
-  const mounted = mount()
-  let tree = mounted.render()
-  switchOf(tree).props.onClick()
-  tree = mounted.render()
-  const storedKey = 'dsh.codexStyle.features'
-  assert(mounted.storage.has(storedKey), 'preference key written')
-  assert.deepEqual(JSON.parse(mounted.storage.get(storedKey)), { 'dsh-sidebar-sections': false })
-  const control = switchOf(tree)
-  assert.equal(control.props['aria-checked'], 'false')
-  assert.equal(textOf(control), '已停用')
-  assert(textOf(findOne(tree, (node) => node.props?.role === 'tabpanel')).includes('该子插件当前已停用'))
+await check('restart guidance appears once across the grouped capability cards', () => {
+ const mounted=mount(); const tree=selectGroup(mounted,'composer')
+ assert.equal(findAll(tree,node=>node.props?.className==='dshcs-restart').length,1)
 })
-
-await check('re-enabling a feature writes the enabled value back', () => {
-  const mounted = mount()
-  let tree = mounted.render()
-  switchOf(tree).props.onClick()
-  tree = mounted.render()
-  switchOf(tree).props.onClick()
-  tree = mounted.render()
-  assert.deepEqual(JSON.parse(mounted.storage.get('dsh.codexStyle.features')), { 'dsh-sidebar-sections': true })
-  assert.equal(switchOf(tree).props['aria-checked'], 'true')
+await check('failure badges belong to the task group and the affected capability', () => {
+ const mounted=mount('zh',{'dsh.codexStyle.failures':JSON.stringify({'dsh-queue-withdraw':{state:'failed',phase:'apply',message:'queue boom',at:1}})})
+ let tree=mounted.render(); assert.equal(findAll(tabsOf(tree)[1],node=>node.props?.className==='dshcs-tabBadge').length,1)
+ tree=selectGroup(mounted,'composer'); const queue=cardsOf(tree).find(card=>card.props['data-feature']==='dsh-queue-withdraw')
+ assert(textOf(queue).includes('queue boom')); assert.equal(findAll(tree,node=>node.props?.className==='dshcs-alert').length,1)
 })
-
-await check('the switch target follows the active tab', () => {
-  const mounted = mount()
-  let tree = mounted.render()
-  const queueIndex = FEATURE_ORDER.indexOf('dsh-queue-withdraw')
-  tabsOf(tree)[queueIndex].props.onClick()
-  tree = mounted.render()
-  switchOf(tree).props.onClick()
-  assert.deepEqual(JSON.parse(mounted.storage.get('dsh.codexStyle.features')), { 'dsh-queue-withdraw': false })
+await check('quarantined and skipped states retain their own labels', () => {
+ for(const [id,state,group] of [['dsh-hover-polish','quarantined','interaction'],['dsh-quick-fork','skipped','panels']]){
+ const mounted=mount('en',{'dsh.codexStyle.failures':JSON.stringify({[id]:{state,phase:'dependency',message:'dependency unavailable',at:1}})})
+ const tree=selectGroup(mounted,group); const alert=findOne(tree,node=>node.props?.className==='dshcs-alert')
+ assert.equal(alert.props['data-state'],state); assert(textOf(alert).includes('dependency unavailable'))
+ }
 })
-
-await check('a malformed preference document falls back to all-enabled', () => {
-  const mounted = mount()
-  mounted.storage.set('dsh.codexStyle.features', '{not json')
-  const tree = mounted.render()
-  assert.equal(switchOf(tree).props['aria-checked'], 'true')
+await check('a healthy task group contains no failure alert', () => {
+ const mounted=mount(); assert.equal(findAll(mounted.render(),node=>node.props?.className==='dshcs-alert').length,0)
 })
-
-await check('section titles and notes follow the active locale', () => {
-  const mounted = mount('en')
-  const tree = mounted.render()
-  assert.equal(textOf(findOne(tree, (node) => node.type === 'h2')), 'Codex Style plugin')
-  assert.equal(textOf(switchOf(tree)), 'Enabled')
-  const restart = findAll(tree, (node) => node.type === 'p').map(textOf).find((value) => value.includes('restart'))
-  assert(typeof restart === 'string', 'restart hint in English')
-})
-
-await check('shell injects its stylesheet and cleans up effects', () => {
-  const mounted = mount()
-  assert(mounted.styles.length === 1, 'one style tag')
-  const css = mounted.styles[0].textContent
-  for (const marker of ['.dshcs-section', '.dshcs-tabs', '.dshcs-tab', '.dshcs-switchOn', '.dshcs-note', '.dshcs-alert', '.dshcs-tabBadge']) {
-    assert(css.includes(marker), marker + ' styled')
-  }
-  assert.equal(mounted.effects.length, 3, 'dictionaries, styles and section effects')
-})
-
-// ---------------------------------------------------------------------------
-// Feature health reporting
-// ---------------------------------------------------------------------------
-
-const failureStorage = (record) => ({
-  'dsh.codexStyle.failures': JSON.stringify(record),
-})
-
-await check('a persisted failure is reported on its feature tab and page', () => {
-  const mounted = mount('zh', failureStorage({
-    'dsh-sidebar-sections': { state: 'failed', phase: 'apply', message: 'boom in apply', at: 1 },
-  }))
-  const tree = mounted.render()
-  const tabs = tabsOf(tree)
-  const sidebarTab = tabs[FEATURE_ORDER.indexOf('dsh-sidebar-sections')]
-  const otherTab = tabs[FEATURE_ORDER.indexOf('dsh-quick-fork')]
-  assert.equal(otherTab.props.children.includes('!'), false, 'healthy tab has no badge')
-  const badge = findAll(sidebarTab, (node) => node.props?.className === 'dshcs-tabBadge')[0]
-  assert(badge !== undefined, 'failing tab gets a badge')
-  assert.equal(badge.props['aria-label'], '启动失败')
-  const alert = findOne(tree, (node) => node.props?.className === 'dshcs-alert')
-  assert.equal(alert.props['data-state'], 'failed')
-  assert(textOf(alert).includes('启动失败'))
-  assert(textOf(alert).includes('boom in apply'))
-  assert(textOf(alert).includes('其他子插件不受影响'))
-})
-
-await check('a skipped record explains the dependency instead of a crash', () => {
-  const mounted = mount('en', failureStorage({
-    'dsh-quick-fork': { state: 'skipped', phase: 'dependency', message: 'requires "dsh-sidebar-sections"', at: 1 },
-  }))
-  const tree = mounted.render()
-  const quickForkIndex = FEATURE_ORDER.indexOf('dsh-quick-fork')
-  tabsOf(tree)[quickForkIndex].props.onClick()
-  const page = mounted.render()
-  const alert = findOne(page, (node) => node.props?.className === 'dshcs-alert')
-  assert.equal(alert.props['data-state'], 'skipped')
-  assert(textOf(alert).includes('Skipped'))
-  assert(textOf(alert).includes('dependency'))
-})
-
-await check('a quarantined record reads as isolated, not failed', () => {
-  const mounted = mount('zh', failureStorage({
-    'dsh-hover-polish': { state: 'quarantined', phase: 'render', message: 'render boom', at: 1 },
-  }))
-  let tree = mounted.render()
-  tabsOf(tree)[FEATURE_ORDER.indexOf('dsh-hover-polish')].props.onClick()
-  tree = mounted.render()
-  const alert = findOne(tree, (node) => node.props?.className === 'dshcs-alert')
-  assert.equal(alert.props['data-state'], 'quarantined')
-  assert(textOf(alert).includes('已隔离'))
-  assert(textOf(alert).includes('render boom'))
-})
-
-await check('a healthy feature page shows no health alert', () => {
-  const mounted = mount()
-  const tree = mounted.render()
-  assert.equal(findAll(tree, (node) => node.props?.className === 'dshcs-alert').length, 0)
-})
-
-console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))
+console.log('\n'+(process.exitCode===1?'some checks failed':'all checks passed ('+checks+')'))

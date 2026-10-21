@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Codex Style",
-    "description": "One DSH bundle merging eleven Codex-style interaction plugins, with a unified tabbed settings section that gives every sub-plugin its own page."
+    "title": "Codex Workbench",
+    "description": "Codex-style navigation, composer tools, content actions and side panels for DSH."
   }
 }

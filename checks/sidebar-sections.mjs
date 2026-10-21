@@ -102,7 +102,7 @@ const featureSource = featureSlice('dsh-sidebar-sections')
 
 await check('manifest identity and client/bundle declarations', () => {
   assertEqual(manifest.name, 'dsh-codex-style', 'package name')
-  assertEqual(manifest.version, '1.1.0', 'package version')
+  assertEqual(manifest.version, '1.2.0', 'package version')
   assert(manifest.private === true, 'package stays private')
   assertEqual(manifest.type, 'module', 'module type')
   assertEqual(manifest.dsh?.bundle?.patch, './cordis.patch.yml', 'bundle patch')
@@ -176,7 +176,7 @@ await check('client.js parses and requires only platform modules', () => {
   ], 'runtime imports')
 })
 
-await check('glyphs and controls are reused from ui-primitives', () => {
+await check('native controls and status glyphs are reused from ui-primitives', () => {
   assert(featureSource.includes("require('@deepseek-ai/dsh-client-ui-primitives')"), 'primitives required')
   assert(!/const svgProps\s*=/.test(featureSource), 'hand-written SVG helper must not exist')
   assert(!/d:\s*['"]M[0-9]/.test(featureSource), 'no inline hand-copied SVG path data')
@@ -184,7 +184,7 @@ await check('glyphs and controls are reused from ui-primitives', () => {
   for (const primitive of ['Menu', 'Tooltip', 'StateDot', 'Button', 'Modal', 'writeClipboard', 'relativeTime']) {
     assert(new RegExp('\\b' + primitive + '\\b').test(primitiveImports), 'expected primitives.' + primitive + ' import')
   }
-  for (const icon of ['IconPinOutlineRegular', 'IconArchiveOutlineRegular', 'IconEllipsisOutlineRegular', 'IconNewChatOutlineRegular', 'IconChevronDownOutlineRegular']) {
+  for (const icon of ['IconPinOutlineRegular', 'IconArchiveOutlineRegular', 'IconEllipsisOutlineRegular', 'IconChevronDownOutlineRegular']) {
     assert(featureSource.includes(icon), `expected ${icon} reuse`)
   }
 })
@@ -210,7 +210,7 @@ const ICON_NAMES = [
   'IconArchiveCheckOutlineRegular', 'IconArchiveOffOutlineRegular', 'IconArchiveOutlineRegular',
   'IconBranchOutlineRegular', 'IconChevronDownOutlineRegular', 'IconCloseFillRegular', 'IconCopyOutlineRegular', 'IconEditOutlineRegular',
   'IconEllipsisOutlineRegular', 'IconFolderCloseRegular', 'IconFolderOpenRegular',
-  'IconNewChatOutlineRegular', 'IconPinFillRegular', 'IconPinOutlineRegular',
+  'IconPinFillRegular', 'IconPinOutlineRegular',
   'IconProjectAddOutlineRegular', 'IconQueueOutlineRegular', 'IconSearchOutlineRegular',
   'IconSlidersTwoOutlineRegular', 'IconTrashOutlineRegular', 'IconTriangleRightFillRegular',
   'IconUnarchiveOutlineRegular',
@@ -849,7 +849,7 @@ await check('factory returns a Cordis plugin with the required services', () => 
   const { registration, plugin } = loadClientModule(reactRuntime, createFakePrimitives(reactRuntime), createFakeWindow())
   assertEqual(registration.id, manifest.name, 'merged module id')
   assertEqual(plugin.__features, ['dsh-sidebar-sections'], 'only the filtered feature is built')
-  assertEqual(plugin.inject.slice().sort(), ['locale', 'remote', 'remote.session', 'sessions', 'slots', 'uiWorkspace', 'workspaces'], 'inject list')
+  assertEqual(plugin.inject.slice().sort(), ['locale', 'remote', 'remote.session', 'sessions', 'shortcuts', 'sidebarRight', 'slots', 'uiSession', 'uiWorkspace', 'workspaces'], 'inject list')
   assert(typeof plugin.apply === 'function', 'apply')
 })
 
@@ -859,7 +859,7 @@ await check('apply registers the browser, the dialog overlay and the settings pa
   assert(section !== undefined, 'browser registration missing')
   assert(section.options.priority < 0, 'browser must win the slot priority')
   assertEqual(section.options.locale, 'sidebarSections', 'locale namespace')
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   assert(overlay !== undefined, 'overlay registration missing')
   assertEqual(overlay.options.id, 'sidebar-sections.dialog', 'overlay id')
   assertEqual(localeRegistrations.length, 1, 'one locale registration')
@@ -948,7 +948,7 @@ await check('pin and unpin dispatch the Host actions', () => {
 
 await check('archive dispatches and a refusal requests the stop-and-archive dialog', async () => {
   const { harness, t, calls, services, registrations } = scenario()
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   const request = overlay.options.inject().hooks.request
   dispatch(harness, findButton(findSessionRow(harness.tree, t, 'Alpha talk'), t, 'actions.archive'), 'onClick', syntheticEvent())
   await settle()
@@ -1019,7 +1019,7 @@ await check('settings page toggles the Archived section and persists it', () => 
 
 await check('safe delete removes an archived conversation and settings restores it', () => {
   const applied = scenario()
-  const overlay = applied.registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = applied.registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   overlay.options.inject().submitSessionDelete('s4', 'Archived talk')
   applied.harness.rerender()
   const t = translator(applied.localeRegistrations[0].dicts.zh)
@@ -1050,7 +1050,7 @@ await check('safe delete dialog explains that the conversation record is kept', 
 
 await check('non-archived conversation rows offer safe delete', () => {
   const { harness, t, registrations } = scenario()
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   const request = overlay.options.inject().hooks.request
   const row = findSessionRow(harness.tree, t, 'Alpha talk')
   const anchor = findButton(row, t, 'actions.session.aria', { name: 'Alpha talk' })
@@ -1097,7 +1097,7 @@ await check('Archived section shows an empty hint when nothing is archived', () 
 
 await check('session row menu offers pin/rename/fork/archive/copy-id and dispatches them', async () => {
   const { harness, t, calls, registrations, primitives } = scenario()
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   const request = overlay.options.inject().hooks.request
   const openRowMenu = (title) => {
     const row = findSessionRow(harness.tree, t, title)
@@ -1140,7 +1140,7 @@ await check('opening conversations and starting project sessions dispatch naviga
 
 await check('project menu opens rename/delete dialog requests', () => {
   const { harness, t, registrations } = scenario()
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   const request = overlay.options.inject().hooks.request
   const findProject = () => findOne(harness.tree, (element) => isProjectRow(element) && element.props['aria-label'] === 'Alpha project')
   dispatch(harness, findButton(findProject(), t, 'actions.workspace.aria', { name: 'Alpha project' }), 'onClick', syntheticEvent())
@@ -1226,7 +1226,7 @@ await check('right-clicking a project row opens its sort/rename/file-manager men
   const reopened = findAll(findOne(harness.tree, (element) => element.props?.role === 'menu'),
     (element) => element.type === 'button')
   reopened[4].props.onClick()
-  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   assertEqual(overlay.options.inject().hooks.request.getSnapshot().kind, 'rename', 'context menu opens rename dialog')
   dispatch(harness, harness.tree, 'onContextMenu', syntheticEvent({
     target: contextTarget('project', { workspace: 'w1' }),
@@ -1283,17 +1283,13 @@ await check('keyboard opens the context menu on a row and a section heading', ()
     [t('sort.manual'), t('sort.updated')], 'pinned section context menu')
 })
 
-await check('dragging is disabled while a filter narrows the list', () => {
-  const { harness, t } = scenario()
-  openSectionMenu(harness, t, 'section.recent')
-  pickSectionItem(harness, t, 'section.recent', t('sort.manual'))
-  const row = findAll(findSection(harness.tree, t, 'section.recent'), isSessionRow)[0]
-  assert(row.props.draggable === true, 'draggable while unfiltered')
-  dispatch(harness, findButton(harness.tree, t, 'filter.label'), 'onClick', syntheticEvent())
-  const input = findOne(harness.tree, (element) => element.type === 'input')
-  dispatch(harness, input, 'onChange', syntheticEvent({ target: { value: 'a' } }))
-  const filtered = findAll(findSection(harness.tree, t, 'section.recent'), isSessionRow)[0]
-  assert(filtered.props.draggable !== true, 'static while filtering')
+await check('modal search preserves the underlying project order and drag configuration', () => {
+  const { harness, t, props } = scenario()
+  const before = findAll(harness.tree, isSessionRow).map(row => [row.props['data-session'], row.props.draggable])
+  props.controls.openSearch()
+  harness.rerender()
+  assert(props.controls.store.getSnapshot().searchOpen, 'search opens globally')
+  assertEqual(findAll(harness.tree, isSessionRow).map(row => [row.props['data-session'], row.props.draggable]), before, 'search does not filter or reorder sidebar rows')
 })
 
 await check('right-clicking a section heading opens its section menu', () => {
@@ -1442,17 +1438,13 @@ await check('per-project manual sort reorders its own conversation list', async 
     'failure logged through the plugin channel')
 })
 
-await check('local filter narrows rows and Escape clears it', () => {
-  const { harness, t } = scenario()
-  dispatch(harness, findButton(harness.tree, t, 'filter.label'), 'onClick', syntheticEvent())
-  const input = findOne(harness.tree, (element) => element.type === 'input')
-  dispatch(harness, input, 'onChange', syntheticEvent({ target: { value: 'beta' } }))
-  let titles = findAll(harness.tree, isSessionRow).map(rowTitle)
-  assert(titles.includes('Beta old talk'), 'match visible')
-  assert(!titles.includes('Alpha talk'), 'non-match hidden')
-  dispatch(harness, findOne(harness.tree, (element) => element.type === 'input'), 'onKeyDown', syntheticEvent({ key: 'Escape' }))
-  titles = findAll(harness.tree, isSessionRow).map(rowTitle)
-  assert(titles.includes('Alpha talk'), 'Escape restores')
+await check('modal search state closes without changing the selected sidebar view', () => {
+  const { props } = scenario()
+  props.controls.openSearch()
+  assert(props.controls.store.getSnapshot().searchOpen, 'open')
+  props.controls.closeSearch(false)
+  assert(!props.controls.store.getSnapshot().searchOpen, 'close')
+  assertEqual(props.controls.store.getSnapshot().view, 'projects', 'projects remain selected')
 })
 
 await check('project collapse is applied and persisted browser-locally', () => {
@@ -1464,21 +1456,17 @@ await check('project collapse is applied and persisted browser-locally', () => {
   assertEqual(stored, { w1: true }, 'collapse record')
 })
 
-await check('rail mode shows search and add, and search expands the sidebar', () => {
-  const { harness, t, calls } = scenario({ wide: false })
-  const buttons = findAll(harness.tree, isButton)
-  assertEqual(buttons.map((button) => button.props['aria-label']), [t('rail.search'), t('rail.add'), t('newSession')], 'rail controls')
-  dispatch(harness, buttons[0], 'onClick', syntheticEvent())
-  assert(calls.some((call) => call[0] === 'expandSidebar'), 'expand requested')
-  harness.setProps({ wide: true })
-  assertEqual(findAll(harness.tree, (element) => element.type === 'input').length, 1, 'search opens on expand')
+await check('rail search opens the global dialog without expanding the sidebar', () => {
+  const { harness, t, props, calls } = scenario({ wide: false })
+  const search = findButton(harness.tree, t, 'tools.search')
+  dispatch(harness, search, 'onClick', syntheticEvent())
+  assert(props.controls.store.getSnapshot().searchOpen, 'modal search opened')
+  assert(!calls.some(call => call[0] === 'expandSidebar'), 'search leaves sidebar width alone')
 })
 
-await check('search owns its own row and the standalone 工作区 label is gone', () => {
-  const { harness, t } = scenario()
-  const searchBar = findOne(harness.tree, (element) => element.props?.className === 'dshss-searchBar')
-  assertEqual(textOf(searchBar), t('filter.placeholder'), 'search row shows the placeholder')
-  assertEqual(findAll(harness.tree, (element) => textOf(element) === '工作区').length, 0, 'no standalone workspace label')
+await check('the normal sidebar contains no expanded search row or field', () => {
+  const { harness } = scenario()
+  assertEqual(findAll(harness.tree, node => /dshss-searchRow|dshss-searchBar|dshss-searchInput/.test(node.props?.className ?? '')).length, 0, 'search now belongs in the header and modal')
 })
 
 await check('section headers collapse and expand, remembered browser-locally', () => {
@@ -1831,7 +1819,7 @@ await check('Escape dismisses the preview', () => {
  */
 function mountDialog(request) {
   const applyResult = applyPlugin()
-  const overlay = applyResult.registrations.find((entry) => entry.options.name === 'shell.overlay')
+  const overlay = applyResult.registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   const injected = overlay.options.inject()
   const t = translator(applyResult.localeRegistrations[0].dicts.zh)
   const harness = mountComponent(overlay.component, {

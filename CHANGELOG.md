@@ -4,6 +4,32 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.2.0] - 2026-10-20
+
+### Changed
+
+- Display name: **Codex Workbench / Codex 工作台**. Keep the package name, loader ID and existing storage keys compatible.
+- Organize code by navigation, composer, conversation content, side panels and shared infrastructure. A single catalog owns IDs, source paths and settings groups.
+- Split selection capture, composer quotes and temporary side chat into separate capabilities. Providers register actions receiving only a session ID and selected text; removing a provider removes its entry.
+- Group settings by task and use the host Switch, Menu, Modal and Tooltip components.
+- Align Back, Forward, native sidebar toggle and native menus in the caption row. Reuse official DSH SVG artwork and change paint for active states.
+- Keep the empty-conversation heading centered and the composer at the bottom; normalize navigation metrics, typography, borders and theme tokens.
+
+### Fixed
+
+- Attachment removal no longer loses the InputShell receiver. Public state and attachment APIs replace shared ConversationController method patches.
+- Queue uploads preserve concurrent enqueues and never resurrect claimed messages. Withdraw rollback preserves newer drafts, and fresh shells retain pending file restoration.
+- Held attachment rows converge without a MutationObserver loop. Dragging shows insertion hints without moving React-owned children, and cancellation does not submit.
+- Queue holds persist through atomic file replacement; write failures roll back the requested change. Remove temporary layout-diagnostic uploads and append-only logs.
+- Side-chat submission respects IME composition and preserves the next draft. Cancelled creation and retained-binding disposal cannot reopen a closed child session.
+- Failed quote submission and reload preserve accepted quotes beyond the new-admission limit.
+- Nested effects follow their actual service context; stale navigation failures cannot rewind newer navigation. File references preserve valid punctuation and decode file URIs.
+
+### Validation
+
+- Regression checks cover state ownership, lifecycle, rollback, persistence failure and cross-area registration.
+- An isolated browser fixture reuses the installed DSH editor, attachment rail, primitives and CSS without connecting to a DSH gateway or personal session.
+
 ## [1.1.0] - 2026-10-20
 
 ### Added

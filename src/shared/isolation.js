@@ -34,13 +34,15 @@
  */
 function __dshCreateRuntime(require, env, featureTable) {
   /** @type {string[] | null} check-only feature filter, absent in the shipped page. */
-  const filter = typeof __DSH_CODEX_STYLE_FEATURES__ !== 'undefined'
-    && Array.isArray(__DSH_CODEX_STYLE_FEATURES__)
-    ? __DSH_CODEX_STYLE_FEATURES__
-    : null
+  const filter =
+    typeof __DSH_CODEX_STYLE_FEATURES__ !== 'undefined' &&
+    Array.isArray(__DSH_CODEX_STYLE_FEATURES__)
+      ? __DSH_CODEX_STYLE_FEATURES__
+      : null
   /** @type {boolean} render/apply isolation; legacy single-feature checks can opt out. */
-  const isolationEnabled = filter === null
-    || (typeof __DSH_CODEX_STYLE_ISOLATION__ !== 'undefined' && __DSH_CODEX_STYLE_ISOLATION__ === true)
+  const isolationEnabled =
+    filter === null ||
+    (typeof __DSH_CODEX_STYLE_ISOLATION__ !== 'undefined' && __DSH_CODEX_STYLE_ISOLATION__ === true)
 
   const table = new Map()
   for (const feature of featureTable) table.set(feature.id, feature)
@@ -73,9 +75,10 @@ function __dshCreateRuntime(require, env, featureTable) {
    */
   function messageOf(error) {
     try {
-      const text = error !== null && typeof error === 'object'
-        ? String(error.stack ?? error.message ?? error)
-        : String(error)
+      const text =
+        error !== null && typeof error === 'object'
+          ? String(error.stack ?? error.message ?? error)
+          : String(error)
       return text.split('\n')[0].slice(0, 400)
     } catch {
       return 'unknown error'
@@ -221,9 +224,11 @@ function __dshCreateRuntime(require, env, featureTable) {
     function IsolatedFeatureComponent(props) {
       return ReactModule.createElement(Boundary, null, ReactModule.createElement(Component, props))
     }
-    IsolatedFeatureComponent.displayName = 'CodexStyleIsolated(' +
+    IsolatedFeatureComponent.displayName =
+      'CodexStyleIsolated(' +
       (typeof Component.displayName === 'string' ? Component.displayName : '') +
-      (typeof Component.name === 'string' ? Component.name : 'Component') + ')'
+      (typeof Component.name === 'string' ? Component.name : 'Component') +
+      ')'
     return IsolatedFeatureComponent
   }
 
@@ -271,27 +276,30 @@ function __dshCreateRuntime(require, env, featureTable) {
     }
 
     /** @param {Function} factory - effect body. @param {string} label - cordis effect label. */
-    function effect(factory, label) {
+    function effect(context, factory, label) {
       if (disposed) return () => {}
       let dispose = () => {}
       try {
-        dispose = host.effect(() => {
-          try {
-            const cleanup = factory()
-            return () => {
-              if (typeof cleanup === 'function') {
-                try {
-                  cleanup()
-                } catch (error) {
-                  fail('cleanup', error)
+        dispose = context.effect(
+          () => {
+            try {
+              const cleanup = factory()
+              return () => {
+                if (typeof cleanup === 'function') {
+                  try {
+                    cleanup()
+                  } catch (error) {
+                    fail('cleanup', error)
+                  }
                 }
               }
+            } catch (error) {
+              fail('effect', error)
+              return () => {}
             }
-          } catch (error) {
-            fail('effect', error)
-            return () => {}
-          }
-        }, typeof label === 'string' ? label : 'codex-style: ' + id)
+          },
+          typeof label === 'string' ? label : 'codex-style: ' + id,
+        )
       } catch (error) {
         fail('effect', error)
       }
@@ -335,9 +343,10 @@ function __dshCreateRuntime(require, env, featureTable) {
       /** @param {object} options - slot options. @param {Function} component - feature component. */
       register(options, component) {
         const nextOptions = wrapOptions(options)
-        const nextComponent = isolationEnabled && typeof component === 'function'
-          ? wrapComponent(id, component)
-          : component
+        const nextComponent =
+          isolationEnabled && typeof component === 'function'
+            ? wrapComponent(id, component)
+            : component
         const dispose = host.slots.register(nextOptions, nextComponent)
         track(dispose)
         return dispose
@@ -363,18 +372,24 @@ function __dshCreateRuntime(require, env, featureTable) {
         return dispose
       },
       /** @param {string} name - slot name. @returns {number} ledger version. */
-      getVersion(name) { return host.slots.getVersion(name) },
+      getVersion(name) {
+        return host.slots.getVersion(name)
+      },
       /** @param {string} name - slot name. @returns {object[]} slot entries. */
-      entries(name) { return host.slots.entries(name) },
+      entries(name) {
+        return host.slots.entries(name)
+      },
       /** @param {string} name - slot name. @param {Function} listener - ledger listener. */
-      subscribe(name, listener) { return host.slots.subscribe(name, listener) },
+      subscribe(name, listener) {
+        return host.slots.subscribe(name, listener)
+      },
     }
 
     /** @param {string|string[]} deps - service names. @param {Function} callback - injected body. */
-    function inject(deps, callback) {
+    function inject(context, deps, callback) {
       let dispose = () => {}
       try {
-        dispose = host.inject(deps, (inner) => {
+        dispose = context.inject(deps, (inner) => {
           if (disposed) return
           try {
             callback(scopeFacade(inner))
@@ -398,9 +413,9 @@ function __dshCreateRuntime(require, env, featureTable) {
     function scopeFacade(context) {
       return new Proxy(context, {
         get(target, property) {
-          if (property === 'effect') return effect
+          if (property === 'effect') return (factory, label) => effect(target, factory, label)
           if (property === 'slots') return slots
-          if (property === 'inject') return inject
+          if (property === 'inject') return (deps, callback) => inject(target, deps, callback)
           const value = Reflect.get(target, property, target)
           return typeof value === 'function' ? value.bind(target) : value
         },
@@ -419,9 +434,13 @@ function __dshCreateRuntime(require, env, featureTable) {
         disposers.length = 0
       },
       /** @returns {number} recorded in-scope failures. */
-      errorCount() { return errors.length },
+      errorCount() {
+        return errors.length
+      },
       /** @returns {{phase: string, error: unknown}|null} first failure. */
-      firstError() { return errors.length > 0 ? errors[0] : null },
+      firstError() {
+        return errors.length > 0 ? errors[0] : null
+      },
     }
   }
 
@@ -478,7 +497,8 @@ function __dshCreateRuntime(require, env, featureTable) {
   function missingDependency(module, applied, skipped) {
     for (const dependency of module.requires) {
       if (!selected(dependency) || table.get(dependency) === undefined) continue
-      if (!modules.has(dependency) || skipped.has(dependency) || !applied.has(dependency)) return dependency
+      if (!modules.has(dependency) || skipped.has(dependency) || !applied.has(dependency))
+        return dependency
     }
     return null
   }
@@ -540,11 +560,17 @@ function __dshCreateRuntime(require, env, featureTable) {
     filter,
     isolationEnabled,
     /** @returns {string[]} built feature ids in bundle order. */
-    builtIds() { return order.slice() },
+    builtIds() {
+      return order.slice()
+    },
     /** @returns {object[]} built feature modules in bundle order. */
-    builtModules() { return order.map((id) => modules.get(id)).filter((module) => module !== undefined) },
+    builtModules() {
+      return order.map((id) => modules.get(id)).filter((module) => module !== undefined)
+    },
     /** @returns {boolean} whether a feature is quarantined. */
-    isQuarantined(id) { return quarantined.has(id) },
+    isQuarantined(id) {
+      return quarantined.has(id)
+    },
     buildAll,
     applyAll,
     quarantine,

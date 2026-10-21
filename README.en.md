@@ -1,181 +1,95 @@
-# dsh-codex-style
+# Codex Workbench
 
-One DeepSeek Harness Web-client plugin that merges **eleven Codex-style
-interaction plugins** into a single bundle. Install one package and get sidebar
-sections, prompt history, queued-message controls, file-link actions, hover
-tooltips, long-paste attachments, selection fork, session back/forward and the
-left icon rail. Settings gains one **Codex Style** section where every
-sub-plugin has its own tab for its settings and its enable switch.
+Codex-style navigation, composer tools, content actions and side panels for DeepSeek Harness.
+The installation name and module ID remain `dsh-codex-style` for compatibility.
 
-[![Checks](https://img.shields.io/badge/checks-340-brightgreen)](checks/)
-[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
-[![Runtime deps](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](package.json)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+Supported baseline: DSH `0.2.1-rc.2`. Build and checks require Node.js 22 or later. No third-party runtime dependencies.
 
-> This repository is the in-progress single-package merge; the merged sources
-> are recorded in `CHANGELOG.md` and in each feature file header. The old
-> standalone plugin repositories are kept but are no longer the install entry
-> point.
+## Capabilities
 
-## Why merge
+Settings → **Codex Workbench** groups capabilities by task, with independent switches.
 
-Every interaction used to be its own bundle, so installing, upgrading,
-debugging and configuring them meant managing a dozen packages. The merged
-plugin fixes that:
-
-- one install, one restart, one version to release
-- one Host half and one client artifact, no cross-plugin injection ordering
-- all settings live in **Settings → Codex Style**, one tab per sub-plugin
-- a feature that fails to build or apply is reported and skipped without
-  taking down the rest of the bundle
-- every sub-plugin keeps its localStorage keys, Host routes and existing data,
-  so upgrading loses nothing
-
-## Failure isolation
-
-A sub-plugin that throws while **building, applying, in an effect, in a slot
-callback or while rendering** only affects itself:
-
-- build failure: that feature is skipped and the rest still load
-- apply/effect failure: its own slot registrations, effects and listeners are
-  released, and the other sub-plugins keep running
-- render failure: every component a feature registers sits under its own React
-  error boundary, so a crash renders nothing for that feature instead of
-  blanking the host; the crash then quarantines the feature and releases its
-  registrations
-- features may declare `requires`; when a required feature fails, its dependents
-  are marked skipped instead of running on a broken dependency
-- failures are stored in `dsh.codexStyle.failures`; the matching settings tab
-  shows **failed / quarantined / skipped** with the reason, and a restart retries
-  the feature automatically. A successful load clears the old record.
-
-Only a missing bundle-level hard dependency (a platform client module or service
-listed in `dsh.client.inject`) makes the whole plugin wait, matching normal DSH
-plugin semantics. Not covered: async exceptions inside a feature's timers or
-event handlers (the browser logs them without unmounting the React tree), and
-uninterruptible work such as infinite loops or very large synchronous tasks.
-
-## Sub-plugins and settings pages
-
-Tabs in **Settings → Codex Style** (each with an enable switch):
-
-| Tab | Behaviour |
+| Group | Capabilities |
 |---|---|
-| Sidebar sections | Pinned / Projects / Recent / Archived sections, drag ordering, row menus, safe delete and restore |
-| Left icon rail | 46px Codex-style rail plus brand menu and conversations/plugins/automation/settings entries |
-| Session back / forward | Caption-row back/forward controls and `Alt+Left` / `Alt+Right` |
-| Hover and tooltips | Unified button/tab hover and Codex-style icon-button tooltips |
-| Tab middle-click | Middle-click closes a sidebar/dock tab through its close control |
-| Long paste | Very long pastes become `.txt` attachments, expandable back into the composer |
-| Sidebar file drop | Drag a sidebar file into the composer as a file reference |
-| File-link actions | Open with the default app, reveal in the file manager, copy the absolute path |
-| Prompt history | Searchable prompt-history panel with `↑` recall |
-| Queued messages | Withdraw, native inline edit, full-row drag reorder and lock |
-| Selection fork | Select text in a conversation to open a temporary side conversation |
+| Sessions and navigation | Session list, navigation rail, back and forward |
+| Composer | Queue editing, prompt history, long paste, file references, selection quotes |
+| Content actions | File context menu, selection toolbar |
+| Side panels | Temporary side chat, middle-click tab close |
+| Interaction | Hover feedback |
 
-Enabling, disabling and editing settings take effect after **fully quitting and
-restarting DSH**, because each feature installs its client patches once at boot.
+The caption order is **Back → Forward → Toggle sidebar → Native menus**.
+The rail uses DSH SVG artwork; activation changes its fill, inverse details and weight.
+The empty conversation keeps a centered heading and a bottom composer, using host theme colors.
 
-## Install
+## Boundaries
 
-Clone this repository, then install the bundle from a Creator-preset session
-(`target` must be an absolute path):
+The content toolbar reads selected text. Composer and side-panel modules register actions that receive only `{ sessionId, text }`.
+Disposing a provider removes its action without affecting another area.
+
+See [architecture](docs/ARCHITECTURE.md) and the [review report](docs/REVIEW.md) for implementation boundaries, repairs and validation coverage.
+
+## Install and update
+
+Install the local bundle in a DSH Creator session using an absolute path:
 
 ```text
-plugin_manager(action="install_bundle", target="<clone directory>")
+plugin_manager(action="install_bundle", target="<absolute clone directory>")
 ```
 
-`dsh plugin` forwards to pnpm but does not register the bundle, so a CLI install
-also needs `dsh-codex-style` appended to `dsh.profile.bundles` in
-`~/.dsh/profiles/desktop/package.json` followed by a full DSH restart:
+Or install through the CLI:
 
 ```powershell
 git clone https://github.com/tzhaos/dsh-codex-style.git
-dsh plugin --profile desktop add "<clone directory>"
+dsh plugin --profile desktop add "<absolute clone directory>"
 ```
 
-Always **fully quit and relaunch DSH** after installing; the browser half loads
-at startup, so a page refresh is not enough.
+For CLI installation, add `dsh-codex-style` to the desktop profile's `dsh.profile.bundles`.
+Existing path-linked installations use the updated source after a complete DSH restart.
+Capability switches also take effect after a complete restart.
 
-## Update
+## Data
 
-```powershell
-cd <clone directory>
-git pull --ff-only
-# fully quit DSH, then start it again
-```
+- Ordering, collapse state, prompt history, selection quotes and feature preferences remain browser-local.
+- Existing `dsh.sidebarSections.*`, `dsh.composerHistory.*`, `dsh.quickFork.*` and `dsh.codexStyle.*` keys remain compatible.
+- Queue file caches use IndexedDB and upload-reference matching. Expired records cannot restore a file.
+- Queue holds use atomic replacement of `$DSH_HOME/queue-withdraw-frozen.json`. Persistence failure rolls back the requested change.
+- Closing a temporary side chat stops and archives its child session. DSH retains the messages.
 
-With a path-link install the sources are read on restart, so a reinstall is not
-needed; reinstall when the directory, version or `cordis.patch.yml` changes.
-
-## Compatibility
-
-| Item | Value |
-|---|---|
-| DSH | `0.2.1-rc.2` |
-| Surface | Web GUI, Desktop Web GUI |
-| Node | 22+ (tests and build script only) |
-| Build | No runtime build; `client.js` is generated by `node scripts/build-client.mjs` and committed |
-| Runtime deps | None |
-
-## Data and privacy
-
-- no telemetry, no extra server, no network reporting
-- sidebar ordering/collapse, prompt history, hover preferences and feature
-  enable states stay in browser `localStorage` (enable state key:
-  `dsh.codexStyle.features`, failure record key: `dsh.codexStyle.failures`)
-- the queued-message file cache stays in `IndexedDB`; lock state is persisted by
-  the Host half under `$DSH_HOME`
-- sessions, messages and agent results stay under DSH control; plugins never
-  modify conversation logs
-
-## Limitations
-
-- all features boot together; enabling or disabling one needs a DSH restart
-- isolation covers build, apply, effects, slot callbacks and React rendering; a
-  feature's own async callback errors are logged by the browser and do not stop
-  other plugins, but they do not auto-quarantine that feature
-- some features depend on host DOM/slot contracts (DockKit tabs, `inbox.claim`,
-  host button `aria-label`), which a DSH upgrade may change
-- there are no per-feature installs; keep using the old standalone repositories
-  when you only want one or two interactions
+The former selection-fork feature is split into a content toolbar, composer quotes and side chat.
+An existing disabled preference remains disabled across that split until the new capability is explicitly configured.
 
 ## Development
 
 ```powershell
-node scripts/build-client.mjs          # regenerate client.js from src/
-node scripts/build-client.mjs --check  # verify client.js is current
-node scripts/check.mjs                 # full zero-dependency suite
+node scripts/build-client.mjs
+node scripts/check.mjs
 ```
 
-Layout:
+`client.js` is generated. `src/catalog.json` owns capability IDs, source locations and build order.
+The artifact remains one browser module with separate failure boundaries and cleanup scopes.
 
 ```text
-.
-├── index.js                 # Host half: queue routes and the inbox claim patch
-├── client.js                # generated browser bundle (do not edit by hand)
-├── src/
-│   ├── features/            # the eleven merged features, each kept as-is
-│   ├── isolation.js         # per-feature build/apply/render isolation and health records
-│   └── settings.js          # settings shell: Codex Style section, one tab per feature
-├── checks/                  # zero-dependency checks, one file per feature
-├── scripts/
-│   ├── build-client.mjs     # generates client.js
-│   └── check.mjs            # runs every check
-├── locale/
-├── cordis.patch.yml
-└── CHANGELOG.md
+src/
+  navigation/     Session organization and navigation
+  composer/       Input state, history, attachments and quotes
+  conversation/   Content selection and file actions
+  panels/         Side chat and panel tabs
+  shared/         Presentation, official icon adapter, action registry, isolation
+  settings.js     Task-group settings
+  catalog.json    Capability inventory
 ```
 
-Current suite size: **14 check files, 340 zero-dependency checks** (about 3 seconds):
+The isolated UI fixture uses public assets from the locally installed DSH build:
 
-```text
-all checks passed: 14 files, 340 checks, 2.6s
+```powershell
+node scripts/extract-dsh-ui.mjs
+node scripts/review-ui.mjs
 ```
 
-Run `node scripts/check.mjs` before committing, and regenerate `client.js`
-whenever `src/` changes.
+The fixture prints its private loopback URL and Playwright configuration.
+Run `checks/fixtures/verify-ui.js` in a separate, muted, headless browser session.
+Extracted assets remain in the ignored `node_modules/.review-upstream` directory. No DSH gateway or personal sessions are used.
 
-## License
+DOM compatibility adapters are concentrated in navigation, presentation and queue decoration. Recheck them against the official build when upgrading DSH.
 
-[MIT](LICENSE).
+[MIT](LICENSE)

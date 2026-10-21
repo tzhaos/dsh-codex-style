@@ -1,8 +1,8 @@
 {
   "name": "dsh-codex-style",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "One DSH web-client bundle merging eleven Codex-style interaction plugins, with a tabbed Codex Style settings section.",
+  "description": "Codex Workbench for DSH: grouped navigation, composer, content actions and side panels.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -14,12 +14,15 @@
   "files": [
     "index.js",
     "client.js",
+    "git-contract.js",
+    "host/*.js",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
     "README.md",
     "README.en.md",
     "CHANGELOG.md",
+    "docs/*.md",
     "LICENSE"
   ],
   "scripts": {
@@ -44,6 +47,8 @@
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-model-selection",
         "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
@@ -67,5 +72,8 @@
   "homepage": "https://github.com/tzhaos/dsh-codex-style#readme",
   "bugs": {
     "url": "https://github.com/tzhaos/dsh-codex-style/issues"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

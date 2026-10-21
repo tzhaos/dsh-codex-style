@@ -90,7 +90,7 @@ function featureCSS(id) {
 
 await check('manifest declares a DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.1.0')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -217,6 +217,7 @@ function createFakeReact() {
     },
     Fragment: Symbol('Fragment'),
   }
+  react.useLayoutEffect = react.useEffect
 
   return {
     react,
@@ -299,6 +300,7 @@ function createFakeDocument() {
       setAttribute(name, value) { rootAttributes.set(name, String(value)) },
       removeAttribute(name) { rootAttributes.delete(name) },
       getAttribute(name) { return rootAttributes.has(name) ? rootAttributes.get(name) : null },
+      hasAttribute(name) { return rootAttributes.has(name) },
     },
     hostTooltips: [],
     head: { appendChild() {} },
@@ -337,7 +339,8 @@ function createFakeWindow() {
       for (const callback of pending) callback()
     },
     setBackground(value) { background = value },
-    getComputedStyle() { return { backgroundColor: background } },
+    getComputedStyle() { return { backgroundColor: background,
+      getPropertyValue: (name) => ['--dsh-frame-chrome-top', '--dsh-windows-titlebar-height'].includes(name) ? '40px' : '' } },
   }
 }
 
@@ -478,12 +481,33 @@ await check('Host tooltips are re-anchored to the button center', () => {
   fakeDocument.hostTooltips = [tip]
   const button = createButton({ title: 'Pin chat' })
   fakeDocument.dispatch('pointerover', eventFor(button))
-  assertEqual(tip.style.left, '115px', 'horizontal center')
-  assertEqual(tip.style.top, '192px', 'placed above the anchor')
+  assertEqual(tip.style.left, '75px', 'left edge of the centered bubble')
+  assertEqual(tip.style.top, '172px', 'placed above the anchor')
   assertEqual(tip.dataset.side, 'top')
   assertEqual(tip.dataset.align, 'center')
   assertEqual(tip.dataset.dshhpReady, '', 'revealed only after positioning')
   assertEqual(fakeDocument.documentElement.getAttribute('data-dshhp-hover'), '', 'insertion window marked')
+})
+
+await check('Windows header tooltips avoid native caption controls and retain fullscreen placement', () => {
+  for (const fullscreen of [false, true]) {
+    const { fakeDocument } = scenario()
+    fakeDocument.documentElement.setAttribute('data-windows-titlebar', '')
+    if (fullscreen) fakeDocument.documentElement.setAttribute('data-fullscreen', '')
+    const tip = {
+      dataset: { side: 'top' }, style: { setProperty(name, value) { this[name] = value } },
+      className: 'native-tooltip', getAttribute: (name) => name === 'data-side' ? 'top' : null,
+      hasAttribute: () => false, getClientRects: () => [{ width: 184, height: 26 }],
+      getBoundingClientRect: () => ({ width: 184, height: 26 }),
+    }
+    fakeDocument.hostTooltips = [tip]
+    const button = createButton({ title: 'Open folder' })
+    button.getBoundingClientRect = () => ({ left: 1335, right: 1363, top: 52, bottom: 80, width: 28, height: 28 })
+    fakeDocument.dispatch('pointerover', eventFor(button))
+    assertEqual(tip.style.top, fullscreen ? '18px' : '88px')
+    assertEqual(tip.style['--dshhp-top'], fullscreen ? '18px' : '88px')
+    assertEqual(tip.dataset.side, fullscreen ? 'top' : 'bottom')
+  }
 })
 
 await check('foreign role=tooltip hover cards are left untouched', () => {

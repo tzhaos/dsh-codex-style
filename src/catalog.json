@@ -1,0 +1,99 @@
+[
+  {
+    "id": "navigation",
+    "features": [
+      {
+        "id": "dsh-sidebar-sections",
+        "source": "src/navigation/session-list.js"
+      },
+      {
+        "id": "dsh-left-rail",
+        "source": "src/navigation/left-rail.js"
+      },
+      {
+        "id": "dsh-workbench-pages",
+        "source": "src/navigation/workbench-pages.js"
+      },
+      {
+        "id": "dsh-nav-back-forward",
+        "source": "src/navigation/session-history.js"
+      },
+      {
+        "id": "dsh-git-switch",
+        "source": "src/navigation/git-branches.js"
+      }
+    ]
+  },
+  {
+    "id": "composer",
+    "features": [
+      {
+        "id": "dsh-queue-withdraw",
+        "source": "src/composer/queue.js"
+      },
+      {
+        "id": "dsh-composer-history",
+        "source": "src/composer/prompt-history.js"
+      },
+      {
+        "id": "dsh-long-paste",
+        "source": "src/composer/long-paste.js"
+      },
+      {
+        "id": "dsh-sidebar-file-drop",
+        "source": "src/composer/file-drop.js"
+      },
+      {
+        "id": "dsh-selection-quotes",
+        "source": "src/composer/selection-quotes.js"
+      },
+      {
+        "id": "dsh-continue",
+        "source": "src/composer/continue.js"
+      },
+      {
+        "id": "dsh-effort-slider",
+        "source": "src/composer/effort.js"
+      }
+    ]
+  },
+  {
+    "id": "content",
+    "features": [
+      {
+        "id": "dsh-file-link-actions",
+        "source": "src/conversation/file-actions.js"
+      },
+      {
+        "id": "dsh-selection-toolbar",
+        "source": "src/conversation/selection-toolbar.js"
+      }
+    ]
+  },
+  {
+    "id": "panels",
+    "features": [
+      {
+        "id": "dsh-quick-fork",
+        "source": "src/panels/side-chat.js"
+      },
+      {
+        "id": "dsh-tab-middle-click",
+        "source": "src/panels/middle-click.js"
+      }
+    ]
+  },
+  {
+    "id": "interaction",
+    "features": [
+      {
+        "id": "dsh-ui-motion",
+        "source": "src/shared/motion.js"
+      },
+      {
+        "id": "dsh-hover-polish",
+        "source": "src/shared/hover-feedback.js"
+      }
+    ]
+  }
+]
