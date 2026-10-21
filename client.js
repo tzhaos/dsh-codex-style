@@ -12904,6 +12904,22 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       ? t(key) : level.name
   }
 
+  // The composer trigger drops a redundant vendor prefix ("DeepSeek V4.1 Flash"
+  // becomes "V4.1 Flash"); the opened effort panel still shows the full name.
+  const VENDOR_PREFIXES = new Set(['deepseek', 'openai', 'anthropic', 'google', 'meta', 'xai', 'mistral'])
+
+  /**
+   * Compact a catalog model name for the composer trigger.
+   * @param {string} name - catalog model name.
+   * @returns {string} trigger label; the input unchanged when it has no vendor prefix.
+   */
+  function shortModelName(name) {
+    if (typeof name !== 'string') return ''
+    const trimmed = name.trim()
+    const match = /^([A-Za-z][\w.-]*)\s+(.+)$/.exec(trimmed)
+    return match !== null && VENDOR_PREFIXES.has(match[1].toLowerCase()) ? match[2] : trimmed
+  }
+
   function describe(state, defaultLabel) {
     const current = state.current
     const model = state.groups
@@ -13095,6 +13111,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const bridge = useRef(() => {}),
       bypass = useRef(false),
       syncNativeLabel = useRef(() => {})
+    const compactLabel = useRef(null)
     const focused = useRef(false)
     const live = useRef(false)
     const [button, setButton] = useState(null)
@@ -13218,7 +13235,10 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           : view.model.reasoning.efforts.find((level) => level.id === view.effective)?.name ?? view.effective
         // The host renders this leaf as a plain string, with no managed child elements.
         write(effort, 'textContent', label, original)
-        const model = button.querySelector('.wq12jW_triggerLabel')?.textContent
+        // Never rewrite the host label: it owns the provider/model cells the
+        // trigger detection relies on. A separate compact label is rendered
+        // next to it instead (see the effect below).
+        const model = view.model?.name ?? ''
         const aria = nativeT?.('trigger.ariaEffort', { model, effort: label })
         if (aria && aria !== 'trigger.ariaEffort')
           write(button, 'aria-label', aria, nativeT('trigger.ariaEffort', { model, effort: original }))
@@ -13241,6 +13261,31 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         }
       }
     }, [button])
+    useLayoutEffect(() => {
+      if (!button) return
+      const labelNode = button.querySelector('.wq12jW_triggerLabel')
+      if (labelNode === null) return
+      let current = compactLabel.current
+      if (current === null || !current.element.isConnected) {
+        const element = document.createElement('span')
+        element.className = 'dshe-model-label'
+        element.setAttribute('aria-hidden', 'true')
+        const text = document.createTextNode('')
+        element.append(text)
+        current = { element, text }
+        compactLabel.current = current
+      }
+      // Keep the compact label immediately after the host label so the flex row
+      // preserves the native reading order; the host label stays in the DOM for
+      // the provider/model cells and is hidden by CSS while enhanced.
+      labelNode.after(current.element)
+      const short = shortModelName(view.model?.name ?? '')
+      if (current.text.data !== short) current.text.data = short
+      return () => {
+        current.element.remove()
+        compactLabel.current = null
+      }
+    }, [button, view.key, view.model?.name, metricsKey])
     useLayoutEffect(() => syncNativeLabel.current(), [view.key, metricsKey])
     useLayoutEffect(() => {
       if (!button || !view.model || !view.levels.length) return
@@ -13251,23 +13296,38 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       let alive = true
       const measure = () => {
         if (!alive || !button.isConnected) return
+        // The compact model label replaces the host label visually; the effort
+        // name reserves the widest localized level.
+        button.dataset.dsheTrigger = ''
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
         // Reserve all localized names before selection so the control never shifts.
         const labels = view.levels.map((level) => level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
-        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
+        // One pixel of slack keeps the widest level from ellipsizing on subpixel
+        // rounding; the host's responsive max-width still applies.
+        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf))) + 1
+        const compact = button.querySelector('.dshe-model-label')
+        let modelWidth = 0
+        if (compact !== null) {
+          const labelStyle = getComputedStyle(compact)
+          context.font = labelStyle.font
+          const labelSpacing = parseFloat(labelStyle.letterSpacing) || 0
+          const text = compact.textContent ?? ''
+          modelWidth = Math.ceil(context.measureText(text).width + Math.max(0, text.length - 1) * labelSpacing)
+        }
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
-          ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
-            : Math.max(16, child.getBoundingClientRect().width)), 0)
+          ? effortWidth : child === compact ? modelWidth
+            : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
+              : Math.max(16, child.getBoundingClientRect().width)), 0)
           + Math.max(0, children.length - 1) * (parseFloat(style.columnGap) || 0)
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
+          + 1
         // Reserve the widest advertised level; the host's responsive max-width still applies.
         button.style.setProperty('--dshe-trigger-width', Math.ceil(width) + 'px')
         button.style.setProperty('--dshe-effort-width', effortWidth + 'px')
-        button.dataset.dsheTrigger = ''
       }
       measure()
       const resize = new ResizeObserver(measure)
@@ -13645,8 +13705,12 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const CSS = `
     .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
     .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
+    /* The host label keeps its provider/model cells but is visually replaced by
+       the compact model label; the effort panel shows the full model name. */
+    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerLabel{display:none;}
+    .dshe-model-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label){flex:none;width:16px;height:16px;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
     .wq12jW_trigger[data-dshe-updating]>.dshe-native-chevron{display:grid;}
     .wq12jW_trigger[data-dshe-updating]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){visibility:hidden;}
@@ -13708,7 +13772,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   return {
     inject: ['slots', 'locale', 'modelDirectories', 'connection'],
     apply,
-    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en },
+    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, shortModelName, zh, en },
   }
 })
 

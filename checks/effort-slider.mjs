@@ -3,14 +3,15 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 
+const source = fs.readFileSync(new URL('../src/composer/effort.js', import.meta.url), 'utf8')
 let build
-vm.runInNewContext(fs.readFileSync(new URL('../src/composer/effort.js', import.meta.url), 'utf8'), {
+vm.runInNewContext(source, {
   __DSH_FEATURE: (_id, factory) => {
     build = factory
   },
   setTimeout, clearTimeout, queueMicrotask,
 })
-const { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en } = build(() => ({})).__test
+const { describe, selectionFor, selectAndConfirm, place, effortLabel, shortModelName, zh, en } = build(() => ({})).__test
 const fixture = () => ({
   status: 'ready',
   pending: null,
@@ -307,5 +308,29 @@ await checkSelection('implicit default projection confirms an explicit default r
   await flush()
   assert.equal((await outcome).ok, true)
   assert.equal(f.directory.store.getSnapshot().pending, null)
+})
+check('the trigger shortens a vendor-prefixed model name', () => {
+  assert.equal(shortModelName('DeepSeek V4.1 Flash'), 'V4.1 Flash')
+  assert.equal(shortModelName('DeepSeek V4.1 Flash Thinking'), 'V4.1 Flash Thinking')
+  assert.equal(shortModelName('OpenAI GPT 5.6 Luna'), 'GPT 5.6 Luna')
+  assert.equal(shortModelName('Reasoner'), 'Reasoner')
+  assert.equal(shortModelName('  DeepSeek  V4.1 Flash  '), 'V4.1 Flash')
+  assert.equal(shortModelName(''), '')
+  assert.equal(shortModelName(undefined), '')
+})
+check('the trigger shows a compact model label without touching the host label', () => {
+  assert(source.includes("element.className = 'dshe-model-label'"), 'compact label element is rendered')
+  assert(source.includes('labelNode.after(current.element)'), 'compact label follows the host label')
+  assert(source.includes("shortModelName(view.model?.name ?? '')"), 'compact label uses the shortened name')
+  assert(!source.includes("write(labelNode, 'textContent'"), 'the host label content is never rewritten')
+  assert(source.includes('.wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerLabel{display:none;}'), 'the host label stays in the DOM but hidden')
+  assert(source.includes('child === compact ? modelWidth'), 'the compact label width is reserved from its measured text')
+  assert(source.includes('+ 1'), 'subpixel slack keeps the widest level intact')
+})
+check('the opened effort panel carries the full model name', () => {
+  assert(source.includes("className: 'dshe-modelCaption'"), 'panel caption exists')
+  assert(source.includes("h('span', null, view.model?.name)"), 'panel caption shows the full model name')
+  assert(source.includes('title: view.model?.name'), 'panel caption keeps the full name as a title')
+  assert(source.includes("nativeT?.('trigger.ariaEffort', { model, effort: label })"), 'accessible name keeps the full model name')
 })
 console.log(checks + ' effort checks passed')
