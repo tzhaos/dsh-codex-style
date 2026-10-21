@@ -396,6 +396,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
 
   const CSS = `
 html[data-dshlr-active] { --dsh-left-rail-width: 52px; }
+html[data-dshlr-active][data-windows-titlebar] { --dsh-left-rail-width: 44px; }
 html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: calc(100% - var(--dsh-left-rail-width)); }
 [data-dshlr-hidden] { display: none !important; }
 .dshlr-rail {
@@ -444,7 +445,7 @@ html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"
 .dshlr-menuError { color: var(--dsw-alias-state-error-primary); white-space: normal; }
 .dshlr-brand-chevron { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: 6px; color: var(--dsw-alias-label-secondary); pointer-events: none; }
 /* Keep the native new-chat row on the same text axis as project rows. */
-html[data-dshlr-active] .BynINW_sidebarCol [class*="_root"]:not([class*="_collapsed"]) [class$="_newSession"] {
+html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"] {
   justify-content: flex-start; border: 0; background: transparent; border-radius: 8px;
   margin: 4px 0 16px; padding: 6px 8px; height: 36px; font: inherit; font-size: 14px; font-weight: 400;
 }

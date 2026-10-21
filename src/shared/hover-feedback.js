@@ -522,6 +522,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
         hide()
@@ -575,6 +576,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
         hide()
@@ -790,20 +792,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-weight: 500;
 }
 [role="tab"] {
-  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, outline-color 120ms ease;
-}
-[role="tab"]:not([aria-selected="true"]):not([aria-disabled="true"]):not([data-dockkit-tab-quiet]):hover {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
-  outline: 1px solid var(--dsw-alias-border-l3);
-  outline-offset: -1px;
-}
-/* The selected tab owns the active fill, so hover feedback must not replace it. */
-[role="tab"][aria-selected="true"]:hover {
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
-  outline: 1px solid var(--dsw-alias-border-l3);
-  outline-offset: -1px;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 /* Host Tooltips are inserted at their default side/alignment and only then
    receive our centered position. Keep them hidden for that insertion window

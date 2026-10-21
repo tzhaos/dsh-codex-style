@@ -303,7 +303,7 @@ html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::after {
   inset: var(--dshlr-pane-top) var(--dshlr-pane-edge) var(--dshlr-pane-edge)
     calc(var(--dsh-left-rail-width) + var(--dshlr-pane-gap));
   border-radius: var(--dshlr-pane-radius); corner-shape: round;
-  box-shadow: var(--dsw-elevation-prominent);
+  box-shadow: 0 0 0 .5px var(--dsw-alias-border-l2), 0 2px 5px rgb(0 0 0 / .04);
   /* Native caption controls cover the titlebar; keep every edge below that boundary. */
   clip-path: inset(calc(-1 * var(--dshlr-pane-edge)) -40px -40px -40px);
 }
@@ -5951,6 +5951,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
 
   const CSS = `
 html[data-dshlr-active] { --dsh-left-rail-width: 52px; }
+html[data-dshlr-active][data-windows-titlebar] { --dsh-left-rail-width: 44px; }
 html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: calc(100% - var(--dsh-left-rail-width)); }
 [data-dshlr-hidden] { display: none !important; }
 .dshlr-rail {
@@ -5999,7 +6000,7 @@ html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"
 .dshlr-menuError { color: var(--dsw-alias-state-error-primary); white-space: normal; }
 .dshlr-brand-chevron { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: 6px; color: var(--dsw-alias-label-secondary); pointer-events: none; }
 /* Keep the native new-chat row on the same text axis as project rows. */
-html[data-dshlr-active] .BynINW_sidebarCol [class*="_root"]:not([class*="_collapsed"]) [class$="_newSession"] {
+html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"] {
   justify-content: flex-start; border: 0; background: transparent; border-radius: 8px;
   margin: 4px 0 16px; padding: 6px 8px; height: 36px; font: inherit; font-size: 14px; font-weight: 400;
 }
@@ -12857,6 +12858,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     MenuSurface,
     IconRefreshOutlineRegular,
     IconChevronRightOutlineRegular,
+    IconChevronDownOutlineRegular,
   } = require('@deepseek-ai/dsh-client-ui-primitives')
   const { useId, useLayoutEffect, useRef, useState, useSyncExternalStore } = React
   const h = React.createElement
@@ -12992,7 +12994,10 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         Promise.resolve(response).then(
           (result) => {
             confirm()
-            finish(result?.ok ? result : { ok: false })
+            // RPC acknowledgement can precede its durable projection. Keep the
+            // visible target until the projection confirms it, rather than
+            // briefly restoring the previous effort between the two frames.
+            if (!result?.ok) finish({ ok: false })
           },
           () => {
             confirm()
@@ -13072,6 +13077,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const focused = useRef(false)
     const live = useRef(false)
     const [button, setButton] = useState(null)
+    const [chevron, setChevron] = useState(null)
     const [open, setOpen] = useState(false)
     const [preview, setPreview] = useState(null)
     const [pending, setPending] = useState(false)
@@ -13154,6 +13160,18 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       }
     }, [directory, sessionId, t])
     useLayoutEffect(() => {
+      if (!button) return
+      const mount = document.createElement('span')
+      mount.className = 'dshe-native-chevron'
+      mount.setAttribute('aria-hidden', 'true')
+      button.append(mount)
+      setChevron(mount)
+      return () => { mount.remove(); button.removeAttribute('data-dshe-updating') }
+    }, [button])
+    useLayoutEffect(() => {
+      button?.toggleAttribute('data-dshe-updating', pending)
+    }, [button, pending])
+    useLayoutEffect(() => {
       if (!button || !view.model) return
       const effort = button.querySelector('.wq12jW_triggerEffort')
       if (!effort) return
@@ -13168,7 +13186,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const labels = [...view.levels.map((level) => level.name), effort.textContent]
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
         const effortWidth = Math.max(...labels.map(widthOf))
-        const children = [...button.children].filter((child) => getComputedStyle(child).display !== 'none')
+        const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
           ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
             : Math.max(16, child.getBoundingClientRect().width)), 0)
@@ -13230,7 +13248,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     useLayoutEffect(() => {
       cancel()
       setError(null)
-      if (flight.current && flight.current.generation !== generation) {
+      if (flight.current && (flight.current.generation !== generation ||
+          flight.current.provider !== state.current?.provider || flight.current.model !== state.current?.model)) {
         flight.current.controller.abort()
         flight.current = null
         setPending(false)
@@ -13331,6 +13350,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         generation: connected.getSnapshot(),
         model: selection.model,
         provider: selection.provider,
+        effort: selection.reasoningEffort ?? view.model.reasoning.defaultEffort,
       }
       flight.current = operation
       setPending(true)
@@ -13369,7 +13389,11 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       draft.current = value
       setPreview(value)
     }
-    const displayed = preview?.key === view.key ? preview.index : view.index
+    const active = flight.current
+    const pendingIndex = active?.generation === generation &&
+      active.provider === state.current?.provider && active.model === state.current?.model
+      ? view.levels.findIndex((level) => level.id === active.effort) : -1
+    const displayed = preview?.key === view.key ? preview.index : pendingIndex >= 0 ? pendingIndex : view.index
     const disabled = pending || view.busy || !ready()
     const level = view.levels[displayed]
     const fraction =
@@ -13378,6 +13402,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       React.Fragment,
       null,
       h('span', { ref: anchor, 'data-dshe-anchor': sessionId }),
+      chevron ? createPortal(h(IconChevronDownOutlineRegular, { size: 16 }), chevron) : null,
       !open || !view.levels.length
         ? null
         : createPortal(
@@ -13453,7 +13478,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   'data-single': view.levels.length === 1 ? '' : undefined,
                   'data-unknown': view.index < 0 ? '' : undefined,
                   'data-disabled':
-                    disabled || view.levels.length < 2 || view.index < 0 ? '' : undefined,
+                    (disabled && !pending) || view.levels.length < 2 || view.index < 0 ? '' : undefined,
                   style: {
                     '--dshe-position': `calc(12px + (100% - 24px) * ${fraction})`,
                     '--dshe-fill': fraction === 0 ? '0px' : fraction === 1 ? '100%' : 'var(--dshe-position)',
@@ -13537,8 +13562,12 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   }
 
   const CSS = `
-    .wq12jW_trigger[data-dshe-trigger]{box-sizing:border-box;width:var(--dshe-trigger-width);}
-    .wq12jW_trigger[data-dshe-trigger]>:last-child{flex:none;width:16px;height:16px;}
+    .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
+    .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
+    .wq12jW_trigger[data-dshe-updating]>.dshe-native-chevron{display:grid;}
+    .wq12jW_trigger[data-dshe-updating]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){visibility:hidden;}
     .wq12jW_menu[data-dshe-native-model]{left:var(--dshe-native-model-left)!important;}
     .dshe-panel{position:fixed;z-index:1000;box-sizing:border-box;display:block;width:260px;min-width:0;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;box-shadow:var(--dsw-shadow-lv2);overflow:auto;overscroll-behavior:contain;color:var(--dsw-alias-label-primary);}
     .dshe-heading{display:flex;justify-content:center;min-width:0;padding:0 24px;text-align:center;}
@@ -13547,6 +13576,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     .dshe-modelCaption{display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;}.dshe-model span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dshe-model svg{flex:none;}.dshe-model:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
     .dshe-reset{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}.dshe-reset:hover{background:var(--dsw-alias-interactive-bg-hover);}
     .dshe-panel button:disabled{opacity:.45;cursor:default;}.dshe-panel button:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px;}
+    .dshe-panel[aria-busy="true"] .dshe-model:disabled{opacity:1;}
     .dshe-track{position:relative;height:24px;margin-top:12px;border-radius:12px;corner-shape:round;background:linear-gradient(to right,var(--dsw-alias-state-business-primary) 0 var(--dshe-fill),var(--dsw-alias-interactive-bg-hover-solid) var(--dshe-fill) 100%);}
     .dshe-dots{position:absolute;inset:0 12px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;}.dshe-dots span{width:4px;height:4px;flex:none;border-radius:50%;corner-shape:round;background:var(--dsw-alias-label-tertiary);opacity:.45;}.dshe-dots span[data-filled]{background:var(--dsw-static-neutral-00);}
     .dshe-thumb{position:absolute;top:0;left:var(--dshe-position);transform:translateX(-50%);box-sizing:border-box;width:24px;height:24px;border-radius:50%;corner-shape:round;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-static-neutral-00);box-shadow:var(--dsw-shadow-lv1);pointer-events:none;}
@@ -15993,6 +16023,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
         hide()
@@ -16046,6 +16077,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
           return
         if (isSendButton(button)) return
         if (button.closest(SKIP_INSIDE) !== null) return
+        if (isTabControl(button) && !isIconOnly(button)) { hide(); stopHostCentering(); return }
         startHostCentering(button)
         if (button === activeRef.current) return
         hide()
@@ -16261,20 +16293,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
   font-weight: 500;
 }
 [role="tab"] {
-  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, outline-color 120ms ease;
-}
-[role="tab"]:not([aria-selected="true"]):not([aria-disabled="true"]):not([data-dockkit-tab-quiet]):hover {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
-  outline: 1px solid var(--dsw-alias-border-l3);
-  outline-offset: -1px;
-}
-/* The selected tab owns the active fill, so hover feedback must not replace it. */
-[role="tab"][aria-selected="true"]:hover {
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
-  outline: 1px solid var(--dsw-alias-border-l3);
-  outline-offset: -1px;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 /* Host Tooltips are inserted at their default side/alignment and only then
    receive our centered position. Keep them hidden for that insertion window

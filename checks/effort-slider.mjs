@@ -212,6 +212,22 @@ await checkSelection('normal acknowledgements keep native cleanup and submit onc
   assert.equal(f.resets(), 0)
   assert.equal(f.timers.size + f.listeners.size, 0)
 })
+await checkSelection('an RPC acknowledgement waits for the durable selection before dropping the target', async () => {
+  const f = selectionFixture(async () => ({ ok: true }))
+  f.directory.select = async (selection) => {
+    f.directory.store.set({ ...f.directory.store.getSnapshot(), status: 'selecting', pending: selection })
+    await Promise.resolve()
+    f.directory.store.set({ ...f.directory.store.getSnapshot(), status: 'ready', pending: null })
+    return { ok: true }
+  }
+  let settled = false
+  const outcome = selectAndConfirm(f.directory, target, f.options).then((result) => { settled = true; return result })
+  await flush()
+  assert.equal(settled, false, 'an early acknowledgement briefly restores the old effort')
+  f.directory.store.set({ ...f.directory.store.getSnapshot(), current: target })
+  assert.equal((await outcome).ok, true)
+  assert.equal(f.timers.size + f.listeners.size, 0)
+})
 await checkSelection('a post-commit exception recovers the accepted effort and native spinner', async () => {
   const f = selectionFixture(async (selection, store) => {
     store.set({ ...store.getSnapshot(), current: selection })

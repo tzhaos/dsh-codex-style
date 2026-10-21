@@ -44,7 +44,7 @@ html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::after {
   inset: var(--dshlr-pane-top) var(--dshlr-pane-edge) var(--dshlr-pane-edge)
     calc(var(--dsh-left-rail-width) + var(--dshlr-pane-gap));
   border-radius: var(--dshlr-pane-radius); corner-shape: round;
-  box-shadow: var(--dsw-elevation-prominent);
+  box-shadow: 0 0 0 .5px var(--dsw-alias-border-l2), 0 2px 5px rgb(0 0 0 / .04);
   /* Native caption controls cover the titlebar; keep every edge below that boundary. */
   clip-path: inset(calc(-1 * var(--dshlr-pane-edge)) -40px -40px -40px);
 }

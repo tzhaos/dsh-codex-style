@@ -133,10 +133,10 @@ await check('stylesheet uses theme tokens and no literal colors', () => {
   assert(css.includes('.dshhp-tooltip'), 'custom tooltip styles')
 })
 
-await check('right-sidebar tabs get a visible hover and one type scale', () => {
+await check('tabs keep one type scale without extra hover frames', () => {
   const css = featureCSS('dsh-hover-polish')
   assert(css.includes('[data-dockkit-tab]'), 'tab selector')
-  assert(css.includes('[role="tab"]:not([aria-selected="true"])'), 'tab hover')
+  assert(!/\[role="tab"\][^{]*:hover[^{}]*\{[^}]*outline/.test(css), 'extra tab hover frame')
   assert(css.includes('font-weight: 500'), 'medium tab label')
   assert(css.includes('border-radius: 8px'), '8px tab pill')
 })
@@ -698,14 +698,13 @@ await check('role=tab controls get the same tooltip', () => {
   assert(textOf(tooltipOf(harness)[0]).includes('README.md'))
 })
 
-await check('a text tab gets its full title/path as a hover bubble', () => {
+await check('a visible text tab does not get a duplicate hover bubble', () => {
   const { harness, fakeDocument, fakeWindow } = scenario()
   const tab = createButton({ text: 'bilibili-article.md', title: 'D:\\dsh-plugins\\dsh-sidebar-sections\\docs\\bilibili-article.md' })
   tab.setAttribute('role', 'tab')
   fakeDocument.dispatch('pointerover', eventFor(tab))
   reveal(harness, fakeWindow)
-  assert(textOf(tooltipOf(harness)[0]).includes('bilibili-article.md'), 'full path in bubble')
-  assertEqual(tab.getAttribute('title'), null, 'native title suppressed')
+  assertEqual(tooltipOf(harness).length, 0, 'the visible tab label already describes the control')
 })
 
 await check('menu items are skipped', () => {
