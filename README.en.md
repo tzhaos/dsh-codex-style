@@ -12,8 +12,8 @@ Settings → **Codex Workbench** groups capabilities by task, with independent s
 | Group | Capabilities |
 |---|---|
 | Sessions and navigation | Session list, navigation rail, back and forward |
-| Composer | Queue editing, prompt history, long paste, file references, selection quotes |
-| Content actions | File context menu, selection toolbar |
+| Composer | Queued messages (edit withdraws to the composer, lock toggle, drag reorder/merge with attachments), prompt history, long paste, file references, selection quotes, context button (two-level menu) |
+| Content actions | File context menu, attachment context menu, selection toolbar |
 | Side panels | Temporary side chat, middle-click tab close |
 | Interaction | Hover feedback |
 
@@ -52,6 +52,10 @@ Capability switches also take effect after a complete restart.
 - Ordering, collapse state, prompt history, selection quotes and feature preferences remain browser-local.
 - Existing `dsh.sidebarSections.*`, `dsh.composerHistory.*`, `dsh.quickFork.*` and `dsh.codexStyle.*` keys remain compatible.
 - Queue file caches use IndexedDB and upload-reference matching. Expired records cannot restore a file.
+- Queued messages have no in-place editor: the row's **Edit** action withdraws the message (with restorable attachments) into the composer, where it is edited and sent as a normal draft. A non-empty composer asks for confirmation before being replaced.
+- Queued messages are always expanded with no collapse toggle; the row lead message icon is the lock toggle (it swaps to a closed lock while held), dragging uses the grip beside it, and steer/remove keep their native buttons and tooltips.
+- Queue image previews use the Host `ImageLightbox` (the same surface as the composer and transcript), queue attachments answer the native context menu, and drag-merging queued messages keeps the text plus both sides' attachments.
+- The composer status area is one context button: the first-level menu lists the two stat rows and the context ring with their icons and live values, and picking a row opens that Host detail panel as the second level.
 - Queue holds use atomic replacement of `$DSH_HOME/queue-withdraw-frozen.json`. Persistence failure rolls back the requested change.
 - Closing a temporary side chat stops and archives its child session. DSH retains the messages.
 

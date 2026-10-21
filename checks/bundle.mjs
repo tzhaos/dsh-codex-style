@@ -42,7 +42,7 @@ async function check(name, body) {
 
 await check('manifest declares one DSH bundle and one web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.2.0')
+  assert.equal(manifest.version, '1.3.0')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')
@@ -118,7 +118,7 @@ await check('client.js registers exactly one client module', () => {
 })
 
 await check('every merged feature registers exactly once in bundle order', () => {
-  assert.equal(FEATURE_ORDER.length, 18)
+  assert.equal(FEATURE_ORDER.length, 20)
   for (const id of FEATURE_ORDER) {
     const pattern = new RegExp("__DSH_FEATURE\\('" + id + "'", 'g')
     assert.equal((clientSource.match(pattern) ?? []).length, 1, id + ' registers once')

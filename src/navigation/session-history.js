@@ -174,8 +174,7 @@ __DSH_FEATURE('dsh-nav-back-forward', function (require, env) {
         {
           type: 'button',
           className: 'dshnb-button',
-          'aria-label': t('nav.back'),
-          title: t('nav.backTitle'),
+          'aria-label': t('nav.backTitle'),
           disabled: !state.canBack,
           onClick: () => nav.back(),
         },
@@ -186,8 +185,7 @@ __DSH_FEATURE('dsh-nav-back-forward', function (require, env) {
         {
           type: 'button',
           className: 'dshnb-button',
-          'aria-label': t('nav.forward'),
-          title: t('nav.forwardTitle'),
+          'aria-label': t('nav.forwardTitle'),
           disabled: !state.canForward,
           onClick: () => nav.forward(),
         },

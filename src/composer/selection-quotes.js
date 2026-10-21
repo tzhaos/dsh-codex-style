@@ -455,7 +455,6 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
                 type: 'button',
                 className: 'dshqf-annotationRemove',
                 'aria-label': t('annotation.remove'),
-                title: t('annotation.remove'),
                 onMouseDown: (event) => {
                   event.stopPropagation?.()
                 },

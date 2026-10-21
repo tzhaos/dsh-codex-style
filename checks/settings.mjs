@@ -253,7 +253,7 @@ await check('task groups replace the old one-tab-per-package navigation', () => 
 })
 await check('composer capabilities share a page and retain independent switches', () => {
  const mounted=mount(); const tree=selectGroup(mounted,'composer'); const cards=cardsOf(tree)
- assert.equal(cards.length,7)
+ assert.equal(cards.length,8)
  const queue=cards.find(card=>card.props['data-feature']==='dsh-queue-withdraw')
  switchOf(queue).props.onClick()
  assert.deepEqual(JSON.parse(mounted.storage.get('dsh.codexStyle.features')),{'dsh-queue-withdraw':false})

@@ -20,8 +20,8 @@ window.__ModuleLoader__.load({
     /** Browser-local per-feature enable preferences. */
     const FEATURE_PREFS_KEY = 'dsh.codexStyle.features'
     /** Feature ids in bundle order, mirrored by the settings shell tabs. */
-    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-file-link-actions","dsh-selection-toolbar","dsh-quick-fork","dsh-tab-middle-click","dsh-instant-ui","dsh-hover-polish"]
-    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-instant-ui","source":"src/shared/instant-ui.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
+    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-composer-status","dsh-file-link-actions","dsh-attachment-actions","dsh-selection-toolbar","dsh-quick-fork","dsh-tab-middle-click","dsh-instant-ui","dsh-hover-polish"]
+    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"},{"id":"dsh-composer-status","source":"src/composer/composer-status.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-attachment-actions","source":"src/conversation/attachment-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-instant-ui","source":"src/shared/instant-ui.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
 
     /**
      * Register one merged feature.
@@ -264,14 +264,14 @@ window.__ModuleLoader__.load({
  */
 env.presentationCSS = `
 .dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section,
-.dshch-panel, .dshqf-panel, .dshqw-editor, .dshhp-tooltip,
+.dshch-panel, .dshqf-panel, .dshhp-tooltip,
 .dshwp-sidebar, .dshwp-skills, .dshwp-taskLanding {
   font-family: var(--dsw-font-family, inherit);
 }
-:where(.dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section, .dshqf-panel, .dshqw-editor) :where(button, input, textarea, select) {
+:where(.dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section, .dshqf-panel) :where(button, input, textarea, select) {
   font-family: inherit;
 }
-:where(.dshcs-section, .dshqf-panel, .dshqw-editor) :where(button, input, textarea, select) { box-sizing: border-box; }
+:where(.dshcs-section, .dshqf-panel) :where(button, input, textarea, select) { box-sizing: border-box; }
 /* One viewport background joins the caption and rail. Fade before native window controls. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));
@@ -1003,7 +1003,7 @@ env.createSidebarTools = function (React, primitives, createPortal) {
               'span',
               { className: 'dshst-resultState' },
               entry.node.status.state !== 'idle'
-                ? h(StateDot, { state: entry.node.status.state, title: entry.node.status.label })
+                ? h(StateDot, { state: entry.node.status.state })
                 : null,
             )
           : h(entry.icon, { size: 16 }),
@@ -2503,7 +2503,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -2529,7 +2530,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -2540,7 +2542,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   outline: var(--dsw-focus-ring-width, 1px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
 }
-.dshss-iconButton.dshss-small { width: 16px; height: 16px; border-radius: var(--dsw-radius-xs); }
+.dshss-iconButton.dshss-small { width: 16px; height: 16px; border-radius: 999px; corner-shape: round; }
 
 
 
@@ -2615,7 +2617,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
@@ -5211,7 +5214,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
                 ),
                 h(
                   'span',
-                  { className: 'dshss-settingsRemovedTitle', title: entry.title },
+                  { className: 'dshss-settingsRemovedTitle' },
                   entry.title === entry.id
                     ? t('settings.removed.unknown', { id: entry.id })
                     : entry.title,
@@ -6772,8 +6775,7 @@ __DSH_FEATURE('dsh-nav-back-forward', function (require, env) {
         {
           type: 'button',
           className: 'dshnb-button',
-          'aria-label': t('nav.back'),
-          title: t('nav.backTitle'),
+          'aria-label': t('nav.backTitle'),
           disabled: !state.canBack,
           onClick: () => nav.back(),
         },
@@ -6784,8 +6786,7 @@ __DSH_FEATURE('dsh-nav-back-forward', function (require, env) {
         {
           type: 'button',
           className: 'dshnb-button',
-          'aria-label': t('nav.forward'),
-          title: t('nav.forwardTitle'),
+          'aria-label': t('nav.forwardTitle'),
           disabled: !state.canForward,
           onClick: () => nav.forward(),
         },
@@ -7255,14 +7256,7 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
  */
 __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   const React = require('react')
-  const { createPortal } = require('react-dom')
-  const {
-    Button,
-    Modal,
-    Menu,
-    IconEllipsisOutlineRegular,
-    IconEditOutlineRegular,
-  } = require('@deepseek-ai/dsh-client-ui-primitives')
+  const { ImageLightbox } = require('@deepseek-ai/dsh-client-ui-primitives')
   const { useEffect, useMemo, useRef, useState } = React
   const h = React.createElement
 
@@ -7270,177 +7264,82 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   const NS = 'queueWithdraw'
 
   const zh = {
-    'button.label': '撤回到输入栏',
-    'button.tooltip': '把这条排队消息撤回输入栏',
     'button.attachments': '这条消息包含暂不支持的附件内容',
     'button.cacheMissing': '没有找到该文件附件的本地缓存，无法撤回',
-    'button.cacheHint': '撤回文件附件（使用本插件的本地缓存）',
-    'button.editHint': '编辑排队消息',
-    'withdraw.tooltip': '撤回输入栏（替换输入框内容）',
-    'menu.label': '更多操作',
-    'menu.edit': '编辑消息',
-    'menu.withdraw': '撤回到输入框',
-    'menu.freeze': '冻结消息',
-    'menu.thaw': '解冻消息',
-    'steer.label': '引导',
     'remove.missing': '消息已离开队列，可能已开始发送。',
     'remove.unavailable': '会话尚未就绪，暂时无法删除。',
     'remove.writer': '删除失败：会话正由其他 DSH 实例占用。',
     'remove.ownership': '删除失败：会话当前无法修改队列。{detail}',
     'remove.failed': '删除失败：{detail}',
     'remove.unknown': '删除结果尚未确认，消息仍在队列时可重试。{detail}',
-    'editor.title': '编辑排队消息',
-    'editor.placeholder': '消息内容',
-    'editor.addAttachment': '添加附件',
-    'editor.removeAttachment': '移除附件',
-    'editor.preview': '预览附件',
-    'editor.attachment': '附件',
-    'editor.cancel': '取消',
-    'editor.save': '保存',
-    'editor.failed': '保存失败，排队消息可能已变化',
-    'merge.drop': '松开以合并到此消息末尾',
+    'preview.title': '预览附件',
+    'preview.close': '关闭',
     'reorder.tooltip': '拖动排序排队消息',
     'reorder.failed': '排序失败，队列可能已变化',
-    'merge.label': '合并',
-    'merge.tooltip': '把纯文本排队消息合并成一条',
     'merge.failed': '合并失败，队列可能已变化',
-    'merge.attachments': '含附件的排队消息无法合并',
     'button.empty': '这条排队消息没有可撤回的文本',
     'button.failed': '撤回失败，消息仍在队列中',
+    'draftReplace.message': '输入框已有内容，撤回这条排队消息会替换现有草稿。继续？',
     'withdraw.unknown': '撤回结果尚未确认，内容已保留在输入框。请检查队列后再发送。',
     'freeze.tooltip': '锁定，本轮结束不发送',
     'freeze.failed': '锁定失败，队列可能已变化',
-    'frozen.thaw': '解锁',
     'frozen.activate': '解锁',
     'frozen.thawFailed': '解锁失败，队列可能已变化',
   }
 
   const en = {
-    'button.label': 'Withdraw to input',
-    'button.tooltip': 'Withdraw this queued message back into the composer',
     'button.attachments': 'This message contains attachment content that cannot be withdrawn',
     'button.cacheMissing':
       'No local cache was found for this file attachment; it cannot be withdrawn',
-    'button.cacheHint': "Withdraw file attachment (uses this plugin's local cache)",
-    'button.editHint': 'Edit queued message',
-    'withdraw.tooltip': 'Withdraw to input (replaces the composer)',
-    'menu.label': 'More actions',
-    'menu.edit': 'Edit message',
-    'menu.withdraw': 'Move to composer',
-    'menu.freeze': 'Freeze message',
-    'menu.thaw': 'Unfreeze message',
-    'steer.label': 'Steer',
     'remove.missing': 'The message has left the queue and may have started sending.',
     'remove.unavailable': 'The session is not ready to remove messages.',
     'remove.writer': 'Could not remove: another DSH instance owns this session.',
     'remove.ownership': 'This session cannot currently modify its queue. {detail}',
     'remove.failed': 'Could not remove: {detail}',
     'remove.unknown': 'Removal is unconfirmed. Retry if the message remains queued. {detail}',
-    'editor.title': 'Edit queued message',
-    'editor.placeholder': 'Message content',
-    'editor.addAttachment': 'Add attachment',
-    'editor.removeAttachment': 'Remove attachment',
-    'editor.preview': 'Preview attachment',
-    'editor.attachment': 'Attachment',
-    'editor.cancel': 'Cancel',
-    'editor.save': 'Save',
-    'editor.failed': 'Save failed; the queue may have changed',
-    'merge.drop': 'Release to merge at the end of this message',
+    'preview.title': 'Preview attachment',
+    'preview.close': 'Close',
     'reorder.tooltip': 'Drag to reorder queued messages',
     'reorder.failed': 'Reorder failed; the queue may have changed',
-    'merge.label': 'Merge',
-    'merge.tooltip': 'Merge the queued text messages into one',
     'merge.failed': 'Merge failed; the queue may have changed',
-    'merge.attachments': 'Messages with attachments cannot be merged',
     'button.empty': 'This queued message has no text to withdraw',
     'button.failed': 'Withdraw failed; the message is still queued',
+    'draftReplace.message':
+      'The composer already has content. Withdrawing this queued message replaces it. Continue?',
     'withdraw.unknown': 'Withdrawal is unconfirmed. Content is kept in the composer; check the queue before sending.',
     'freeze.tooltip': 'Lock: do not send it when the turn ends',
     'freeze.failed': 'Lock failed; the queue may have changed',
-    'frozen.thaw': 'Unlock',
     'frozen.activate': 'Unlock',
     'frozen.thawFailed': 'Unlock failed; the queue may have changed',
   }
 
-  /** Icon used by the injected row action. */
-  /** Withdraw icon: down arrow onto the composer line. The viewBox is the
-   *  glyph's tight box so it fills the 14px action box like the Host icons. */
-  const WITHDRAW_ICON =
-    '<svg viewBox="2.1 1.5 11.8 12.4" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v7"/><path d="M5.2 6.6 8 9.4 10.8 6.6"/><path d="M2.8 13.2h10.4"/></svg>'
-
-  /** Closed lock for the per-row lock action. Tight viewBox: fills 14px. */
+  /**
+   * Row icons use the Host icon language: the same 16-unit grid, regular
+   * one-pixel stroke and currentColor paths as the primitive icon set. The
+   * leading message icon renders at 16px inside a 28px button; the lock swap
+   * keeps the native optical weight.
+   */
+  const ICON_SVG_ATTRS = 'viewBox="0 0 16 16" fill="none" stroke-width="1" aria-hidden="true"'
+  /**
+   * Closed lock: the shackle meets the body's top edge. The body spans 11 of
+   * the 16 grid units, close to the 12.6-unit reach of the native edit icon, so
+   * the glyph keeps the same optical size as its neighbours.
+   */
   const LOCK_ICON =
-    '<svg viewBox="2.3 1.5 11.4 12.9" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.9" width="10" height="6.8" rx="1.6"/><path d="M5.3 6.9V4.9a2.7 2.7 0 0 1 5.4 0v2"/></svg>'
-  const UNLOCK_ICON =
-    '<svg viewBox="2.3 1.5 11.4 12.9" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.9" width="10" height="6.8" rx="1.6"/><path d="M5.3 6.9V4.9a2.7 2.7 0 0 1 5.4 0"/></svg>'
+    '<svg ' +
+    ICON_SVG_ATTRS +
+    '><path d="M5 6.25H11C12.1 6.25 13 7.15 13 8.25V12C13 13.1 12.1 14 11 14H5C3.9 14 3 13.1 3 12V8.25C3 7.15 3.9 6.25 5 6.25Z" stroke="currentColor"/><path d="M5.5 6.25V4.25A2.5 2.5 0 0 1 10.5 4.25V6.25" stroke="currentColor"/></svg>'
 
+  /**
+   * The leading glyph is the Host's own message icon (IconQueueOutlineRegular,
+   * the artwork the native queue dock uses for its single-row lead). It is the
+   * idle face of the lock toggle: the same button shows the closed lock while
+   * the message is held, so the icon stays useful instead of pure decoration.
+   */
+  const QUEUE_GLYPH =
+    '<svg class="dshqw-queueGlyph" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke-width="1" aria-hidden="true"><path d="M5 6.75H11" stroke="currentColor"/><path d="M5 9H8" stroke="currentColor"/><path d="M2.37067 11.2497C1.5872 9.89252 1.32042 8.29798 1.61945 6.7597C1.91847 5.22141 2.76317 3.84293 3.99801 2.87809C5.23285 1.91325 6.7747 1.427 8.33964 1.50888C9.90458 1.59076 11.3873 2.23526 12.5147 3.32369C13.6422 4.41232 14.3384 5.8717 14.4751 7.43304C14.6118 8.99438 14.1797 10.5525 13.2585 11.8205C12.3372 13.0885 10.9889 13.9809 9.4617 14.3334C8.18666 14.6277 6.8587 14.529 5.64964 14.0601C5.17095 13.8745 4.76937 13.4929 4.26509 13.3963C3.67389 13.2832 2.95232 13.5595 2.0377 14.3334" stroke="currentColor"/></svg>'
   const HANDLE_ICON =
-    '<svg class="dshqw-grip" viewBox="0 0 8 16" width="8" height="16" fill="currentColor" aria-hidden="true"><circle cx="2" cy="4" r=".8"/><circle cx="6" cy="4" r=".8"/><circle cx="2" cy="8" r=".8"/><circle cx="6" cy="8" r=".8"/><circle cx="2" cy="12" r=".8"/><circle cx="6" cy="12" r=".8"/></svg><svg class="dshqw-queueGlyph" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5v7a2 2 0 0 0 2 2h8m-2.5-2.5 2.5 2.5-2.5 2.5M6.5 3.5H13M6.5 6.5H13"/></svg><span class="dshqw-lockGlyph">' +
-    LOCK_ICON +
-    '</span>'
-
-  /** Menu actions relay to live Host controls, preserving their busy guards. */
-  function QueueRowMenu({
-    row,
-    held,
-    disabled,
-    editDisabled,
-    withdrawDisabled,
-    freezeDisabled,
-    t,
-  }) {
-    const [open, setOpen] = useState(false)
-    const icon = (markup) =>
-      h('span', { className: 'dshqw-menuIcon', dangerouslySetInnerHTML: { __html: markup } })
-    return h(Menu, {
-      listClassName: 'dsh-motion-surface',
-      open,
-      onClose: () => setOpen(false),
-      portal: true,
-      align: 'end',
-      autoFocus: true,
-      anchor: h(
-        'button',
-        {
-          type: 'button',
-          className: 'dshqw-more',
-          'aria-label': t('menu.label'),
-          'aria-haspopup': 'menu',
-          'aria-expanded': open,
-          disabled,
-          onClick: () => setOpen((value) => !value),
-        },
-        h(IconEllipsisOutlineRegular, { size: 14 }),
-      ),
-      items: [
-        {
-          id: 'edit',
-          label: t('menu.edit'),
-          icon: h(IconEditOutlineRegular, { size: 16 }),
-          disabled: editDisabled,
-        },
-        {
-          id: 'withdraw',
-          label: t('menu.withdraw'),
-          icon: icon(WITHDRAW_ICON),
-          disabled: withdrawDisabled,
-        },
-        {
-          id: 'freeze',
-          label: t(held ? 'menu.thaw' : 'menu.freeze'),
-          icon: icon(held ? UNLOCK_ICON : LOCK_ICON),
-          disabled: freezeDisabled,
-        },
-      ],
-      onSelect: (id) => {
-        setOpen(false)
-        if (row.isConnected === false) return
-        const button =
-          id === 'edit' ? hostEditButtonOf(row) : row.querySelector('[data-dshq-' + id + ']')
-        if (button && !button.disabled) button.click()
-      },
-    })
-  }
+    '<svg class="dshqw-grip" viewBox="0 0 8 16" width="8" height="16" fill="currentColor" aria-hidden="true"><circle cx="2" cy="4" r=".8"/><circle cx="6" cy="4" r=".8"/><circle cx="2" cy="8" r=".8"/><circle cx="6" cy="8" r=".8"/><circle cx="2" cy="12" r=".8"/><circle cx="6" cy="12" r=".8"/></svg>'
 
   const REORDER_PATH = '/dsh-queue-withdraw/reorder'
   const UPDATE_PATH = '/dsh-queue-withdraw/update'
@@ -7966,7 +7865,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   function hostEditButtonOf(row) {
     if (typeof row.querySelectorAll !== 'function') return null
     for (const candidate of row.querySelectorAll('button[aria-label]')) {
-      if (candidate.hasAttribute?.('data-dsh-queue-withdraw') === true) continue
       const label = candidate.getAttribute?.('aria-label') ?? ''
       if (/编辑|Edit/i.test(label) && !/取消|Cancel/i.test(label)) return candidate
     }
@@ -7986,146 +7884,14 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     row.append?.(button)
   }
 
-  /** Attachment edits use the host modal for focus, Escape and scroll locking. */
-  function QueueEditor({ item, actions, t, onClose }) {
-    const [text, setText] = useState(() => textOfContent(item.content))
-    const [kept, setKept] = useState(() =>
-      (item.content ?? []).filter((block) => block?.type === 'image' || block?.type === 'file'),
-    )
-    const [added, setAdded] = useState([])
-    const [busy, setBusy] = useState(false)
-    const [error, setError] = useState('')
-    const input = useRef(null)
-    const textarea = useRef(null)
-    useEffect(() => {
-      textarea.current?.focus()
-    }, [])
-    const close = () => {
-      if (!busy) onClose()
-    }
-    const readFiles = async (event) => {
-      const files = [...(event.target.files ?? [])]
-      event.target.value = ''
-      setBusy(true)
-      try {
-        const next = []
-        for (const file of files) {
-          const data = await new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onerror = () => reject(reader.error)
-            reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-            reader.readAsDataURL(file)
-          })
-          if (data === '') throw new Error('empty file')
-          next.push({
-            name: file.name,
-            mediaType: file.type,
-            kind: file.type.startsWith('image/') ? 'image' : 'file',
-            data,
-          })
-        }
-        setAdded((current) => [...current, ...next])
-      } catch {
-        setError(t('editor.failed'))
-      } finally {
-        setBusy(false)
-      }
-    }
-    const save = async () => {
-      if (busy) return
-      setBusy(true)
-      try {
-        if (await actions.updateItem(item.id, text, kept, added, t('editor.failed'))) onClose()
-        else setError(t('editor.failed'))
-      } finally {
-        setBusy(false)
-      }
-    }
-    const chips = (items, setter) =>
-      items.map((block, index) =>
-        h(
-          'span',
-          { className: 'dshqw-editorChip', key: index },
-          block.attachment?.name ?? block.name ?? t('editor.attachment'),
-          h(
-            'button',
-            {
-              type: 'button',
-              disabled: busy,
-              className: 'dshqw-editorChipRemove',
-              'aria-label': t('editor.removeAttachment'),
-              onClick: () => setter((current) => current.filter((_value, i) => i !== index)),
-            },
-            '×',
-          ),
-        ),
-      )
-    return h(
-      Modal,
-      {
-        className: 'dsh-motion-surface',
-        open: true,
-        title: t('editor.title'),
-        closeLabel: t('editor.cancel'),
-        onClose: close,
-        footer: h(
-          'div',
-          { className: 'dshqw-editorActions' },
-          h(Button, { variant: 'ghost', disabled: busy, onClick: close }, t('editor.cancel')),
-          h(
-            Button,
-            {
-              variant: 'primary',
-              disabled: busy || (text.trim() === '' && kept.length + added.length === 0),
-              onClick: () => {
-                void save()
-              },
-            },
-            t('editor.save'),
-          ),
-        ),
-      },
-      h(
-        'div',
-        { className: 'dshqw-editor' },
-        h('textarea', {
-          ref: textarea,
-          className: 'dshqw-editorText',
-          value: text,
-          disabled: busy,
-          'aria-label': t('editor.placeholder'),
-          onChange: (event) => setText(event.target.value),
-        }),
-        h('div', { className: 'dshqw-editorChips' }, chips(kept, setKept), chips(added, setAdded)),
-        h('input', {
-          ref: input,
-          type: 'file',
-          multiple: true,
-          hidden: true,
-          onChange: (event) => {
-            void readFiles(event)
-          },
-        }),
-        h(
-          Button,
-          { variant: 'ghost', disabled: busy, onClick: () => input.current?.click() },
-          t('editor.addAttachment'),
-        ),
-        error === '' ? null : h('p', { role: 'alert', className: 'dshqw-editorError' }, error),
-      ),
-    )
-  }
-
   /**
-   * The global decoration layer. It
-   * reconciles one injected button with each host queue row.
+   * The global decoration layer. It reconciles one injected lock control and
+   * re-purposes the Host edit control on each queue row.
    * @param {object} props - session id, standard hooks, injected actions and translator.
    * @returns {null} no React output.
    */
   function QueueWithdraw({ sessionId, useSession, useProjection, actions, t }) {
-    const [editor, setEditor] = useState(null)
     const [preview, setPreview] = useState(null)
-    const [rowMenus, setRowMenus] = useState([])
     const inbox = useProjection('inbox')
     const queue = useMemo(
       () => (Array.isArray(inbox?.['next-turn']) ? inbox['next-turn'] : []),
@@ -8173,14 +7939,12 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     useEffect(() => {
       if (typeof document === 'undefined' || typeof MutationObserver !== 'function')
         return undefined
-      const editItems = new Map()
-      const editEntries = new Set()
-      const editOriginal = new Map()
+      const editRestores = new Map()
+      const editIntercepted = new WeakSet()
       const previewOriginal = new Map()
       const rowItems = new WeakMap()
-      const nativeActionNodes = new Set()
       const removeButtons = new Set()
-      const removalDisabled = new Set()
+      const busyDisabled = new Set()
       const expandingHeaders = new WeakSet()
       const decoratedDocks = new Set()
       const listeners = new Map()
@@ -8212,27 +7976,50 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           }, 0)
         }
       }
-      /** Withdraw one queue item through the Host edit control. */
+      /**
+       * One withdrawal at a time. The composer draft is replaced wholesale, so
+       * two concurrent withdrawals would drop one message's text: a second
+       * click (or drop) is ignored until the first Host round-trip settles.
+       */
+      let withdrawing = false
+
+      /**
+       * Withdraw one queue item back into the composer. Returns whether the
+       * Host accepted the removal.
+       * @param {Element|null} button - triggering control, disabled while busy.
+       * @param {object} item - queue item with id and content.
+       * @returns {Promise<boolean>} whether the item left the queue.
+       */
+      const withdrawItem = async (button, item) => {
+        if (withdrawing) return false
+        withdrawing = true
+        if (button !== null && button !== undefined) button.disabled = true
+        try {
+          const accepted = await actionsRef.current.withdraw(
+            item,
+            tRef.current('button.empty'),
+            tRef.current('button.failed'),
+            tRef.current('button.attachments'),
+            tRef.current('button.cacheMissing'),
+          )
+          if (accepted !== true) return false
+          // A withdrawn message leaves the queue, so its lock must go too.
+          const id = String(item.id)
+          if (frozenIdsOf(sessionId).has(id)) {
+            await actionsRef.current.thaw(id, tRef.current('frozen.thawFailed'))
+            await refreshFrozenRef.current()
+          }
+          return true
+        } finally {
+          withdrawing = false
+          sync()
+        }
+      }
+
+      /** Withdraw from the re-purposed Host edit control. */
       const withdrawThrough = async (button, item) => {
         if (button.disabled) return
-        button.disabled = true
-        const accepted = await actionsRef.current.withdraw(
-          item,
-          tRef.current('button.empty'),
-          tRef.current('button.failed'),
-          tRef.current('button.attachments'),
-          tRef.current('button.cacheMissing'),
-        )
-        if (accepted !== true) {
-          button.disabled = false
-          return
-        }
-        // A withdrawn message leaves the queue, so its lock must go too.
-        const id = String(item.id)
-        if (frozenIdsOf(sessionId).has(id)) {
-          await actionsRef.current.thaw(id, tRef.current('frozen.thawFailed'))
-          await refreshFrozenRef.current()
-        }
+        await withdrawItem(button, item)
       }
 
       /**
@@ -8255,10 +8042,18 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         button.disabled = false
       }
 
-      const closeEditor = () => setEditor(null)
-      const openEditor = (_row, item) => setEditor({ item })
-      const openPreview = (src) => {
-        if (typeof src === 'string' && src !== '') setPreview(src)
+      /**
+       * Open the Host's own image lightbox for one queue thumbnail. The queue
+       * rows reuse the same primitive the composer and transcripts use, so the
+       * preview surface stays native instead of a second custom modal.
+       * @param {Element} image - queue row thumbnail.
+       */
+      const openPreview = (image) => {
+        if (image === null || image === undefined) return
+        const src = image.currentSrc || image.src || image.getAttribute?.('src') || ''
+        if (typeof src !== 'string' || src === '') return
+        const alt = image.getAttribute?.('alt') ?? ''
+        setPreview({ src, alt: typeof alt === 'string' ? alt : '' })
       }
 
       /** Whether a pointer drag is currently moving a queue row. */
@@ -8411,21 +8206,15 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             const targetItem = rowItems.get(mergeWith)
             if (targetItem !== undefined && String(targetItem.id) !== String(current.id)) {
               await actionsRef.current.mergeInto(
-                String(targetItem.id),
-                String(current.id),
+                targetItem,
+                current,
                 tRef.current('merge.failed'),
               )
             }
             return
           }
           if (composerDrop !== null) {
-            await actionsRef.current.withdraw(
-              current,
-              tRef.current('button.empty'),
-              tRef.current('button.failed'),
-              tRef.current('button.attachments'),
-              tRef.current('button.cacheMissing'),
-            )
+            await withdrawItem(null, current)
             return
           }
           if (order.length !== initial.length || order.some((id, index) => id !== initial[index])) {
@@ -8441,16 +8230,15 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
       }
 
       /**
-       * Give each Host row one handle and one menu mount. Hidden action
-       * relays retain the existing withdrawal and freeze state transitions.
+       * Give each Host row its drag handle and the inline lock toggle. The lock
+       * is a visible peer of the Host's own row actions; withdrawal itself is
+       * re-purposed onto the Host edit control instead of a second button.
        * @param {Element} row - host queue row.
        * @param {object} item - queue item currently shown by the row.
-       * @returns {Element|null} the injected withdraw button.
        */
       const ensureRow = (row, item) => {
-        if (typeof row.querySelector !== 'function') return null
+        if (typeof row.querySelector !== 'function') return
         rowItems.set(row, item)
-        const actions = row.querySelector?.('[class*="actions"]') ?? null
         if (row.getAttribute?.('data-dshq-row') !== '') {
           row.setAttribute('data-dshq-row', '')
           listen(row, 'pointerdown', (event) => beginRowDrag(row, event))
@@ -8462,7 +8250,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           handle.className = 'dshqw-handle'
           handle.setAttribute('data-dshq-handle', '')
           handle.setAttribute('aria-label', tRef.current('reorder.tooltip'))
-          handle.setAttribute('title', tRef.current('reorder.tooltip'))
           handle.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown')
           handle.innerHTML = HANDLE_ICON
           listen(handle, 'pointerdown', (event) => {
@@ -8485,162 +8272,116 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           })
           placeButton(row, handle)
         }
-        if (!row.querySelector('[data-dshq-menu]')) {
-          const mount = document.createElement('span')
-          mount.className = 'dshqw-menuMount'
-          mount.setAttribute('data-dshq-menu', '')
-          row.append(mount)
-        }
-        let withdraw = row.querySelector?.('[data-dshq-withdraw]')
-        if (withdraw === null || withdraw === undefined) {
-          withdraw = document.createElement('button')
-          withdraw.type = 'button'
-          withdraw.className = 'dshqw-withdraw'
-          withdraw.setAttribute('data-dshq-withdraw', '')
-          withdraw.setAttribute('aria-label', tRef.current('withdraw.tooltip'))
-          withdraw.setAttribute('aria-hidden', 'true')
-          withdraw.tabIndex = -1
-          withdraw.innerHTML = WITHDRAW_ICON
-          withdraw.addEventListener('click', (event) => {
-            event.preventDefault?.()
-            event.stopPropagation?.()
-            const target = rowItems.get(row)
-            if (target !== undefined) void withdrawThrough(withdraw, target)
-          })
-          // Appended once, at the dock's trailing edge, after the native
-          // actions: the left text edge never moves when React re-creates the
-          // row and this button is re-added.
-          row.append?.(withdraw)
-        }
         let freeze = row.querySelector?.('[data-dshq-freeze]')
         if (freeze === null || freeze === undefined) {
           freeze = document.createElement('button')
           freeze.type = 'button'
-          freeze.className = 'dshqw-freeze'
+          freeze.className = 'dshqw-lockToggle'
           freeze.setAttribute('data-dshq-freeze', '')
           freeze.setAttribute('aria-label', tRef.current('freeze.tooltip'))
-          freeze.setAttribute('title', tRef.current('freeze.tooltip'))
-          freeze.setAttribute('aria-hidden', 'true')
-          freeze.tabIndex = -1
-          freeze.innerHTML = UNLOCK_ICON
-          freeze.addEventListener('click', (event) => {
+          freeze.setAttribute('aria-pressed', 'false')
+          freeze.innerHTML = QUEUE_GLYPH
+          listen(freeze, 'click', (event) => {
             event.preventDefault?.()
             event.stopPropagation?.()
             const target = rowItems.get(row)
             if (target !== undefined) void freezeThrough(freeze, target)
           })
-          // The lock sits just before the native action cluster.
-          if (actions !== null && actions !== undefined) row.insertBefore(freeze, actions)
-          else row.append?.(freeze)
-        }
-        return withdraw
-      }
-
-      const syncNativeActions = (row) => {
-        const box = row.querySelector('[class*="actions"]')
-        if (!box) return
-        const edit = hostEditButtonOf(row)
-        for (const button of box.querySelectorAll('button[aria-label]')) {
-          const label = button.getAttribute('aria-label') ?? ''
-          const kind =
-            button === edit
-              ? 'edit'
-              : /引导|插话|Steer/i.test(label)
-                ? 'steer'
-                : /移除|删除|Remove|Delete/i.test(label)
-                  ? 'remove'
-                  : null
-          let wrapper = button
-          while (wrapper.parentElement && wrapper.parentElement !== box)
-            wrapper = wrapper.parentElement
-          if (!kind) {
-            wrapper.removeAttribute('data-dshq-native-action')
-            continue
-          }
-          wrapper.setAttribute('data-dshq-native-action', kind)
-          if (kind === 'steer')
-            button.setAttribute('data-dshq-action-label', tRef.current('steer.label'))
-          nativeActionNodes.add(wrapper)
-          if (kind === 'remove' && !removeButtons.has(button)) {
-            removeButtons.add(button)
-            listen(
-              button,
-              'click',
-              async (event) => {
-                event.preventDefault?.()
-                event.stopImmediatePropagation?.()
-                const item = rowItems.get(row)
-                if (button.disabled || !item) return
-                const accepted = await actionsRef.current.removal?.remove(item.id)
-                if (accepted && !disposed && frozenIdsOf(sessionId).has(String(item.id))) {
-                  await actionsRef.current.thaw(String(item.id), tRef.current('frozen.thawFailed'))
-                  await refreshFrozenRef.current()
-                }
-              },
-              true,
-            )
-          }
+          // The leading message icon doubles as the lock toggle. It sits right
+          // after the drag grip so dragging and locking stay separate gestures.
+          const grip = row.querySelector?.('[data-dshq-handle]') ?? null
+          if (grip !== null && grip !== undefined) row.insertBefore?.(freeze, grip.nextSibling ?? null)
+          else row.insertBefore?.(freeze, row.firstChild ?? null)
         }
       }
 
       /**
-       * Leave text messages to the Host's own inline editor. Only a message
-       * made purely of attachments — which the Host refuses to edit — falls
-       * back to this plugin's editor.
+       * The Host's remove control is the only native action this plugin
+       * intercepts: it relays through the session-scoped removal controller so
+       * ownership errors are reported once. Steer and the other Host controls
+       * keep their native labels, icons, order and tooltips untouched.
        */
-      const syncHostEdit = (row, item) => {
-        if (typeof row.querySelectorAll !== 'function') return
-        const plan = withdrawPlan(item?.content)
-        const edit = hostEditButtonOf(row)
-        if (edit === null) return
-        if (plan.unsupported || plan.attachments.length === 0) {
-          editItems.delete(edit)
-          if (edit.hasAttribute?.('data-dshq-edit')) {
-            edit.removeAttribute('data-dshq-edit')
-            edit.setAttribute('aria-label', editOriginal.get(edit)?.label ?? 'Edit')
-            if (plan.text !== '' && !actionsRef.current.removal?.busy() && edit.disabled !== false)
-              edit.disabled = false
-          }
-          return
-        }
-        editItems.set(edit, item)
-        editEntries.add(edit)
-        const first = !editOriginal.has(edit)
-        if (first)
-          editOriginal.set(edit, {
-            label: edit.getAttribute('aria-label'),
-            disabled: edit.disabled,
-          })
-        const held =
-          frozenIdsOf(sessionId).has(String(item.id)) || !!actionsRef.current.removal?.busy()
-        if (edit.disabled !== held) edit.disabled = held
-        edit.setAttribute('aria-label', tRef.current('button.editHint'))
-        edit.setAttribute('data-dshq-edit', '')
-        if (first) {
-          for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'focus']) {
-            listen(
-              edit,
-              type,
-              (event) => {
-                if (editItems.has(edit)) event.stopImmediatePropagation?.()
-              },
-              true,
-            )
-          }
+      const syncNativeActions = (row) => {
+        const box = row.querySelector('[class*="actions"]')
+        if (!box) return
+        for (const button of box.querySelectorAll('button[aria-label]')) {
+          const label = button.getAttribute('aria-label') ?? ''
+          if (!/移除|删除|Remove|Delete/i.test(label)) continue
+          if (removeButtons.has(button)) continue
+          removeButtons.add(button)
           listen(
-            edit,
+            button,
             'click',
-            (event) => {
-              const current = editItems.get(edit)
-              if (current === undefined || edit.disabled) return
+            async (event) => {
               event.preventDefault?.()
               event.stopImmediatePropagation?.()
-              event.stopPropagation?.()
-              if (current !== undefined) openEditor(row, current)
+              const item = rowItems.get(row)
+              if (button.disabled || !item) return
+              const accepted = await actionsRef.current.removal?.remove(item.id)
+              if (accepted && !disposed && frozenIdsOf(sessionId).has(String(item.id))) {
+                await actionsRef.current.thaw(String(item.id), tRef.current('frozen.thawFailed'))
+                await refreshFrozenRef.current()
+              }
             },
             true,
           )
         }
+      }
+
+      /**
+       * Re-purpose the Host edit control: it withdraws the message back into
+       * the composer, where it can be edited and sent again. The Host's inline
+       * editor is never opened, so the row keeps only one "编辑" action and no
+       * in-place edit state. Content that cannot be rehydrated stays disabled.
+       */
+      const syncNativeEdit = (row, item) => {
+        if (typeof row.querySelectorAll !== 'function') return
+        const edit = hostEditButtonOf(row)
+        if (edit === null) return
+        const plan = withdrawPlan(item?.content)
+        const blocked = plan.unsupported || (plan.text === '' && plan.attachments.length === 0)
+        if (!editRestores.has(edit)) {
+          editRestores.set(edit, {
+            disabled: edit.disabled,
+            title: edit.getAttribute?.('title') ?? null,
+          })
+        }
+        const disabled = blocked || withdrawing || !!actionsRef.current.removal?.busy()
+        if (edit.disabled !== disabled) edit.disabled = disabled
+        // The custom hover layer owns every tooltip. Strip the Host's native
+        // `title` (its refusal text) so no browser tooltip leaks through; the
+        // unsupported hint travels as an assistive description instead.
+        if (edit.hasAttribute?.('title')) edit.removeAttribute?.('title')
+        if (blocked) {
+          const hint = tRef.current('button.attachments')
+          if (edit.getAttribute?.('aria-description') !== hint)
+            edit.setAttribute?.('aria-description', hint)
+        } else if (edit.hasAttribute?.('aria-description')) {
+          edit.removeAttribute?.('aria-description')
+        }
+        edit.setAttribute?.('data-dshq-edit', '')
+        if (editIntercepted.has(edit)) return
+        editIntercepted.add(edit)
+        listen(
+          edit,
+          'click',
+          (event) => {
+            if (withdrawing) {
+              event.preventDefault?.()
+              event.stopImmediatePropagation?.()
+              event.stopPropagation?.()
+              return
+            }
+            if (edit.disabled) return
+            const current = rowItems.get(row)
+            if (current === undefined) return
+            event.preventDefault?.()
+            event.stopImmediatePropagation?.()
+            event.stopPropagation?.()
+            void withdrawThrough(edit, current)
+          },
+          true,
+        )
       }
       /** Make host queue image thumbnails clickable. */
       const syncPreviews = (row) => {
@@ -8656,7 +8397,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             (event) => {
               event.preventDefault?.()
               event.stopPropagation?.()
-              openPreview(image.getAttribute('src') ?? '')
+              openPreview(image)
             },
             true,
           )
@@ -8665,9 +8406,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 
       /**
        * Reflect the Host's held set on one live queue row: struck-through
-       * text, a closed lock at the dock's trailing edge, and a disabled edit
-       * control. Withdraw and the rest of the row stay available; the message
-       * itself never leaves `next-turn`, only the claim skips it.
+       * text and the closed lock in both the handle and the row action. The
+       * message stays queued; only the claim skips it at the turn boundary.
+       * Editing (now withdrawal) stays available because withdrawing a held
+       * message releases its hold.
        */
       const decorateFrozenRow = (row, item) => {
         const frozen = frozenIdsOf(sessionId).has(String(item.id))
@@ -8679,29 +8421,19 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           if (button.classList?.contains?.('dshqw-freeze-on') !== frozen) {
             button.classList?.toggle?.('dshqw-freeze-on', frozen)
           }
-          const icon = frozen ? LOCK_ICON : UNLOCK_ICON
+          const icon = frozen ? LOCK_ICON : QUEUE_GLYPH
           if (button.getAttribute?.('data-locked') !== String(frozen)) {
             button.setAttribute?.('data-locked', String(frozen))
             button.innerHTML = icon
           }
           const label = frozen ? tRef.current('frozen.activate') : tRef.current('freeze.tooltip')
-          if (button.title !== label) button.title = label
+          // The custom hover layer owns the tooltip; never write the native
+          // `title` attribute (it would surface a browser tooltip on top).
           if (button.getAttribute?.('aria-label') !== label)
             button.setAttribute?.('aria-label', label)
           const pressed = frozen ? 'true' : 'false'
           if (button.getAttribute?.('aria-pressed') !== pressed)
             button.setAttribute?.('aria-pressed', pressed)
-        }
-        const edit = hostEditButtonOf(row)
-        if (edit !== null) {
-          if (frozen) {
-            if (edit.disabled !== true) edit.disabled = true
-            edit.setAttribute?.('data-dshq-locked', '')
-          } else if (edit.hasAttribute?.('data-dshq-locked') === true) {
-            if (!actionsRef.current.removal?.busy() && edit.disabled !== false)
-              edit.disabled = false
-            edit.removeAttribute?.('data-dshq-locked')
-          }
         }
       }
 
@@ -8712,21 +8444,25 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           for (const dispose of off) dispose()
           listeners.delete(node)
           removeButtons.delete(node)
-          editItems.delete(node)
-          editEntries.delete(node)
-          editOriginal.delete(node)
+          editRestores.delete(node)
           previewOriginal.delete(node)
         }
         const queueNow = mutableRef.current === true ? queueRef.current : []
-        const removal = actionsRef.current.removal?.busy()
-        if (!removal) {
-          for (const button of removalDisabled)
+        // Any in-flight queue mutation owns the row controls: a withdrawal or
+        // removal must not race another row action (the composer draft is a
+        // single, wholesale-replaced slot).
+        const busy = withdrawing || !!actionsRef.current.removal?.busy()
+        if (!busy) {
+          for (const button of busyDisabled)
             if (button.isConnected !== false) button.disabled = false
-          removalDisabled.clear()
+          busyDisabled.clear()
         }
-        const menus = []
         for (const dock of docksOf(sessionId)) {
           const header = dock.querySelector?.('.v1kfCW_header[aria-controls][aria-expanded]')
+          // The dock is presented as one flat, always-expanded list: the Host's
+          // collapse affordance is disabled instead of mirrored. A collapsed
+          // Host dock is expanded in place, and the flat stylesheet keeps the
+          // list visible even while React re-renders a collapsed state.
           if (
             header?.getAttribute('aria-expanded') === 'false' &&
             !header.disabled &&
@@ -8738,6 +8474,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           if (!header || header.getAttribute('aria-expanded') === 'true') {
             if (header) expandingHeaders.delete(header)
             if (!dock.hasAttribute('data-dshq-flat')) dock.setAttribute('data-dshq-flat', '')
+            // The Host renders `hidden` on a collapsed list; the flat dock never
+            // collapses, so drop it for both layout and assistive technology.
+            const list = dock.querySelector?.('.v1kfCW_list')
+            if (list?.hasAttribute?.('hidden') === true) list.removeAttribute?.('hidden')
             decoratedDocks.add(dock)
           }
           const rows = hostRowsOf(dock)
@@ -8746,43 +8486,19 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             if (item === undefined) continue
             const row = rows[index]
             ensureRow(row, item)
-            syncHostEdit(row, item)
+            syncNativeEdit(row, item)
             syncPreviews(row)
             decorateFrozenRow(row, item)
             syncNativeActions(row)
-            if (removal)
+            if (busy)
               for (const button of row.querySelectorAll('button')) {
                 if (!button.disabled) {
-                  removalDisabled.add(button)
+                  busyDisabled.add(button)
                   button.disabled = true
                 }
               }
-            const container = row.querySelector('[data-dshq-menu]')
-            if (container)
-              menus.push({
-                row,
-                container,
-                id: String(item.id),
-                held: frozenIdsOf(sessionId).has(String(item.id)),
-                disabled: !!removal,
-                editDisabled: !!removal || (hostEditButtonOf(row)?.disabled ?? true),
-                withdrawDisabled:
-                  !!removal || (row.querySelector('[data-dshq-withdraw]')?.disabled ?? true),
-                freezeDisabled:
-                  !!removal || (row.querySelector('[data-dshq-freeze]')?.disabled ?? true),
-              })
           }
         }
-        setRowMenus((previous) =>
-          previous.length === menus.length &&
-          previous.every((entry, index) =>
-            Object.keys(entry).every((key) => entry[key] === menus[index][key]),
-          )
-            ? previous
-            : menus,
-        )
-        for (const node of nativeActionNodes)
-          if (node.isConnected === false) nativeActionNodes.delete(node)
         for (const dock of decoratedDocks)
           if (dock.isConnected === false) decoratedDocks.delete(dock)
       }
@@ -8846,7 +8562,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['disabled', 'hidden'],
+        attributeFilter: ['disabled', 'hidden', 'aria-label'],
       })
       const offRemoval = actions.removal?.subscribe(sync)
       const offRemovalSources = (actions.removalSources ?? [])
@@ -8864,9 +8580,9 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         observer.disconnect()
         offRemoval?.()
         for (const off of offRemovalSources) off()
-        for (const button of removalDisabled)
+        for (const button of busyDisabled)
           if (button.isConnected !== false) button.disabled = false
-        removalDisabled.clear()
+        busyDisabled.clear()
         removeButtons.clear()
         for (const dock of decoratedDocks) dock.removeAttribute('data-dshq-flat')
         decoratedDocks.clear()
@@ -8875,88 +8591,77 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         for (const off of listeners.values()) for (const dispose of off) dispose()
         listeners.clear()
         for (const dock of docksOf(sessionId)) {
-          for (const row of hostRowsOf(dock)) row.removeAttribute?.('data-dshq-row')
+          for (const row of hostRowsOf(dock)) {
+            row.removeAttribute?.('data-dshq-row')
+            row.classList?.remove?.('dshqw-locked-row')
+          }
           for (const button of dock.querySelectorAll?.(
-            '[data-dshq-withdraw], [data-dshq-freeze], [data-dshq-handle], [data-dshq-menu]',
+            '[data-dshq-freeze], [data-dshq-handle]',
           ) ?? [])
             button.remove?.()
         }
-        for (const node of nativeActionNodes) {
-          node.removeAttribute('data-dshq-native-action')
-          node.removeAttribute('data-dshq-action-label')
-          for (const button of node.querySelectorAll('button[aria-label]'))
-            button.removeAttribute('data-dshq-action-label')
-        }
-        nativeActionNodes.clear()
-        setRowMenus([])
-        closeEditor()
-        for (const edit of [...editEntries]) {
-          if (edit.hasAttribute?.('data-dshq-edit') === true) {
-            edit.disabled = editOriginal.get(edit)?.disabled ?? true
-            const label = editOriginal.get(edit)?.label
-            if (label !== undefined && label !== null) edit.setAttribute('aria-label', label)
-          }
+        for (const [edit, original] of editRestores) {
+          if (edit.isConnected === false) continue
+          if (edit.disabled !== original.disabled) edit.disabled = original.disabled
+          if (original.title === null) edit.removeAttribute?.('title')
+          else if (edit.getAttribute?.('title') !== original.title)
+            edit.setAttribute?.('title', original.title)
           edit.removeAttribute?.('data-dshq-edit')
         }
+        editRestores.clear()
         for (const [image, cursor] of previewOriginal) {
           image.removeAttribute?.('data-dshq-preview')
           image.style.cursor = cursor
         }
         previewOriginal.clear()
-        editOriginal.clear()
-        editEntries.clear()
-        editItems.clear()
       }
     }, [sessionId, queueMutable])
 
-    if (editor === null && preview === null && rowMenus.length === 0) return null
-    return h(
-      React.Fragment,
-      null,
-      rowMenus.map(({ container, id, ...props }) =>
-        createPortal(h(QueueRowMenu, { ...props, t }), container, id),
-      ),
-      editor === null
-        ? null
-        : h(QueueEditor, {
-            key: String(editor.item.id),
-            item: editor.item,
-            actions,
-            t,
-            onClose: () => setEditor(null),
-          }),
-      preview === null
-        ? null
-        : h(
-            Modal,
-            {
-              className: 'dsh-motion-surface',
-              open: true,
-              title: t('editor.preview'),
-              closeLabel: t('editor.cancel'),
-              onClose: () => setPreview(null),
-            },
-            h('img', { className: 'dshqw-previewImage', src: preview, alt: '' }),
-          ),
-    )
+    if (preview === null) return null
+    return h(ImageLightbox, {
+      src: preview.src,
+      alt: preview.alt,
+      labels: { dialog: t('preview.title'), close: t('preview.close') },
+      onClose: () => setPreview(null),
+    })
   }
 
   /** Presentation only; colors and elevation come from the Host theme. */
   const CSS = `
-/* Keep business-action relays out of the row's visible action cluster. */
-.dshqw-withdraw, .dshqw-freeze { display: none; }
+/* The leading message icon doubles as the lock toggle. It looks like the
+   Host's icon buttons (28px circle, 16px icon, hover pill, focus ring) so the
+   row keeps one leading control while dragging stays on the separate grip. */
+.dshqw-lockToggle {
+  box-sizing: border-box;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  corner-shape: round;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+.dshqw-lockToggle > svg { width: 16px; height: 16px; }
+.dshqw-lockToggle:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshqw-lockToggle:disabled { cursor: default; opacity: .45; }
+.dshqw-lockToggle:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+/* The queue is one flat, always-expanded list: the Host dock header (count and
+   collapse chevron) is removed, and its collapsed list state is forced open so
+   the row actions stay reachable even if React re-renders a collapsed list. */
 [data-queue-dock][data-dshq-flat] .v1kfCW_header { display: none; }
+[data-queue-dock][data-dshq-flat] .v1kfCW_list[hidden] { display: block; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_panel { padding: 2px 0; border-radius: 16px 16px 0 0; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_panel::before { background: var(--dsw-specific-input-major); backdrop-filter: none; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_list { max-height: 180px; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_row { border-radius: 0; box-shadow: none; }
-[data-dshq-native-action="edit"] { display: none !important; }
-[data-dshq-native-action="steer"] { order: 0; }
-[data-dshq-native-action="remove"] { order: 1; }
-.dshqw-menuMount { display: inline-flex; align-items: center; flex: none; }
-.dshqw-menuIcon { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; }
-.dshqw-menuIcon > svg { width: 16px; height: 16px; }
-.dshqw-more,
 .dshqw-handle {
   box-sizing: border-box;
   display: inline-flex;
@@ -8968,6 +8673,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   padding: 0;
   border: 0;
   border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -8978,18 +8684,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   padding: 4px 8px;
 }
 [data-queue-dock] [data-dshq-row] [class*="actions"] { gap: 2px; }
-[data-dshq-native-action="steer"] button,
-button[data-dshq-native-action="steer"] { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: auto; padding: 0 7px; font: inherit; }
-[data-dshq-native-action="steer"] button > svg,
-button[data-dshq-native-action="steer"] > svg { display: none; }
-[data-dshq-native-action="steer"] button::before,
-button[data-dshq-native-action="steer"]::before {
-  content: ''; width: 14px; height: 14px; flex: none; background: currentColor;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3v2a3 3 0 0 0 3 3h7m-3-3 3 3-3 3' fill='none' stroke='black' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-[data-dshq-native-action="steer"] button::after,
-button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-label); white-space: nowrap; }
-[data-dshq-row]:has(textarea, input) .dshqw-menuMount { display: none; }
 [data-queue-dock] [data-dshq-row] [class*="preview"] { font-size: 14px; line-height: 22px; }
 [data-queue-dock] [data-dshq-row] [class*="thumb"] { width: 28px; height: 28px; border-radius: 6px; }
 .dshqw-handle { gap: 1px; cursor: grab; touch-action: none; }
@@ -8999,9 +8693,6 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 [data-dshq-row]:focus-within .dshqw-grip,
 .dshqw-drag-source .dshqw-grip,
 .dshqw-drag-ghost .dshqw-grip { opacity: 1; }
-.dshqw-lockGlyph { display: none; width: 16px; align-items: center; justify-content: center; }
-.dshqw-locked-row .dshqw-queueGlyph { display: none; }
-.dshqw-locked-row .dshqw-lockGlyph { display: inline-flex; color: var(--dsw-alias-label-secondary); }
 @media (hover: none) { .dshqw-grip { opacity: 1; } }
 [data-queue-dock] [data-dshq-row].dshqw-drag-source,
 .dshqw-drag-ghost,
@@ -9009,22 +8700,11 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
   cursor: grabbing;
   user-select: none;
 }
-[data-queue-dock] [data-dshq-row] textarea,
-[data-queue-dock] [data-dshq-row] input {
-  cursor: text;
-  user-select: text;
-}
-.dshqw-more:hover:not(:disabled),
-.dshqw-more[aria-expanded="true"] {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
 [data-queue-dock] .dshqw-handle:is(:hover,:active) { background: transparent; }
-.dshqw-more:disabled,
 .dshqw-handle:disabled {
   cursor: default;
   opacity: .45;
 }
-.dshqw-more:focus-visible,
 .dshqw-handle:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
@@ -9045,16 +8725,8 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 }
 .dshqw-drop-before { box-shadow: inset 0 2px 0 var(--dsw-alias-state-business-primary); }
 .dshqw-drop-after { box-shadow: inset 0 -2px 0 var(--dsw-alias-state-business-primary); }
-.dshqw-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); }
-.dshqw-editorText { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 7px 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; font: inherit; }
-.dshqw-editorChips { display: flex; flex-wrap: wrap; gap: 6px; }
-.dshqw-editorChip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; font-size: 12px; line-height: 18px; }
-.dshqw-editorChipRemove { border: 0; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; padding: 0 3px; font: inherit; }
-.dshqw-editorActions { display: flex; justify-content: flex-end; gap: 8px; }
-.dshqw-editorError { color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
 .dshqw-merge-target { outline: 2px dashed var(--dsw-alias-state-business-primary); outline-offset: -2px; border-radius: 8px; }
 .dshqw-drop-composer { outline: 2px dashed var(--dsw-alias-state-business-primary) !important; outline-offset: 2px; }
-.dshqw-previewImage { display: block; max-width: 100%; max-height: 70vh; margin: auto; object-fit: contain; border-radius: 8px; }
 .dshqw-freeze-on {
   opacity: 1;
   color: var(--dsw-alias-label-primary);
@@ -9326,15 +8998,33 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   }
                 },
                 /**
-                 * Replace one queue item's text and attachments through the Host route.
-                 * @param {string} itemId - queue item id.
-                 * @param {string} text - edited text.
-                 * @param {object[]} blocks - kept image/file blocks.
-                 * @param {object[]} files - new uploads as base64.
+                 * Merge the dragged queue message into the receiving one and
+                 * remove the source. The combined content is written through the
+                 * edit route so every image/file attachment block survives the
+                 * merge (the Host merge route only concatenates raw blocks and
+                 * loses attachment previews for queued items).
+                 * @param {object} target - receiving queue item.
+                 * @param {object} source - dragged queue item.
                  * @param {string} failure - failure notice.
-                 * @returns {Promise<boolean>} whether the Host applied the edit.
+                 * @returns {Promise<boolean>} whether both steps were applied.
                  */
-                updateItem: async (itemId, text, blocks, files, failure) => {
+                mergeInto: async (target, source, failure) => {
+                  const targetId = String(target?.id ?? '')
+                  const sourceId = String(source?.id ?? '')
+                  if (targetId === '' || sourceId === '' || targetId === sourceId) return false
+                  const text = [textOfContent(target.content), textOfContent(source.content)]
+                    .filter((value) => value !== '')
+                    .join('\n')
+                  const blocks = [...(target.content ?? []), ...(source.content ?? [])]
+                    .filter(
+                      (block) =>
+                        block !== null &&
+                        typeof block === 'object' &&
+                        (block.type === 'image' || block.type === 'file') &&
+                        block.attachment !== null &&
+                        typeof block.attachment === 'object',
+                    )
+                    .map((block) => ({ type: block.type, attachment: block.attachment }))
                   try {
                     const response = await fetch(UPDATE_PATH, {
                       method: 'POST',
@@ -9342,10 +9032,10 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                       body: JSON.stringify({
                         sessionId,
                         action: 'edit',
-                        itemId,
+                        itemId: targetId,
                         text,
                         blocks,
-                        files,
+                        files: [],
                       }),
                     })
                     const body = await response.json?.()
@@ -9353,28 +9043,16 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                       notify('error', failure)
                       return false
                     }
-                    return true
                   } catch {
                     notify('error', failure)
                     return false
                   }
-                },
-                /**
-                 * Append one queued message to another and remove the source.
-                 * @param {string} targetId - receiving queue item.
-                 * @param {string} sourceId - dragged queue item.
-                 * @param {string} failure - failure notice.
-                 * @returns {Promise<boolean>} whether the Host merged them.
-                 */
-                mergeInto: async (targetId, sourceId, failure) => {
+                  const binding = ctx.sessions.binding(sessionId)
+                  const session = binding?.session
+                  if (session === undefined || typeof session.updateQueue !== 'function') return false
                   try {
-                    const response = await fetch(UPDATE_PATH, {
-                      method: 'POST',
-                      headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify({ sessionId, action: 'merge', targetId, sourceId }),
-                    })
-                    const body = await response.json?.()
-                    if (response.ok !== true || body?.ok !== true) {
+                    const removed = await session.updateQueue(sourceId, { kind: 'remove' })
+                    if (removed?.ok !== true) {
                       notify('error', failure)
                       return false
                     }
@@ -9416,9 +9094,11 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   }
                   let previousDraft = ''
                   try {
-                    previousDraft =
-                      shell?.draftSnapshot ??
-                      (typeof shell?.snapshot?.draft === 'string' ? shell.snapshot.draft : '')
+                    // `snapshot.draft` is the published plain-text draft. The
+                    // shell's structured `draftSnapshot` document is not text,
+                    // so it must never be compared or re-published as a string.
+                    const draft = shell?.snapshot?.draft
+                    if (typeof draft === 'string') previousDraft = draft
                   } catch {
                     previousDraft = ''
                   }
@@ -9435,6 +9115,22 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                     if (Array.isArray(ids)) previousIds.push(...ids)
                   } catch {
                     /* no snapshot */
+                  }
+                  // Replacing a non-empty draft is destructive, so ask once. The
+                  // prompt is browser-only: detached or headless shells keep the
+                  // previous behaviour instead of blocking the withdrawal.
+                  if (
+                    (previousDraft.trim() !== '' || previousIds.length > 0) &&
+                    typeof window !== 'undefined' &&
+                    typeof window.confirm === 'function'
+                  ) {
+                    let replace = true
+                    try {
+                      replace = window.confirm(ctx.locale.bind(NS)('draftReplace.message')) === true
+                    } catch {
+                      replace = true
+                    }
+                    if (replace !== true) return false
                   }
                   const releaseAdded = () => {
                     for (const id of addedIds) {
@@ -10524,7 +10220,8 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -11136,7 +10833,6 @@ __DSH_FEATURE('dsh-long-paste', function (require, env) {
     button.className = 'dshlp-show'
     button.setAttribute(marker, record.id)
     button.setAttribute('data-dshlp-session', record.sessionId)
-    button.title = t('action.show')
     button.textContent = t('action.show')
     button.addEventListener('click', (event) => {
       event.preventDefault?.()
@@ -12185,7 +11881,6 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
                 type: 'button',
                 className: 'dshqf-annotationRemove',
                 'aria-label': t('annotation.remove'),
-                title: t('annotation.remove'),
                 onMouseDown: (event) => {
                   event.stopPropagation?.()
                 },
@@ -12855,7 +12550,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const { createPortal } = require('react-dom')
   const {
     MenuSurface,
-    IconRefreshOutlineRegular,
     IconChevronRightOutlineRegular,
     IconChevronDownOutlineRegular,
   } = require('@deepseek-ai/dsh-client-ui-primitives')
@@ -12864,7 +12558,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const NS = 'effortSlider'
   const zh = {
     label: '推理强度',
-    default: '默认',
+    choose: '选择强度',
+    chooseHint: '尚未选择强度，拖动滑块选择一个强度。',
     none: '关闭',
     minimal: '极低',
     low: '低',
@@ -12872,16 +12567,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     high: '高',
     xhigh: '极高',
     max: '最大',
-    reset: '恢复默认强度',
     model: '选择模型',
     failed: '强度设置失败，请重试。',
     unknown: '切换结果尚未确认，当前显示已同步的强度。请检查连接后重试。',
-    unsupported: '当前强度已不可用，请恢复默认或切换模型。',
+    unsupported: '当前强度已不可用，请选择其他强度或切换模型。',
     loading: '正在更新…',
   }
   const en = {
     label: 'Reasoning effort',
-    default: 'Default',
+    choose: 'Choose effort',
+    chooseHint: 'No effort selected yet. Choose a level on the slider.',
     none: 'None',
     minimal: 'Minimal',
     low: 'Low',
@@ -12889,56 +12584,47 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     high: 'High',
     xhigh: 'Extra high',
     max: 'Max',
-    reset: 'Reset reasoning effort',
     model: 'Choose model',
     failed: 'Could not change reasoning effort. Try again.',
     unknown: 'The selection is unconfirmed. Showing the synchronized effort. Check the connection before retrying.',
-    unsupported: 'This effort is no longer available. Reset it or choose a model.',
+    unsupported: 'This effort is no longer available. Choose another level or switch model.',
     loading: 'Updating…',
   }
 
   // Translate standard display names only; provider-specific IDs remain opaque.
   function effortLabel(level, t) {
-    const key = level.id ?? 'default'
-    return ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
+    const key = level.id
+    return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
       ? t(key) : level.name
   }
 
-  // The composer trigger drops a redundant vendor prefix ("DeepSeek V4.1 Flash"
-  // becomes "V4.1 Flash"); the opened effort panel still shows the full name.
-  const VENDOR_PREFIXES = new Set(['deepseek', 'openai', 'anthropic', 'google', 'meta', 'xai', 'mistral'])
-
-  /**
-   * Compact a catalog model name for the composer trigger.
-   * @param {string} name - catalog model name.
-   * @returns {string} trigger label; the input unchanged when it has no vendor prefix.
-   */
-  function shortModelName(name) {
-    if (typeof name !== 'string') return ''
-    const trimmed = name.trim()
-    const match = /^([A-Za-z][\w.-]*)\s+(.+)$/.exec(trimmed)
-    return match !== null && VENDOR_PREFIXES.has(match[1].toLowerCase()) ? match[2] : trimmed
-  }
-
-  function describe(state, defaultLabel) {
+  function describe(state) {
     const current = state.current
     const model = state.groups
       .find((group) => group.id === current?.provider)
       ?.models.find((item) => item.id === current?.model)
     const reasoning = model?.reasoning
+    // Explicit levels only: there is no implicit "default" step. An unset
+    // selection resolves to a concrete level so the control always shows one:
+    // the provider-advertised default, else High, else the strongest level.
+    // "off" is not offered by this control: only levels that actually enable
+    // reasoning stay selectable.
     const levels = !reasoning
       ? []
-      : [
-          ...(reasoning.defaultEffort === undefined ? [{ id: undefined, name: defaultLabel }] : []),
-          ...reasoning.efforts,
-        ]
-    const effective = current?.reasoningEffort ?? reasoning?.defaultEffort
+      : reasoning.efforts.filter((level) => level.id !== 'off' && level.id !== 'none')
+    const advertisedDefault = reasoning?.defaultEffort
+    const fallback = advertisedDefault !== undefined
+      && levels.some((level) => level.id === advertisedDefault)
+      ? advertisedDefault
+      : levels.some((level) => level.id === 'high') ? 'high' : levels[levels.length - 1]?.id
+    const effective = levels.some((level) => level.id === current?.reasoningEffort)
+      ? current.reasoningEffort
+      : fallback
     return {
       model,
       levels,
       effective,
       index: levels.findIndex((level) => level.id === effective),
-      isDefault: effective === reasoning?.defaultEffort,
       // A draft belongs to one exact model, capability list and accepted value.
       key: JSON.stringify([current, reasoning]),
       // Like the native picker, a background catalog refresh can use retained choices.
@@ -12946,15 +12632,15 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     }
   }
 
-  function selectionFor(state, key, index, reset) {
-    const view = describe(state, '')
+  function selectionFor(state, key, index) {
+    const view = describe(state)
     if (view.key !== key || view.busy || !view.levels.length || !state.current) return null
     const choice = view.levels[index]
-    if (reset ? view.isDefault : !choice || choice.id === view.effective) return null
+    if (!choice || choice.id === view.effective) return null
     return {
       provider: state.current.provider,
       model: state.current.model,
-      ...(!reset && choice.id !== undefined ? { reasoningEffort: choice.id } : {}),
+      reasoningEffort: choice.id,
     }
   }
 
@@ -13002,7 +12688,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           state.current?.model !== selection.model
         )
           return
-        const view = describe(state, '')
+        const view = describe(state)
         if (
           view.effective ===
           (selection.reasoningEffort ?? view.model?.reasoning?.defaultEffort)
@@ -13110,8 +12796,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       flight = useRef(null)
     const bridge = useRef(() => {}),
       bypass = useRef(false),
-      syncNativeLabel = useRef(() => {})
-    const compactLabel = useRef(null)
+      syncNativeLabel = useRef(() => {}),
+      originalEffort = useRef(null)
     const focused = useRef(false)
     const live = useRef(false)
     const [button, setButton] = useState(null)
@@ -13124,13 +12810,11 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const id = useId()
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
-    const view = describe(state, t('default'))
+    const view = describe(state)
     view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level, t) }))
-    const translatedDefault = nativeT?.('effort.providerDefault')
-    const nativeDefault = translatedDefault && translatedDefault !== 'effort.providerDefault' ? translatedDefault : 'Default'
     const metricsKey = JSON.stringify([view.model, view.levels.map((level) => level.name)])
     const latest = useRef(null)
-    latest.current = { view, open, generation, directory, nativeT, nativeDefault }
+    latest.current = { view, open, generation, directory, nativeT }
     const ready = () =>
       !!button?.isConnected &&
       !button.disabled &&
@@ -13227,18 +12911,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         else node.setAttribute(key, value)
       }
       const sync = () => {
-        const { view, nativeT, nativeDefault } = latest.current
+        const { view, nativeT } = latest.current
         const effort = button.querySelector('.wq12jW_triggerEffort')
-        const label = view.levels[view.index]?.name
+        const label = view.levels[view.index]?.name ?? (view.levels.length ? t('choose') : undefined)
         if (!effort || !label) return
-        const original = view.effective === undefined ? nativeDefault
-          : view.model.reasoning.efforts.find((level) => level.id === view.effective)?.name ?? view.effective
+        // Capture the host label once so disposal restores it exactly.
+        if (originalEffort.current === null) originalEffort.current = effort.textContent
+        const original = originalEffort.current ?? ''
         // The host renders this leaf as a plain string, with no managed child elements.
         write(effort, 'textContent', label, original)
-        // Never rewrite the host label: it owns the provider/model cells the
-        // trigger detection relies on. A separate compact label is rendered
-        // next to it instead (see the effect below).
-        const model = view.model?.name ?? ''
+        const model = button.querySelector('.wq12jW_triggerLabel')?.textContent
         const aria = nativeT?.('trigger.ariaEffort', { model, effort: label })
         if (aria && aria !== 'trigger.ariaEffort')
           write(button, 'aria-label', aria, nativeT('trigger.ariaEffort', { model, effort: original }))
@@ -13259,33 +12941,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           else if (previous.original === null) node.removeAttribute(key)
           else node.setAttribute(key, previous.original)
         }
+        originalEffort.current = null
       }
     }, [button])
-    useLayoutEffect(() => {
-      if (!button) return
-      const labelNode = button.querySelector('.wq12jW_triggerLabel')
-      if (labelNode === null) return
-      let current = compactLabel.current
-      if (current === null || !current.element.isConnected) {
-        const element = document.createElement('span')
-        element.className = 'dshe-model-label'
-        element.setAttribute('aria-hidden', 'true')
-        const text = document.createTextNode('')
-        element.append(text)
-        current = { element, text }
-        compactLabel.current = current
-      }
-      // Keep the compact label immediately after the host label so the flex row
-      // preserves the native reading order; the host label stays in the DOM for
-      // the provider/model cells and is hidden by CSS while enhanced.
-      labelNode.after(current.element)
-      const short = shortModelName(view.model?.name ?? '')
-      if (current.text.data !== short) current.text.data = short
-      return () => {
-        current.element.remove()
-        compactLabel.current = null
-      }
-    }, [button, view.key, view.model?.name, metricsKey])
     useLayoutEffect(() => syncNativeLabel.current(), [view.key, metricsKey])
     useLayoutEffect(() => {
       if (!button || !view.model || !view.levels.length) return
@@ -13296,38 +12954,23 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       let alive = true
       const measure = () => {
         if (!alive || !button.isConnected) return
-        // The compact model label replaces the host label visually; the effort
-        // name reserves the widest localized level.
-        button.dataset.dsheTrigger = ''
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
         // Reserve all localized names before selection so the control never shifts.
         const labels = view.levels.map((level) => level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
-        // One pixel of slack keeps the widest level from ellipsizing on subpixel
-        // rounding; the host's responsive max-width still applies.
-        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf))) + 1
-        const compact = button.querySelector('.dshe-model-label')
-        let modelWidth = 0
-        if (compact !== null) {
-          const labelStyle = getComputedStyle(compact)
-          context.font = labelStyle.font
-          const labelSpacing = parseFloat(labelStyle.letterSpacing) || 0
-          const text = compact.textContent ?? ''
-          modelWidth = Math.ceil(context.measureText(text).width + Math.max(0, text.length - 1) * labelSpacing)
-        }
+        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
-          ? effortWidth : child === compact ? modelWidth
-            : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
-              : Math.max(16, child.getBoundingClientRect().width)), 0)
+          ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
+            : Math.max(16, child.getBoundingClientRect().width)), 0)
           + Math.max(0, children.length - 1) * (parseFloat(style.columnGap) || 0)
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
-          + 1
         // Reserve the widest advertised level; the host's responsive max-width still applies.
         button.style.setProperty('--dshe-trigger-width', Math.ceil(width) + 'px')
         button.style.setProperty('--dshe-effort-width', effortWidth + 'px')
+        button.dataset.dsheTrigger = ''
       }
       measure()
       const resize = new ResizeObserver(measure)
@@ -13471,23 +13114,21 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       }
     }, [open, position !== null, view.busy, pending])
 
-    const commit = async (value, reset = false) => {
+    const commit = async (value) => {
       if (flight.current) return
       draft.current = null
       pointer.current = null
       if (!value || !ready()) return cancel()
-      const selection = selectionFor(directory.store.getSnapshot(), value.key, value.index, reset)
+      const selection = selectionFor(directory.store.getSnapshot(), value.key, value.index)
       if (!selection) return cancel()
       // Keep the user's target visible until it is confirmed or explicitly rolled back.
-      setPreview({ key: view.key, index: reset
-        ? view.levels.findIndex((level) => level.id === view.model.reasoning.defaultEffort)
-        : value.index })
+      setPreview({ key: view.key, index: value.index })
       const operation = {
         controller: new AbortController(),
         generation: connected.getSnapshot(),
         model: selection.model,
         provider: selection.provider,
-        effort: selection.reasoningEffort ?? view.model.reasoning.defaultEffort,
+        effort: selection.reasoningEffort,
       }
       flight.current = operation
       setPending(true)
@@ -13570,8 +13211,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   {
                     type: 'button',
                     className: 'dshe-model',
-                    'aria-label': t('model'),
-                    title: view.model?.name,
+                    'aria-label': view.model?.name ?? t('model'),
                     disabled: pending || view.busy,
                     onClick: () => {
                       cancel()
@@ -13591,26 +13231,14 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   },
                   h('span', { className: 'dshe-levelBox' },
                     h('span', { className: 'dshe-level', 'aria-live': 'polite' },
-                      level?.name ?? view.effective ?? t('default')),
+                      level?.name ?? view.effective ?? t('choose')),
                     view.levels.map((item) => h('span', {
-                      className: 'dshe-levelMeasure', key: item.id === undefined ? 'provider-default' : 'effort:' + item.id, 'aria-hidden': true,
+                      className: 'dshe-levelMeasure', key: 'effort:' + item.id, 'aria-hidden': true,
                     }, item.name))),
                   h('span', { className: 'dshe-modelCaption' },
                     h('span', null, view.model?.name),
                     h(IconChevronRightOutlineRegular, { size: 12 })),
                 ),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshe-reset',
-                  title: t('reset'),
-                  'aria-label': t('reset'),
-                  disabled: disabled || view.isDefault,
-                  onClick: () => void commit({ key: view.key, index: view.index }, true),
-                },
-                h(IconRefreshOutlineRegular, { size: 18 }),
               ),
               h(
                 'div',
@@ -13619,7 +13247,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   'data-single': view.levels.length === 1 ? '' : undefined,
                   'data-unknown': view.index < 0 ? '' : undefined,
                   'data-disabled':
-                    (disabled && !pending) || view.levels.length < 2 || view.index < 0 ? '' : undefined,
+                    (disabled && !pending) || view.levels.length < 2 ? '' : undefined,
                   style: {
                     '--dshe-position': `calc(12px + (100% - 24px) * ${fraction})`,
                     '--dshe-fill': fraction === 0 ? '0px' : fraction === 1 ? '100%' : 'var(--dshe-position)',
@@ -13630,7 +13258,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   { className: 'dshe-dots', 'aria-hidden': true },
                   view.levels.map((item, index) =>
                     h('span', {
-                      key: item.id ?? 'provider-default',
+                      key: item.id,
                       'data-filled': index <= displayed ? '' : undefined,
                     }),
                   ),
@@ -13642,9 +13270,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   max: Math.max(0, view.levels.length - 1),
                   step: 1,
                   value: Math.max(0, displayed),
-                  disabled: disabled || view.levels.length < 2 || view.index < 0,
+                  disabled: disabled || view.levels.length < 2,
                   'aria-label': t('label'),
-                  'aria-valuetext': level?.name ?? view.effective,
+                  'aria-valuetext': level?.name ?? t('choose'),
                   'aria-describedby': error || view.index < 0 ? id + '-status' : undefined,
                   onChange: change,
                   onPointerDown: (event) => {
@@ -13693,7 +13321,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                 ? h(
                     'div',
                     { className: 'dshe-status', id: id + '-status', role: 'status' },
-                    error ?? t('unsupported'),
+                    error ?? t('chooseHint'),
                   )
                 : null,
             ),
@@ -13705,12 +13333,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const CSS = `
     .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
     .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
-    /* The host label keeps its provider/model cells but is visually replaced by
-       the compact model label; the effort panel shows the full model name. */
-    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerLabel{display:none;}
-    .dshe-model-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label){flex:none;width:16px;height:16px;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label):not(.dshe-native-chevron){margin-left:auto;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
     .wq12jW_trigger[data-dshe-updating]>.dshe-native-chevron{display:grid;}
     .wq12jW_trigger[data-dshe-updating]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){visibility:hidden;}
@@ -13722,7 +13346,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     .dshe-level,.dshe-levelMeasure{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .dshe-model{display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;min-width:0;margin:-4px 0;padding:4px 8px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}
     .dshe-modelCaption{display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;}.dshe-model span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dshe-model svg{flex:none;}.dshe-model:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
-    .dshe-reset{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}.dshe-reset:hover{background:var(--dsw-alias-interactive-bg-hover);}
     .dshe-panel button:disabled{opacity:.45;cursor:default;}.dshe-panel button:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px;}
     .dshe-panel[aria-busy="true"] .dshe-model:disabled{opacity:1;}
     .dshe-track{position:relative;height:24px;margin-top:12px;border-radius:12px;corner-shape:round;background:linear-gradient(to right,var(--dsw-alias-state-business-primary) 0 var(--dshe-fill),var(--dsw-alias-interactive-bg-hover-solid) var(--dshe-fill) 100%);}
@@ -13772,7 +13395,723 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   return {
     inject: ['slots', 'locale', 'modelDirectories', 'connection'],
     apply,
-    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, shortModelName, zh, en },
+    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en },
+  }
+})
+
+    /* ================================================================== *
+     * Feature: dsh-composer-status
+     * ================================================================== */
+
+/**
+ * Inline composer status.
+ *
+ * The host renders the context-occupancy ring and the session stat pills in a
+ * dock row after the composer card (`[data-composer-dock]`). That row adds
+ * vertical height, so the card sits above the window bottom instead of on it.
+ *
+ * This feature keeps the host widgets — including their tooltips, dialogs and
+ * live values — and overlays them, icon-only, on the composer's own control
+ * row: two stat icon buttons and the ring sit directly before the model seat,
+ * and the dock no longer contributes layout height.
+ *
+ * It never moves React-owned nodes. Only own data attributes, CSS custom
+ * properties and one stylesheet are written; all of it is restored on unload.
+ */
+__DSH_FEATURE('dsh-composer-status', function () {
+  /** Dock row after the composer card. */
+  const DOCK_SELECTOR = '[data-composer-dock]'
+  /** Composer card that owns the control row. */
+  const CARD_SELECTOR = '[data-composer-card]'
+
+  /** Own marker attributes; host React never writes or removes them. */
+  const ROOT_ATTR = 'data-dshcs-root'
+  const DOCK_ATTR = 'data-dshcs-dock'
+  const RING_ATTR = 'data-dshcs-ring'
+  const PILLS_ATTR = 'data-dshcs-pills'
+  const ACTIVITY_ATTR = 'data-dshcs-activity'
+  const POPUP_ATTR = 'data-dshcs-popup'
+
+  /** Gap between the three status buttons in the control row. */
+  const GAP = 4
+  /** Gap between the context ring and the model seat. */
+  const RING_GAP = 4
+  /** Viewport margin kept by the centered detail panels. */
+  const PANEL_MARGIN = 12
+
+  const CSS = `
+    [${ROOT_ATTR}]{position:relative;}
+    [${DOCK_ATTR}]{position:absolute;box-sizing:border-box;left:var(--dshcs-left,0px);top:var(--dshcs-top,0px);width:var(--dshcs-width,0px);height:var(--dshcs-height,0px);max-width:none;margin:0;padding:0;justify-content:flex-end;align-items:center;gap:${GAP}px;pointer-events:none;z-index:2;display:flex;overflow:visible;}
+    [${DOCK_ATTR}][${ACTIVITY_ATTR}]{display:none;}
+    [${DOCK_ATTR}]*{box-sizing:border-box;}
+    [${DOCK_ATTR}]>*{pointer-events:auto;flex:none;}
+    [${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;display:none;pointer-events:auto;}
+    [${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}
+    [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:2px 4px;border-radius:999px;corner-shape:round;}
+    [${DOCK_ATTR}] [data-composer-stat] svg{width:16px;height:16px;}
+    [${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]{position:relative;flex:none;pointer-events:auto;margin-right:var(--dshcs-ring-right,0px);}
+    [${DOCK_ATTR}]>[${RING_ATTR}] button{padding:2px;gap:0;border-radius:999px;corner-shape:round;}
+    [${DOCK_ATTR}]>[${RING_ATTR}] button>span{display:none;}
+    [${DOCK_ATTR}]>[${RING_ATTR}] button svg{width:16px;height:16px;}
+    [data-dshcs-popup]{left:var(--dshcs-popup-left) !important;}
+    .dshcs-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:6;display:flex;flex-direction:column;gap:2px;min-width:220px;max-width:min(360px,80vw);padding:4px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);}
+    .dshcs-menuItem{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;}
+    .dshcs-menuItem:hover,.dshcs-menuItem:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none;}
+    .dshcs-menuIcon{display:inline-flex;flex:none;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary);}
+    .dshcs-menuIcon svg{width:16px;height:16px;}
+    .dshcs-menuText{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  `
+
+  /** @param {number} value - raw px. @returns {number} rounded px. */
+  function px(value) {
+    return Math.round(value * 100) / 100
+  }
+
+  /**
+   * Read one element rect.
+   * @param {Element|null} node - element to measure.
+   * @returns {{left:number,right:number,top:number,bottom:number,width:number,height:number}|null} rect.
+   */
+  function rectOf(node) {
+    if (node === null) return null
+    const rect = node.getBoundingClientRect()
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+
+  /**
+   * Whether an element is a layout-neutral slot outlet (`display: contents`).
+   * Its children are the real flex items of the surrounding container.
+   * @param {Element} node - dock direct child.
+   * @returns {boolean} true for layout-neutral wrappers.
+   */
+  function isSlotOutlet(node) {
+    if (node.style !== undefined && node.style !== null && node.style.display === 'contents') return true
+    if (typeof getComputedStyle !== 'function') return false
+    return getComputedStyle(node).display === 'contents'
+  }
+
+  /**
+   * Split the dock's children into the two host surfaces. Slot contributions are
+   * wrapped in a `display: contents` outlet, so pills are looked up by their own
+   * marker rather than by direct parenthood.
+   * @param {Element} dock - composer dock row.
+   * @returns {{children: Element[], pills: Element[], ring: Element|null}} parts.
+   */
+  function splitDock(dock) {
+    const children = Array.from(dock.children).filter((child) => !isSlotOutlet(child))
+    const pills = Array.from(dock.querySelectorAll('[data-composer-stat]'))
+    const ring =
+      children.find(
+        (child) =>
+          !child.hasAttribute('data-composer-stat') &&
+          child.querySelector('button[aria-haspopup="dialog"] svg circle') !== null,
+      ) ??
+      children.find((child) => !child.hasAttribute('data-composer-stat')) ??
+      null
+    return { children, pills, ring }
+  }
+
+  /**
+   * Plan the inline dock geometry. Pure so the package check can exercise every
+   * fit branch without a browser.
+   * @param {object} input - measured rects and widths.
+   * @param {object} input.root - composer root rect.
+   * @param {object} input.row - composer control row rect.
+   * @param {object} input.tools - left tools group rect.
+   * @param {object} input.model - model seat rect.
+   * @param {number} input.ringWidth - rendered context-ring control width.
+   * @param {number} input.pillsWidth - the two icon buttons.
+   * @returns {{left:number,top:number,width:number,height:number,ringRight:number,pills:string}} dock plan.
+   */
+  function planStatusLayout({ root, row, tools, model, ringWidth, pillsWidth }) {
+    const ringLeft = model.left - RING_GAP - ringWidth
+    // The icon pair must stay between the left tools group and the ring.
+    const pillsRoom = ringLeft - GAP - (tools.right + GAP)
+    // A wrapped control row has no single line to align to; keep the ring but
+    // never float stat buttons over the wrong line.
+    const sameLine = tools.top < model.bottom - 1 && model.top < tools.bottom - 1
+    return {
+      left: px(row.left - root.left),
+      top: px(model.top - root.top),
+      width: px(row.width),
+      height: px(model.height),
+      ringRight: px(row.right - (model.left - RING_GAP)),
+      pills: sameLine && pillsWidth <= pillsRoom ? 'icon' : 'hidden',
+    }
+  }
+
+  /**
+   * Whether one node is a popup panel opened from the composer status buttons.
+   * Stat and context dialogs are portaled `role="dialog"` panels.
+   * @param {Node} node - added body node.
+   * @returns {boolean} true for a composer status popup.
+   */
+  function isPopupPanel(node) {
+    if (node.nodeType !== Node.ELEMENT_NODE) return false
+    if (!node.matches('[role="dialog"]')) return false
+    return /(^|\s)[\w-]+_panel(\s|$)/.test(node.className)
+  }
+
+  /**
+   * Horizontal position that centers a panel over the composer card without
+   * leaving the viewport. Pure so the package check can exercise the clamps.
+   * @param {object} input - measurements.
+   * @param {number} input.cardLeft - composer card left edge.
+   * @param {number} input.cardWidth - composer card width.
+   * @param {number} input.panelWidth - panel width.
+   * @param {number} input.viewportWidth - document client width.
+   * @returns {number} panel left in px.
+   */
+  function centeredPanelLeft({ cardLeft, cardWidth, panelWidth, viewportWidth }) {
+    const max = Math.max(PANEL_MARGIN, viewportWidth - panelWidth - PANEL_MARGIN)
+    const centered = cardLeft + cardWidth / 2 - panelWidth / 2
+    return px(Math.max(PANEL_MARGIN, Math.min(centered, max)))
+  }
+
+  /**
+   * Find the model seat behind the composer control row.
+   * @param {Element} card - composer card.
+   * @returns {Element|null} seat wrapper containing the native trigger.
+   */
+  function findModelSeat(card) {
+    const trigger = Array.from(card.querySelectorAll('button[aria-haspopup]')).find(
+      (node) => node.querySelector('[data-provider-id][data-model-id]') !== null,
+    )
+    if (trigger === undefined) return null
+    return trigger.parentElement ?? trigger
+  }
+
+  /**
+   * Resolve the composer parts around one dock.
+   * @param {Element} dock - dock row.
+   * @returns {object|null} measured parts, or null while the host is incomplete.
+   */
+  function composerParts(dock) {
+    const root = dock.parentElement
+    if (root === null) return null
+    const card = root.querySelector(':scope > ' + CARD_SELECTOR)
+    if (card === null) return null
+    const model = findModelSeat(card)
+    if (model === null) return null
+    let row = model
+    while (row.parentElement !== null && row.parentElement !== card) row = row.parentElement
+    if (row.parentElement !== card) return null
+    const tools = row.children[0] ?? null
+    const trailing = row.children[1] ?? null
+    if (tools === null || trailing === null) return null
+    return { root, card, model, row, tools, trailing }
+  }
+
+  /**
+   * Whether the host hides the control row in favor of the activity surface.
+   * @param {object} parts - composer parts.
+   * @returns {boolean} true while the activity surface replaces the row.
+   */
+  function inActivity(parts) {
+    if (parts.tools.hidden === true) return true
+    return parts.trailing.firstElementChild?.hidden === true
+  }
+
+  /**
+   * Sum the horizontal footprint of a set of pill anchors.
+   * @param {Element[]} pills - stat anchors.
+   * @param {number} gap - flex gap.
+   * @returns {number} width in px.
+   */
+  function pillsWidth(pills, gap) {
+    if (pills.length === 0) return 0
+    const widths = pills.map((pill) => pill.getBoundingClientRect().width)
+    return widths.reduce((sum, width) => sum + width, 0) + Math.max(0, pills.length - 1) * gap
+  }
+
+  /**
+   * Clear every marker this feature wrote to one dock's composer.
+   * @param {Element} dock - dock row.
+   */
+  function clearDock(dock) {
+    const root = dock.parentElement
+    if (root !== null) root.removeAttribute(ROOT_ATTR)
+    dock.removeAttribute(DOCK_ATTR)
+    dock.removeAttribute(ACTIVITY_ATTR)
+    dock.removeAttribute(PILLS_ATTR)
+    for (const name of [
+      '--dshcs-left',
+      '--dshcs-top',
+      '--dshcs-width',
+      '--dshcs-height',
+      '--dshcs-ring-right',
+    ])
+      dock.style.removeProperty(name)
+    for (const ring of Array.from(dock.querySelectorAll('[' + RING_ATTR + ']')))
+      ring.removeAttribute(RING_ATTR)
+    for (const menu of Array.from(dock.querySelectorAll?.('.dshcs-menu') ?? [])) menu.remove?.()
+  }
+
+  /**
+   * Install the inline layout for every composer currently on screen.
+   * @returns {Function} cleanup.
+   */
+  function install() {
+    /** @type {Map<Element, object>} per-dock applied values. */
+    const states = new Map()
+    /** @type {Map<Element, object>} open detail panels keyed by their portaled node. */
+    const popups = new Map()
+    const observed = new Set()
+    const resize = new ResizeObserver(() => schedule())
+    let frame = null
+    let disposed = false
+
+    /** Throttle reconciliation to one animation frame. */
+    function schedule() {
+      if (disposed || frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        if (!disposed) reconcile()
+      })
+    }
+
+    /**
+     * Stop tracking one popup panel.
+     * @param {Element} panel - portaled dialog panel.
+     */
+    function dropPopup(panel) {
+      if (!popups.has(panel)) return
+      popups.delete(panel)
+      panel.removeAttribute(POPUP_ATTR)
+      panel.style.removeProperty('--dshcs-popup-left')
+    }
+
+    /**
+     * Center one open panel over its composer card. The host anchors it to the
+     * small icon button; centering it on the card keeps the reading position
+     * stable across the three buttons.
+     * @param {Element} panel - portaled dialog panel.
+     */
+    function centerPopup(panel) {
+      const dock = popups.get(panel)
+      if (dock === undefined) return
+      if (!panel.isConnected || !dock.isConnected || dock.parentElement === null) {
+        dropPopup(panel)
+        return
+      }
+      const card = dock.parentElement.querySelector(':scope > ' + CARD_SELECTOR)
+      if (card === null || panel.offsetWidth === 0) return
+      const cardRect = card.getBoundingClientRect()
+      const left = centeredPanelLeft({
+        cardLeft: cardRect.left,
+        cardWidth: cardRect.width,
+        panelWidth: panel.offsetWidth,
+        viewportWidth: document.documentElement.clientWidth,
+      })
+      const current = parseFloat(panel.style.getPropertyValue('--dshcs-popup-left'))
+      if (Math.abs(current - left) <= 0.5) return
+      panel.style.setProperty('--dshcs-popup-left', left + 'px')
+    }
+
+    /** Center every open panel after a layout change. */
+    function centerPopups() {
+      for (const panel of Array.from(popups.keys())) centerPopup(panel)
+    }
+
+    /**
+     * Track one popup opened from an expanded composer status button.
+     * @param {Element} panel - portaled dialog panel.
+     */
+    function registerPopup(panel) {
+      if (popups.has(panel)) return
+      for (const dock of document.querySelectorAll(DOCK_SELECTOR)) {
+        if (dock.querySelector('button[aria-expanded="true"]') === null) continue
+        popups.set(panel, dock)
+        panel.setAttribute(POPUP_ATTR, '')
+        panel.style.setProperty('--dshcs-popup-left', '0px')
+        schedule()
+        return
+      }
+    }
+
+    /** Release every panel this feature moved. */
+    function releasePopups() {
+      for (const panel of Array.from(popups.keys())) dropPopup(panel)
+    }
+
+    /**
+     * Observed geometry for the next resize notifications.
+     * @param {Element[]} nodes - composer nodes to watch.
+     */
+    function watch(nodes) {
+      const next = new Set(nodes)
+      for (const node of observed) {
+        if (next.has(node)) continue
+        resize.unobserve(node)
+        observed.delete(node)
+      }
+      for (const node of next) {
+        if (observed.has(node) || !node.isConnected) continue
+        resize.observe(node)
+        observed.add(node)
+      }
+    }
+
+    /**
+     * Write one CSS custom property only when it changed.
+     * @param {Element} dock - dock row.
+     * @param {object} state - per-dock applied values.
+     * @param {string} name - property name.
+     * @param {number} value - px value.
+     */
+    function write(dock, state, name, value) {
+      const text = value + 'px'
+      if (state[name] === text) return
+      dock.style.setProperty(name, text)
+      state[name] = text
+    }
+
+    /**
+     * Close one dock's first-level status menu.
+     * @param {object} state - per-dock applied values.
+     */
+    function closeMenu(state) {
+      if (state.menu === undefined || state.menu === null) return
+      state.menu.remove?.()
+      state.menu = null
+      const button = state.ringButton
+      if (button !== null && button !== undefined && button.isConnected !== false)
+        button.setAttribute('aria-expanded', 'false')
+    }
+
+    /** Close every open first-level status menu. */
+    function closeMenus() {
+      for (const state of states.values()) closeMenu(state)
+    }
+
+    /** @param {Element|null|undefined} node - host node. @returns {string} visible text. */
+    function domText(node) {
+      return typeof node?.textContent === 'string' ? node.textContent.trim() : ''
+    }
+
+    /** @param {Element|null|undefined} node - host control. @returns {string} icon markup. */
+    function iconHtml(node) {
+      const svg = node?.querySelector?.('svg')
+      return svg === null || svg === undefined ? '' : svg.outerHTML
+    }
+
+    /**
+     * Build the first-level menu: one row per hidden stat pill plus the context
+     * ring itself. Each row carries the host icon and its live info; selecting a
+     * row opens that panel (second level) by relaying to the host control.
+     * @param {Element} dock - dock row.
+     * @param {object} state - per-dock applied values.
+     * @param {Element|null} ring - ring container.
+     * @param {Element[]} pills - hidden stat anchors.
+     */
+    function openMenu(dock, state, ring, pills) {
+      closeMenus()
+      if (ring === null) return
+      const ringButton =
+        ring.querySelector?.('button[aria-haspopup="dialog"]') ?? ring.querySelector?.('button')
+      if (ringButton === null || ringButton === undefined) return
+      const menu = document.createElement('div')
+      menu.className = 'dshcs-menu'
+      menu.setAttribute('role', 'menu')
+      const entries = []
+      for (const pill of pills) {
+        const button = pill.querySelector?.('button') ?? null
+        if (button === null) continue
+        const label = pill.querySelector?.('[class$="_label"]')
+        const info = domText(label) || domText(pill) || (button.getAttribute?.('aria-label') ?? '')
+        entries.push({ icon: iconHtml(pill), info, button, ring: false })
+      }
+      entries.push({
+        icon: iconHtml(ringButton),
+        info: domText(ringButton) || ringButton.getAttribute?.('aria-label') || '',
+        button: ringButton,
+        ring: true,
+      })
+      for (const entry of entries) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'dshcs-menuItem'
+        item.setAttribute('role', 'menuitem')
+        item.innerHTML =
+          '<span class="dshcs-menuIcon">' +
+          entry.icon +
+          '</span><span class="dshcs-menuText"></span>'
+        const text = item.querySelector?.('.dshcs-menuText') ?? null
+        if (text !== null) text.textContent = entry.info
+        item.addEventListener('click', (event) => {
+          event.preventDefault?.()
+          event.stopPropagation?.()
+          closeMenu(state)
+          if (entry.ring === true) {
+            // Let the host ring control own its own dialog this once.
+            state.bypassRing = true
+            entry.button.click?.()
+            return
+          }
+          entry.button.click?.()
+        })
+        menu.append(item)
+      }
+      ring.append(menu)
+      state.menu = menu
+      state.ringButton = ringButton
+      if (ringButton.getAttribute?.('aria-haspopup') !== 'menu')
+        ringButton.setAttribute('aria-haspopup', 'menu')
+      ringButton.setAttribute('aria-expanded', 'true')
+    }
+
+    /**
+     * Bind the single context control to the first-level menu.
+     * @param {Element} dock - dock row.
+     * @param {object} state - per-dock applied values.
+     * @param {Element|null} ring - ring container.
+     * @param {Element[]} pills - hidden stat anchors.
+     */
+    function bindStatusMenu(dock, state, ring, pills) {
+      if (ring === null) return
+      const button =
+        ring.querySelector?.('button[aria-haspopup="dialog"]') ?? ring.querySelector?.('button')
+      if (button === null || button === undefined) return
+      if (state.ringButton === button) {
+        if (button.getAttribute?.('aria-haspopup') !== 'menu')
+          button.setAttribute('aria-haspopup', 'menu')
+        if (button.getAttribute?.('aria-expanded') === null)
+          button.setAttribute('aria-expanded', 'false')
+        return
+      }
+      if (state.ringButton !== undefined && state.ringButton !== null && state.ringClick !== undefined)
+        state.ringButton.removeEventListener?.('click', state.ringClick, true)
+      state.ringButton = button
+      state.ringClick = (event) => {
+        if (state.bypassRing === true) {
+          state.bypassRing = false
+          return
+        }
+        event.preventDefault?.()
+        event.stopImmediatePropagation?.()
+        event.stopPropagation?.()
+        if (state.menu !== undefined && state.menu !== null) closeMenu(state)
+        else openMenu(dock, state, ring, pills)
+      }
+      button.addEventListener('click', state.ringClick, true)
+      button.setAttribute('aria-haspopup', 'menu')
+      button.setAttribute('aria-expanded', 'false')
+    }
+
+    /**
+     * Release one dock's menu, listener and markers.
+     * @param {Element} dock - dock row.
+     */
+    function disposeDock(dock) {
+      const state = states.get(dock)
+      if (state === undefined) return
+      closeMenu(state)
+      if (state.ringButton !== undefined && state.ringButton !== null && state.ringClick !== undefined)
+        state.ringButton.removeEventListener?.('click', state.ringClick, true)
+      delete state.ringButton
+      delete state.ringClick
+    }
+
+    /**
+     * Apply the plan to one dock.
+     * @param {Element} dock - dock row.
+     * @returns {Element[]} nodes whose geometry governs the plan.
+     */
+    function syncDock(dock) {
+      const parts = composerParts(dock)
+      if (parts === null) {
+        disposeDock(dock)
+        clearDock(dock)
+        states.delete(dock)
+        return []
+      }
+      const state = states.get(dock) ?? {}
+      states.set(dock, state)
+      parts.root.setAttribute(ROOT_ATTR, '')
+      dock.setAttribute(DOCK_ATTR, '')
+      if (inActivity(parts)) {
+        if (!dock.hasAttribute(ACTIVITY_ATTR)) dock.setAttribute(ACTIVITY_ATTR, '')
+        return [parts.root, parts.card, parts.row, parts.model, parts.tools]
+      }
+      if (dock.hasAttribute(ACTIVITY_ATTR)) dock.removeAttribute(ACTIVITY_ATTR)
+
+      const { pills, ring } = splitDock(dock)
+      if (ring !== null && !ring.hasAttribute(RING_ATTR)) ring.setAttribute(RING_ATTR, '')
+      bindStatusMenu(dock, state, ring, pills)
+      const rootRect = rectOf(parts.root)
+      const rowRect = rectOf(parts.row)
+      const toolsRect = rectOf(parts.tools)
+      const modelRect = rectOf(parts.model) ?? rectOf(parts.card)
+      const ringRect = rectOf(ring)
+      if (rootRect === null || rowRect === null || toolsRect === null || modelRect === null) {
+        clearDock(dock)
+        return []
+      }
+      const gap = parseFloat(getComputedStyle(dock).columnGap) || GAP
+      const plan = planStatusLayout({
+        root: rootRect,
+        row: rowRect,
+        tools: toolsRect,
+        model: modelRect,
+        ringWidth: ringRect?.width ?? 0,
+        pillsWidth: pillsWidth(pills, gap),
+      })
+      if (plan.pills === 'hidden') {
+        if (dock.getAttribute(PILLS_ATTR) !== 'hidden') dock.setAttribute(PILLS_ATTR, 'hidden')
+      } else if (dock.hasAttribute(PILLS_ATTR)) {
+        dock.removeAttribute(PILLS_ATTR)
+      }
+      write(dock, state, '--dshcs-left', plan.left)
+      write(dock, state, '--dshcs-top', plan.top)
+      write(dock, state, '--dshcs-width', plan.width)
+      write(dock, state, '--dshcs-height', plan.height)
+      write(dock, state, '--dshcs-ring-right', plan.ringRight)
+      return [
+        parts.root,
+        parts.card,
+        parts.row,
+        parts.tools,
+        parts.model,
+        ...(ring === null ? [] : [ring]),
+        ...pills,
+      ]
+    }
+
+    /** Re-read every composer and refresh the observed geometry. */
+    function reconcile() {
+      const docks = Array.from(document.querySelectorAll(DOCK_SELECTOR))
+      const live = new Set(docks)
+      for (const [dock] of states) {
+        if (!live.has(dock)) {
+          disposeDock(dock)
+          clearDock(dock)
+          states.delete(dock)
+        }
+      }
+      const nodes = []
+      for (const dock of docks) nodes.push(...syncDock(dock))
+      centerPopups()
+      for (const panel of popups.keys()) nodes.push(panel)
+      watch(nodes)
+    }
+
+    /**
+     * Whether one added or removed node carries a composer.
+     * @param {Node} node - added or removed node.
+     * @returns {boolean} true when it matches or contains a composer surface.
+     */
+    function touchesComposer(node) {
+      if (node.nodeType !== Node.ELEMENT_NODE) return false
+      if (node.matches(DOCK_SELECTOR) || node.matches(CARD_SELECTOR)) return true
+      return node.querySelector(DOCK_SELECTOR) !== null || node.querySelector(CARD_SELECTOR) !== null
+    }
+
+    const mutations = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type !== 'childList') continue
+        for (const node of record.addedNodes) {
+          if (isPopupPanel(node)) {
+            registerPopup(node)
+            continue
+          }
+          if (touchesComposer(node)) {
+            schedule()
+            return
+          }
+        }
+        for (const node of record.removedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE && popups.has(node)) {
+            dropPopup(node)
+            continue
+          }
+          if (touchesComposer(node)) {
+            schedule()
+            return
+          }
+        }
+        const target = record.target
+        if (
+          target instanceof Element &&
+          (target.closest(CARD_SELECTOR) !== null || target.closest(DOCK_SELECTOR) !== null)
+        ) {
+          schedule()
+          return
+        }
+      }
+    })
+
+    /** Close the first-level menu once focus/pointer leaves the control. */
+    const onMenuPointerDown = (event) => {
+      const target = event.target
+      for (const [dock, state] of states) {
+        if (state.menu === undefined || state.menu === null) continue
+        if (state.menu.contains?.(target) === true) continue
+        if (state.ringButton?.contains?.(target) === true) continue
+        closeMenu(state)
+      }
+    }
+    const onMenuKeyDown = (event) => {
+      if (event.key === 'Escape') closeMenus()
+    }
+    const onResize = () => {
+      closeMenus()
+      schedule()
+    }
+    const onScroll = () => {
+      if (document.querySelector('.dshcs-menu') !== null) closeMenus()
+      if (popups.size > 0) schedule()
+    }
+    mutations.observe(document.body, { childList: true, subtree: true })
+    document.addEventListener('pointerdown', onMenuPointerDown, true)
+    document.addEventListener('keydown', onMenuKeyDown, true)
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    window.addEventListener('scroll', onScroll, true)
+    document.fonts?.ready.then(schedule).catch(() => {})
+    reconcile()
+
+    return () => {
+      disposed = true
+      if (frame !== null) cancelAnimationFrame(frame)
+      mutations.disconnect()
+      resize.disconnect()
+      releasePopups()
+      closeMenus()
+      document.removeEventListener('pointerdown', onMenuPointerDown, true)
+      document.removeEventListener('keydown', onMenuKeyDown, true)
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onScroll, true)
+      for (const dock of Array.from(document.querySelectorAll(DOCK_SELECTOR))) clearDock(dock)
+      for (const dock of states.keys()) disposeDock(dock)
+      for (const [dock] of states) clearDock(dock)
+      states.clear()
+      observed.clear()
+    }
+  }
+
+  function apply(ctx) {
+    ctx.effect(() => {
+      const style = document.createElement('style')
+      style.dataset.dshPlugin = 'dsh-composer-status'
+      style.textContent = CSS
+      document.head.append(style)
+      return () => style.remove()
+    }, 'composer-status: styles')
+    ctx.effect(() => install(), 'composer-status: inline dock')
+  }
+
+  return {
+    apply,
+    __test: { planStatusLayout, centeredPanelLeft, splitDock, isPopupPanel, RING_GAP, GAP },
   }
 })
 
@@ -14150,6 +14489,1139 @@ __DSH_FEATURE('dsh-file-link-actions', function (require, env) {
     /** Services this Client plugin waits for before applying. */
     inject: ['slots', 'locale', 'sessions', 'remote', 'remote.session'],
     apply,
+  }
+})
+
+    /* ================================================================== *
+     * Feature: dsh-attachment-actions
+     * ================================================================== */
+
+/**
+ * Attachment action menu.
+ *
+ * DSH renders attachments in three separate places — the composer's draft rail,
+ * message bubbles (including tool results and the trajectory), and the
+ * document-level original-image lightbox — and none of them offers a right-click
+ * gesture. This feature adds one shared context menu:
+ *
+ *   - composer draft images/files and durable message images/files;
+ *   - image previews opened by the shared `ImageLightbox` primitive;
+ *   - gallery thumbnails in messages, tool results and the trajectory.
+ *
+ * Images can be copied to the clipboard, have their address copied (a data URL
+ * for session-local `blob:` previews, the original URL otherwise), be saved as
+ * the original bytes, or open the host lightbox. Draft files add "save as" and,
+ * when the desktop shell can resolve the browser file back to a host path, copy
+ * path / reveal / open with the default application. Composer drafts can also be
+ * removed from the rail.
+ *
+ * The feature only reads the host DOM; it never re-renders or re-parents
+ * React-owned nodes. Menus and notices reuse the host `Menu` and `Toast`
+ * primitives, so theme tokens, keyboard behavior and animations stay native.
+ */
+__DSH_FEATURE('dsh-attachment-actions', function (require, env) {
+  const React = require('react')
+  const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+  const {
+    Menu,
+    Toast,
+    writeClipboard,
+    IconCopyOutlineRegular,
+    IconLinkOutlineRegular,
+    IconDownloadOutlineRegular,
+    IconFullscreenOutlineRegular,
+    IconFolderOpenRegular,
+    IconRightUpOutlineRegular,
+    IconTrashOutlineRegular,
+    IconWarningOutlineRegular,
+    IconCloseOutlineRegular,
+  } = primitives
+  const { useEffect, useRef, useState } = React
+  const h = React.createElement
+
+  /** Locale namespace owned by this feature. */
+  const NS = 'attachmentActions'
+
+  const zh = {
+    'label.image': '图片',
+    'label.file': '附件',
+    'menu.copyImage': '复制图片',
+    'menu.copyAddress': '复制图片地址',
+    'menu.saveImage': '图片另存为…',
+    'menu.viewImage': '查看大图',
+    'menu.copyFileName': '复制文件名',
+    'menu.copyFileInfo': '复制文件名和大小',
+    'menu.saveFile': '文件另存为…',
+    'menu.copyFilePath': '复制文件路径',
+    'menu.revealFile': '在文件夹中显示',
+    'menu.openFile': '用默认应用打开',
+    'menu.removeAttachment': '移除附件',
+    'menu.closePreview': '关闭预览',
+    'toast.imageCopied': '已复制图片',
+    'toast.addressCopied': '已复制图片地址',
+    'toast.addressData': '已复制图片 Data URL（本地预览没有固定地址）',
+    'toast.copyFallback': '无法写入图片剪贴板，已改复制图片地址',
+    'toast.nameCopied': '已复制文件名',
+    'toast.infoCopied': '已复制文件名和大小',
+    'toast.pathCopied': '已复制文件路径',
+    'toast.saved': '已开始下载 {name}',
+    'toast.revealed': '已在文件夹中显示',
+    'toast.opened': '已交给默认应用',
+    'toast.removed': '已移除附件',
+    'toast.failed': '操作失败：{message}',
+  }
+
+  const en = {
+    'label.image': 'Image',
+    'label.file': 'Attachment',
+    'menu.copyImage': 'Copy image',
+    'menu.copyAddress': 'Copy image address',
+    'menu.saveImage': 'Save image as…',
+    'menu.viewImage': 'View image',
+    'menu.copyFileName': 'Copy file name',
+    'menu.copyFileInfo': 'Copy name and size',
+    'menu.saveFile': 'Save file as…',
+    'menu.copyFilePath': 'Copy file path',
+    'menu.revealFile': 'Show in folder',
+    'menu.openFile': 'Open with default app',
+    'menu.removeAttachment': 'Remove attachment',
+    'menu.closePreview': 'Close preview',
+    'toast.imageCopied': 'Image copied',
+    'toast.addressCopied': 'Image address copied',
+    'toast.addressData': 'Copied a data URL (local previews have no stable address)',
+    'toast.copyFallback': 'Could not write the image clipboard; copied its address instead',
+    'toast.nameCopied': 'File name copied',
+    'toast.infoCopied': 'Name and size copied',
+    'toast.pathCopied': 'File path copied',
+    'toast.saved': 'Downloading {name}',
+    'toast.revealed': 'Shown in folder',
+    'toast.opened': 'Opened with the default application',
+    'toast.removed': 'Attachment removed',
+    'toast.failed': 'Action failed: {message}',
+  }
+
+  /** Clipboard images are written as PNG; known media types keep a matching extension. */
+  const IMAGE_EXTENSIONS = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'image/svg+xml': 'svg',
+    'image/avif': 'avif',
+    'image/bmp': 'bmp',
+    'image/x-icon': 'ico',
+    'image/tiff': 'tiff',
+  }
+  /** Longest data URL copied as an image "address" before falling back to the blob URL. */
+  const MAX_DATA_URL_BYTES = 4 * 1024 * 1024
+  /** Characters Windows/macOS reject in download names. */
+  const INVALID_NAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g
+
+  /** @param {unknown} value @returns {string} one-line error text. */
+  function messageOf(value) {
+    if (value instanceof Error) return value.message
+    if (typeof value === 'string') return value
+    if (value !== null && typeof value === 'object' && typeof value.message === 'string')
+      return value.message
+    return String(value)
+  }
+
+  /** @param {unknown} node @returns {Element|null} the event target element. */
+  function elementOf(node) {
+    if (node === null || node === undefined) return null
+    if (node.nodeType === 3) return node.parentElement ?? null
+    if (node.nodeType === 1) return node
+    if (typeof node.closest === 'function') return node
+    return null
+  }
+
+  /** @param {unknown} node @param {string} name @returns {string|null} attribute text. */
+  function attributeOf(node, name) {
+    try {
+      const value = node?.getAttribute?.(name)
+      return typeof value === 'string' && value !== '' ? value : null
+    } catch {
+      return null
+    }
+  }
+
+  /** @param {unknown} node @returns {string} class attribute text. */
+  function classOf(node) {
+    const value = node?.className
+    return typeof value === 'string' ? value : ''
+  }
+
+  /** @param {unknown} node @returns {string} trimmed text content. */
+  function textOf(node) {
+    const value = node?.textContent
+    return typeof value === 'string' ? value.trim() : ''
+  }
+
+  /**
+   * Find the first descendant whose class carries one of several name fragments.
+   * CSS module class names keep their authored suffix but host packages spell
+   * some of them camelCase (`fileName`, `fileMeta`), so both spellings are tried.
+   * @param {Element|null} root - search root.
+   * @param {string[]} fragments - case variants of the authored class suffix.
+   * @returns {Element|null} first match.
+   */
+  function descendantWithClass(root, fragments) {
+    if (root === null || root === undefined || typeof root.querySelector !== 'function') return null
+    for (const fragment of fragments) {
+      const found = root.querySelector('[class*="' + fragment + '"]')
+      if (found !== null && found !== undefined) return found
+    }
+    return null
+  }
+
+  /**
+   * Rendered URL of one image. `currentSrc` is the resource the browser picked
+   * (blob:, data: or absolute http), while the attribute stays the source React
+   * wrote — the composer draft map is keyed by that exact string.
+   * @param {Element} image - rendered image.
+   * @returns {{url: string, rawUrl: string}} resolved and authored URLs.
+   */
+  function imageSources(image) {
+    const rawUrl = attributeOf(image, 'src') ?? ''
+    const url = image?.currentSrc || image?.src || rawUrl
+    return { url: typeof url === 'string' ? url : rawUrl, rawUrl }
+  }
+
+  /**
+   * Whether a dialog is the shared original-image lightbox. The primitive keeps
+   * the readable class suffixes and renders a stage with a mask, so a host
+   * upgrade that changes hashes still matches.
+   * @param {Element} dialog - role=dialog element.
+   * @returns {boolean} whether this is the image lightbox.
+   */
+  function isLightboxDialog(dialog) {
+    if (classOf(dialog).includes('backdrop')) return true
+    if (typeof dialog.querySelector !== 'function') return false
+    const stage = dialog.querySelector('[class*="stage"]')
+    const mask = dialog.querySelector('[class*="mask"]')
+    return stage !== null && mask !== null && dialog.querySelector('img') !== null
+  }
+
+  /**
+   * Describe the lightbox behind an event target.
+   * @param {Element} node - event target element.
+   * @returns {object|null} image hit, or null outside the lightbox image.
+   */
+  function lightboxHit(node) {
+    const dialog = node.closest?.('[role="dialog"][aria-modal="true"]')
+    if (dialog === null || dialog === undefined) return null
+    const image = node.tagName === 'IMG' ? node : node.closest?.('img')
+    if (image === null || image === undefined) return null
+    if (!isLightboxDialog(dialog)) return null
+    const sources = imageSources(image)
+    if (sources.url === '') return null
+    const close = dialog.querySelector?.('button[class*="close"]') ?? null
+    return {
+      kind: 'image',
+      surface: 'lightbox',
+      element: image,
+      url: sources.url,
+      name: attributeOf(image, 'alt') ?? attributeOf(image, 'title') ?? '',
+      close,
+    }
+  }
+
+  /**
+   * Whether a button is the attachment remove control of one rail item.
+   * @param {Element} button - candidate button.
+   * @returns {boolean} whether it carries the remove role.
+   */
+  function isRemoveControl(button) {
+    if (classOf(button).includes('remove')) return true
+    const aria = attributeOf(button, 'aria-label')
+    return aria !== null && /remove|移除/i.test(aria)
+  }
+
+  /**
+   * Find the remove control of one composer rail item.
+   * @param {Element|null} container - image item or file card.
+   * @returns {Element|null} remove button.
+   */
+  function removeControlOf(container) {
+    if (container === null || container === undefined) return null
+    const buttons = [...(container.querySelectorAll?.('button') ?? [])]
+    const marked = buttons.find(isRemoveControl)
+    if (marked !== undefined) return marked
+    // The rail renders the remove control last, after any retry or host action.
+    return buttons.length > 0 ? buttons[buttons.length - 1] : null
+  }
+
+  /**
+   * Describe a composer rail image thumbnail.
+   * @param {Element} node - event target element.
+   * @param {Element} card - owning composer card.
+   * @returns {object|null} image hit, or null.
+   */
+  function composerImageHit(node, card) {
+    const button = node.closest?.('button')
+    if (button === null || button === undefined || card.contains(button) !== true) return null
+    if (!classOf(button).includes('thumbnail')) return null
+    const image = button.querySelector?.('img')
+    if (image === null || image === undefined) return null
+    const sources = imageSources(image)
+    if (sources.url === '') return null
+    const item = button.closest?.('[class*="imageItem"]') ?? button.parentElement
+    return {
+      kind: 'image',
+      surface: 'composer',
+      element: image,
+      opener: button,
+      remove: removeControlOf(item),
+      url: sources.url,
+      rawUrl: sources.rawUrl,
+      name: attributeOf(image, 'alt') ?? attributeOf(image, 'title') ?? '',
+    }
+  }
+
+  /**
+   * Describe a composer rail file card.
+   * @param {Element} node - event target element.
+   * @param {Element} card - owning composer card.
+   * @returns {object|null} file hit, or null.
+   */
+  function composerFileHit(node, card) {
+    if (node.closest?.('button') !== null && node.closest?.('button') !== undefined) return null
+    const fileCard = node.closest?.('[class*="fileCard"]') ?? node.closest?.('[class*="_card"]') ?? null
+    if (fileCard === null || fileCard === card) return null
+    if (fileCard.closest?.('[data-composer-card]') !== card) return null
+    const name = attributeOf(fileCard, 'title')
+    if (name === null) return null
+    const meta = textOf(descendantWithClass(fileCard, ['meta', 'Meta']))
+    return {
+      kind: 'file',
+      surface: 'composer',
+      element: fileCard,
+      remove: removeControlOf(fileCard),
+      name: name.trim(),
+      meta,
+    }
+  }
+
+  /**
+   * Describe a durable file card inside one message's attachment row.
+   * @param {Element} node - event target element.
+   * @param {Element} row - `[data-message-attachments]` owner.
+   * @returns {object|null} file hit, or null.
+   */
+  function messageFileHit(node, row) {
+    const card = node.closest?.('[class*="fileCard"]')
+    if (card !== null && card !== undefined && row.contains(card) === true) {
+      const name =
+        attributeOf(card, 'title') ?? textOf(descendantWithClass(card, ['name', 'Name']))
+      if (name !== null && name.trim() !== '') {
+        const meta = textOf(descendantWithClass(card, ['meta', 'Meta']))
+        return { kind: 'file', surface: 'message', element: card, name: name.trim(), meta }
+      }
+    }
+    // The card is a span carrying the file name in `title`; keep a titled span
+    // only when it is a direct child of the attachment row.
+    const titled = node.closest?.('span[title]')
+    if (titled !== null && titled !== undefined && titled.parentElement === row) {
+      const name = attributeOf(titled, 'title')
+      if (name !== null) {
+        const meta = textOf(descendantWithClass(titled, ['meta', 'Meta']))
+        return { kind: 'file', surface: 'message', element: titled, name: name.trim(), meta }
+      }
+    }
+    return null
+  }
+
+  /**
+   * Describe a gallery image frame: message images, tool results and the
+   * trajectory all render the shared `button[data-variant]` frame.
+   * @param {Element} node - event target element.
+   * @returns {object|null} image hit, or null.
+   */
+  function galleryImageHit(node) {
+    const frame = node.closest?.('button[data-variant]')
+    if (frame === null || frame === undefined) return null
+    const image = frame.querySelector?.('img')
+    if (image === null || image === undefined) return null
+    const sources = imageSources(image)
+    if (sources.url === '') return null
+    const occurrence = frame.closest?.('[data-message-attachments]')
+    return {
+      kind: 'image',
+      surface: occurrence === null || occurrence === undefined ? 'gallery' : 'message',
+      element: image,
+      opener: frame,
+      url: sources.url,
+      rawUrl: sources.rawUrl,
+      name: attributeOf(image, 'alt') ?? attributeOf(image, 'title') ?? '',
+    }
+  }
+
+  /**
+   * Describe one queue-dock image thumbnail. Queue rows render plain `<img>`
+   * thumbs instead of gallery frames; clicking one is routed to the Host
+   * lightbox by the queue feature, so the image itself is the opener.
+   * @param {Element} node - event target element.
+   * @returns {object|null} image hit, or null.
+   */
+  function queueImageHit(node) {
+    const row = node.closest?.('li')
+    const dock = row?.closest?.('[data-queue-dock]')
+    if (row === null || row === undefined || dock === null || dock === undefined) return null
+    const image = node.tagName === 'IMG' ? node : node.closest?.('img')
+    if (image === null || image === undefined || row.contains(image) !== true) return null
+    const sources = imageSources(image)
+    if (sources.url === '') return null
+    return {
+      kind: 'image',
+      surface: 'queue',
+      element: image,
+      opener: image,
+      url: sources.url,
+      rawUrl: sources.rawUrl,
+      name: attributeOf(image, 'alt') ?? attributeOf(image, 'title') ?? '',
+    }
+  }
+
+  /**
+   * Describe one queue-dock file chip. The Host renders the file name as the
+   * chip's `title` and the size as its meta line.
+   * @param {Element} node - event target element.
+   * @returns {object|null} file hit, or null.
+   */
+  function queueFileHit(node) {
+    const row = node.closest?.('li')
+    const dock = row?.closest?.('[data-queue-dock]')
+    if (row === null || row === undefined || dock === null || dock === undefined) return null
+    const titled = node.closest?.('[title]')
+    if (titled === null || titled === undefined || row.contains(titled) !== true) return null
+    if (!classOf(titled).includes('file')) return null
+    const name = attributeOf(titled, 'title')
+    if (name === null || name.trim() === '') return null
+    const meta = textOf(descendantWithClass(titled, ['size', 'Size']))
+    return { kind: 'file', surface: 'queue', element: titled, name: name.trim(), meta }
+  }
+
+  /**
+   * Classify one context-menu target. Only rendered attachment surfaces match;
+   * markdown images, plain text and host controls keep their native menu.
+   * @param {unknown} target - context-menu event target.
+   * @returns {object|null} attachment hit, or null.
+   */
+  function findSurface(target) {
+    const node = elementOf(target)
+    if (node === null || typeof node.closest !== 'function') return null
+    const lightbox = lightboxHit(node)
+    if (lightbox !== null) return lightbox
+    const card = node.closest?.('[data-composer-card]')
+    if (card !== null && card !== undefined) {
+      const image = composerImageHit(node, card)
+      if (image !== null) return image
+      const file = composerFileHit(node, card)
+      if (file !== null) return file
+      return null
+    }
+    const queueDock = node.closest?.('[data-queue-dock]')
+    if (queueDock !== null && queueDock !== undefined) {
+      const queueImage = queueImageHit(node)
+      if (queueImage !== null) return queueImage
+      return queueFileHit(node)
+    }
+    const image = galleryImageHit(node)
+    if (image !== null) return image
+    const row = node.closest?.('[data-message-attachments]')
+    if (row !== null && row !== undefined) return messageFileHit(node, row)
+    return null
+  }
+
+  /**
+   * Resolve a browser file back to its host path through the desktop preload.
+   * The web build has no such bridge, so path actions stay hidden there.
+   * @param {unknown} file - browser File of a draft attachment.
+   * @returns {string|undefined} absolute host path.
+   */
+  function hostPathOf(file) {
+    try {
+      const bridge = globalThis.__DSH_HOST_PATHS__
+      if (bridge === null || typeof bridge !== 'object') return undefined
+      if (typeof bridge.pathFor !== 'function') return undefined
+      const value = bridge.pathFor(file)
+      return typeof value === 'string' && value.trim() !== '' ? value : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Sanitize one download name without changing its extension.
+   * @param {string} name - preferred name.
+   * @param {string} fallback - localized fallback stem.
+   * @returns {string} safe download file name.
+   */
+  function safeFileName(name, fallback) {
+    const raw = typeof name === 'string' ? name.trim() : ''
+    const clean = raw.replace(INVALID_NAME_CHARS, '_').replace(/\s+/g, ' ').slice(0, 120)
+    if (clean === '' || clean === '.' || clean === '..') {
+      return (fallback || 'attachment') + '-' + String(Date.now())
+    }
+    return clean
+  }
+
+  /**
+   * Sanitize a download name and append a media-type extension when missing.
+   * @param {string} name - preferred name (attachment name or alt text).
+   * @param {string} mediaType - blob media type.
+   * @param {string} fallback - localized fallback stem.
+   * @returns {string} safe image download file name.
+   */
+  function imageFileName(name, mediaType, fallback) {
+    const extension = IMAGE_EXTENSIONS[mediaType] ?? 'png'
+    const clean = safeFileName(name, fallback || 'image')
+    if (/[.]\w{1,8}$/.test(clean)) return clean
+    return clean + '.' + extension
+  }
+
+  /**
+   * Read one remote/blob URL into a blob.
+   * @param {string} url - image URL.
+   * @returns {Promise<Blob>} fetched bytes.
+   */
+  async function fetchBlob(url) {
+    if (typeof url !== 'string' || url === '') throw new Error('missing image source')
+    const response = await fetch(url)
+    if (response?.ok === false) throw new Error('HTTP ' + String(response.status))
+    const blob = await response.blob()
+    if (blob === null || blob === undefined) throw new Error('empty image response')
+    return blob
+  }
+
+  /**
+   * Encode a blob as a data URL without a FileReader round-trip.
+   * @param {Blob} blob - source bytes.
+   * @returns {Promise<string>} data URL.
+   */
+  async function dataUrlOf(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    let binary = ''
+    const chunk = 0x8000
+    for (let index = 0; index < bytes.length; index += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk))
+    }
+    return 'data:' + (blob.type || 'application/octet-stream') + ';base64,' + btoa(binary)
+  }
+
+  /**
+   * Normalize one image blob to PNG, which is the only image type Chromium's
+   * async clipboard accepts.
+   * @param {Blob} blob - source image.
+   * @returns {Promise<Blob>} PNG bytes.
+   */
+  async function pngBlobOf(blob) {
+    if (blob.type === 'image/png') return blob
+    const source = URL.createObjectURL(blob)
+    try {
+      const image = new Image()
+      image.src = source
+      if (typeof image.decode === 'function') await image.decode()
+      else
+        await new Promise((resolve, reject) => {
+          image.onload = resolve
+          image.onerror = () => reject(new Error('image decode failed'))
+        })
+      const width = image.naturalWidth || image.width
+      const height = image.naturalHeight || image.height
+      if (!width || !height) throw new Error('image has no dimensions')
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext?.('2d')
+      if (context === null || context === undefined) throw new Error('canvas unavailable')
+      context.drawImage(image, 0, 0)
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (value) => {
+            if (value === null || value === undefined) reject(new Error('PNG encode failed'))
+            else resolve(value)
+          },
+          'image/png',
+        )
+      })
+    } finally {
+      URL.revokeObjectURL(source)
+    }
+  }
+
+  /** @param {unknown} value @returns {boolean} whether the value is a browser File-like blob. */
+  function isBlobLike(value) {
+    return (
+      value !== null &&
+      value !== undefined &&
+      typeof value === 'object' &&
+      typeof value.arrayBuffer === 'function' &&
+      typeof value.type === 'string'
+    )
+  }
+
+  /**
+   * Trigger a browser download for an owned blob and release the object URL.
+   * @param {Blob} blob - bytes to save.
+   * @param {string} name - download name.
+   */
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = name
+    anchor.rel = 'noopener'
+    anchor.style.display = 'none'
+    document.body.append(anchor)
+    try {
+      anchor.click()
+    } finally {
+      anchor.remove?.()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    }
+  }
+
+  /**
+   * Copy one clipboard text and fail loudly when the host refuses it.
+   * @param {string} text - text to copy.
+   * @returns {Promise<void>} settles after the clipboard accepts the text.
+   */
+  async function copyText(text) {
+    const copied = await writeClipboard(text)
+    if (copied === false) throw new Error('clipboard unavailable')
+  }
+
+  /**
+   * Menu descriptor for one attachment hit. Entries are ordered by cost: the
+   * copy actions first, then preview/save, then desktop path actions, then the
+   * destructive controls.
+   * @param {object} hit - resolved attachment hit.
+   * @param {Function} t - feature translator.
+   * @returns {object[]} host Menu items.
+   */
+  function menuItems(hit, t) {
+    const label =
+      typeof hit.name === 'string' && hit.name.trim() !== ''
+        ? hit.name.trim()
+        : t(hit.kind === 'image' ? 'label.image' : 'label.file')
+    const items = [{ type: 'label', id: 'attachment', text: label }]
+    const icon = (type) => h(type, { size: 14 })
+    if (hit.kind === 'image') {
+      items.push({ id: 'copy-image', label: t('menu.copyImage'), icon: icon(IconCopyOutlineRegular) })
+      items.push({
+        id: 'copy-address',
+        label: t('menu.copyAddress'),
+        icon: icon(IconLinkOutlineRegular),
+      })
+      items.push({
+        id: 'save-image',
+        label: t('menu.saveImage'),
+        icon: icon(IconDownloadOutlineRegular),
+      })
+      if (hit.opener !== undefined && hit.opener !== null) {
+        items.push({
+          id: 'view-image',
+          label: t('menu.viewImage'),
+          icon: icon(IconFullscreenOutlineRegular),
+        })
+      }
+      if (hit.path !== undefined) {
+        items.push({ type: 'separator', id: 'separator-path' })
+        items.push({
+          id: 'copy-path',
+          label: t('menu.copyFilePath'),
+          icon: icon(IconCopyOutlineRegular),
+        })
+        items.push({
+          id: 'reveal-file',
+          label: t('menu.revealFile'),
+          icon: icon(IconFolderOpenRegular),
+        })
+      }
+      if (hit.surface === 'composer' && hit.remove !== null && hit.remove !== undefined) {
+        items.push({ type: 'separator', id: 'separator-remove' })
+        items.push({
+          id: 'remove-attachment',
+          label: t('menu.removeAttachment'),
+          icon: icon(IconTrashOutlineRegular),
+        })
+      }
+      if (hit.surface === 'lightbox' && hit.close !== null && hit.close !== undefined) {
+        items.push({ type: 'separator', id: 'separator-close' })
+        items.push({
+          id: 'close-preview',
+          label: t('menu.closePreview'),
+          icon: icon(IconCloseOutlineRegular),
+        })
+      }
+      return items
+    }
+    items.push({
+      id: 'copy-name',
+      label: t('menu.copyFileName'),
+      icon: icon(IconCopyOutlineRegular),
+    })
+    if (
+      (hit.surface === 'message' || hit.surface === 'queue') &&
+      typeof hit.meta === 'string' &&
+      hit.meta.trim() !== ''
+    ) {
+      items.push({
+        id: 'copy-info',
+        label: t('menu.copyFileInfo'),
+        icon: icon(IconCopyOutlineRegular),
+      })
+    }
+    if (hit.file !== undefined && hit.file !== null) {
+      items.push({ id: 'save-file', label: t('menu.saveFile'), icon: icon(IconDownloadOutlineRegular) })
+    }
+    if (hit.path !== undefined) {
+      items.push({ type: 'separator', id: 'separator-path' })
+      items.push({ id: 'copy-path', label: t('menu.copyFilePath'), icon: icon(IconCopyOutlineRegular) })
+      items.push({ id: 'reveal-file', label: t('menu.revealFile'), icon: icon(IconFolderOpenRegular) })
+      items.push({ id: 'open-file', label: t('menu.openFile'), icon: icon(IconRightUpOutlineRegular) })
+    }
+    if (hit.surface === 'composer' && hit.remove !== null && hit.remove !== undefined) {
+      items.push({ type: 'separator', id: 'separator-remove' })
+      items.push({
+        id: 'remove-attachment',
+        label: t('menu.removeAttachment'),
+        icon: icon(IconTrashOutlineRegular),
+      })
+    }
+    return items
+  }
+
+  /**
+   * One attachment context menu plus its transient host toast.
+   * @param {object} props - injected actions and feature translator.
+   * @returns {object|null} the open menu and notice portal.
+   */
+  function AttachmentMenu({ actions, t }) {
+    const [menu, setMenu] = useState(null)
+    const [notice, setNotice] = useState(null)
+    const noticeId = useRef(0)
+
+    /** @param {string} text - localized notice. @param {boolean} [failure] - error tone. */
+    const report = (text, failure = false) => {
+      noticeId.current += 1
+      setNotice({ id: noticeId.current, text, failure })
+    }
+
+    useEffect(() => {
+      if (typeof document === 'undefined' || typeof document.addEventListener !== 'function')
+        return undefined
+      const onContextMenu = (event) => {
+        const hit = findSurface(event.target)
+        if (hit === null) return
+        event.preventDefault?.()
+        event.stopPropagation?.()
+        event.stopImmediatePropagation?.()
+        let point = { x: event.clientX ?? 0, y: event.clientY ?? 0 }
+        if (
+          typeof point.x !== 'number' ||
+          typeof point.y !== 'number' ||
+          (point.x === 0 && point.y === 0)
+        ) {
+          const rect = hit.element?.getBoundingClientRect?.()
+          point = rect === undefined || rect === null ? point : { x: rect.left, y: rect.bottom }
+        }
+        setNotice(null)
+        setMenu({ point, hit: actions.describe(hit) })
+      }
+      document.addEventListener('contextmenu', onContextMenu, true)
+      return () => {
+        document.removeEventListener('contextmenu', onContextMenu, true)
+      }
+    }, [actions])
+
+    /**
+     * One transient host toast. It must survive the menu closing, because every
+     * action result is reported after the selected item already dismissed it.
+     * @returns {object|null} toast element.
+     */
+    const renderToast = () =>
+      notice === null
+        ? null
+        : h(Toast, {
+            key: 'dshaa-toast-' + String(notice.id),
+            text: notice.text,
+            ...(notice.failure
+              ? { icon: h(IconWarningOutlineRegular, { size: 16 }) }
+              : { tone: 'success' }),
+            onDone: () => setNotice(null),
+          })
+
+    if (menu === null) return renderToast()
+
+    const hit = menu.hit
+    const rect = {
+      left: menu.point.x,
+      top: menu.point.y,
+      right: menu.point.x,
+      bottom: menu.point.y,
+      width: 0,
+      height: 0,
+      x: menu.point.x,
+      y: menu.point.y,
+      toJSON() {
+        return this
+      },
+    }
+    const fallbackName = t(hit.kind === 'image' ? 'label.image' : 'label.file')
+    const notify = (text, failure = false) => {
+      report(text, failure)
+    }
+    const run = (id, current) => {
+      const fail = (error) => notify(t('toast.failed', { message: messageOf(error) }), true)
+      if (id === 'copy-image') {
+        Promise.resolve()
+          .then(() => actions.copyImage(current))
+          .then(
+            () => notify(t('toast.imageCopied')),
+            () =>
+              Promise.resolve()
+                .then(() => actions.copyAddress(current))
+                .then(
+                  (kind) =>
+                    notify(kind === 'data' ? t('toast.addressData') : t('toast.copyFallback')),
+                  (error) => fail(error),
+                ),
+          )
+        return
+      }
+      if (id === 'copy-address') {
+        Promise.resolve(actions.copyAddress(current)).then(
+          (kind) => notify(kind === 'data' ? t('toast.addressData') : t('toast.addressCopied')),
+          fail,
+        )
+        return
+      }
+      if (id === 'save-image') {
+        Promise.resolve(actions.saveImage(current, fallbackName)).then(
+          (name) => notify(t('toast.saved', { name })),
+          fail,
+        )
+        return
+      }
+      if (id === 'save-file') {
+        Promise.resolve(actions.saveFile(current, fallbackName)).then(
+          (name) => notify(t('toast.saved', { name })),
+          fail,
+        )
+        return
+      }
+      if (id === 'view-image') {
+        current.opener?.click?.()
+        return
+      }
+      if (id === 'close-preview') {
+        current.close?.click?.()
+        return
+      }
+      if (id === 'remove-attachment') {
+        current.remove?.click?.()
+        notify(t('toast.removed'))
+        return
+      }
+      if (id === 'copy-name') {
+        Promise.resolve(actions.copyName(current)).then(
+          () => notify(t('toast.nameCopied')),
+          fail,
+        )
+        return
+      }
+      if (id === 'copy-info') {
+        Promise.resolve(actions.copyInfo(current)).then(
+          () => notify(t('toast.infoCopied')),
+          fail,
+        )
+        return
+      }
+      if (id === 'copy-path') {
+        Promise.resolve(actions.copyPath(current)).then(
+          () => notify(t('toast.pathCopied')),
+          fail,
+        )
+        return
+      }
+      if (id === 'reveal-file') {
+        Promise.resolve(actions.reveal(current)).then(
+          () => notify(t('toast.revealed')),
+          fail,
+        )
+        return
+      }
+      if (id === 'open-file') {
+        Promise.resolve(actions.open(current)).then(
+          () => notify(t('toast.opened')),
+          fail,
+        )
+      }
+    }
+
+    const items = menuItems(hit, t)
+    const toast = renderToast()
+    if (items.length === 0) return toast
+    return h(
+      React.Fragment,
+      null,
+      h(Menu, {
+        key: 'dshaa-menu',
+        open: true,
+        onClose: () => {
+          setMenu(null)
+        },
+        portal: true,
+        align: 'start',
+        side: 'bottom',
+        anchor: h('span', { className: 'dshaa-anchor' }),
+        getAnchorRect: () => rect,
+        items,
+        onSelect: (id) => {
+          const current = menu.hit
+          setMenu(null)
+          try {
+            run(id, current)
+          } catch (error) {
+            report(t('toast.failed', { message: messageOf(error) }), true)
+          }
+        },
+      }),
+      toast,
+    )
+  }
+
+  /** Presentation only: the invisible Menu anchor. */
+  const CSS = `
+.dshaa-anchor {
+  display: none;
+}
+`
+
+  /**
+   * Register the attachment context menu and the actions it calls.
+   * @param {object} ctx - Client root context.
+   */
+  function apply(ctx) {
+    const sessions = ctx.get('sessions')
+    const remote = ctx.get('remote')
+    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'attachment-actions: dictionaries')
+    ctx.effect(() => {
+      if (typeof document === 'undefined' || typeof document.createElement !== 'function')
+        return () => {}
+      const style = document.createElement('style')
+      style.dataset.dshPlugin = 'dsh-attachment-actions'
+      style.textContent = CSS
+      document.head.appendChild(style)
+      return () => {
+        style.remove?.()
+      }
+    }, 'attachment-actions: styles')
+
+    /**
+     * Resolve the draft attachment behind one composer hit so the menu can save
+     * original bytes and, on desktop, resolve the host path. Navigation that no
+     * longer retains the session simply yields undefined.
+     * @param {object} hit - composer attachment hit.
+     * @returns {object} hit plus `file` and `path` when available.
+     */
+    function describe(hit) {
+      if (hit.surface !== 'composer') return hit
+      try {
+        const occurrence = hit.element?.closest?.('[data-conversation-session]')
+        const sessionId = attributeOf(occurrence, 'data-conversation-session')
+        if (sessionId === null) return hit
+        const actx = sessions?.scope?.(sessionId)
+        if (actx === undefined || actx === null) return hit
+        const conversation = actx.get?.('conversation')
+        const shell = conversation?.input?.for?.(actx)
+        const ids = shell?.snapshot?.attachmentIds
+        if (!Array.isArray(ids)) return hit
+        const drafts = conversation.resolveDraftAttachments?.(ids) ?? []
+        let draft
+        for (const candidate of drafts) {
+          if (hit.kind === 'file' && candidate.kind === 'file' && candidate.file?.name === hit.name) {
+            draft = candidate
+            break
+          }
+          if (
+            hit.kind === 'image' &&
+            candidate.kind === 'image' &&
+            (candidate.previewUrl === hit.url || candidate.previewUrl === hit.rawUrl)
+          ) {
+            draft = candidate
+            break
+          }
+        }
+        if (draft === undefined) return hit
+        const path = hostPathOf(draft.file)
+        return { ...hit, file: draft.file, ...(path === undefined ? {} : { path }) }
+      } catch {
+        return hit
+      }
+    }
+
+    /** @param {object} hit - resolved image hit. @returns {Promise<Blob>} image bytes. */
+    async function imageBlobOf(hit) {
+      if (isBlobLike(hit.file) && hit.file.type.startsWith('image/')) return hit.file
+      return await fetchBlob(hit.url)
+    }
+
+    /**
+     * Copy one attachment image to the clipboard as PNG.
+     * @param {object} hit - resolved image hit.
+     * @returns {Promise<void>} settles after the clipboard accepts the image.
+     */
+    async function copyImage(hit) {
+      const png = await pngBlobOf(await imageBlobOf(hit))
+      const clipboard = globalThis.navigator?.clipboard
+      if (typeof globalThis.ClipboardItem !== 'function' || typeof clipboard?.write !== 'function') {
+        throw new Error('image clipboard unavailable')
+      }
+      await clipboard.write([new globalThis.ClipboardItem({ 'image/png': png })])
+    }
+
+    /**
+     * Copy one image address. Session-local blob previews become data URLs so the
+     * copied text still resolves elsewhere; larger images keep their blob URL.
+     * @param {object} hit - resolved image hit.
+     * @returns {Promise<'url'|'data'>} which form was copied.
+     */
+    async function copyAddress(hit) {
+      const url = typeof hit.url === 'string' ? hit.url : ''
+      if (url === '') throw new Error('missing image source')
+      if (!/^blob:/i.test(url)) {
+        await copyText(url)
+        return 'url'
+      }
+      const blob = await imageBlobOf(hit)
+      if (blob.size > MAX_DATA_URL_BYTES) {
+        await copyText(url)
+        return 'url'
+      }
+      await copyText(await dataUrlOf(blob))
+      return 'data'
+    }
+
+    /**
+     * Save one image with its original bytes and a readable name.
+     * @param {object} hit - resolved image hit.
+     * @param {string} fallback - localized fallback name stem.
+     * @returns {Promise<string>} the download name.
+     */
+    async function saveImage(hit, fallback) {
+      const blob = await imageBlobOf(hit)
+      const name = imageFileName(hit.name, blob.type, fallback)
+      downloadBlob(blob, name)
+      return name
+    }
+
+    /**
+     * Save one composer draft file.
+     * @param {object} hit - resolved file hit.
+     * @param {string} fallback - localized fallback name stem.
+     * @returns {Promise<string>} the download name.
+     */
+    async function saveFile(hit, fallback) {
+      if (!isBlobLike(hit.file)) throw new Error('file bytes unavailable')
+      const name = safeFileName(hit.file.name, fallback || 'attachment')
+      downloadBlob(hit.file, name)
+      return name
+    }
+
+    /**
+     * Copy the name of one attachment.
+     * @param {object} hit - resolved attachment hit.
+     * @returns {Promise<void>} settles after the clipboard accepts the text.
+     */
+    async function copyName(hit) {
+      const name = typeof hit.name === 'string' ? hit.name.trim() : ''
+      if (name === '') throw new Error('missing file name')
+      await copyText(name)
+    }
+
+    /**
+     * Copy one file descriptor as "name (size)" text.
+     * @param {object} hit - resolved file hit.
+     * @returns {Promise<void>} settles after the clipboard accepts the text.
+     */
+    async function copyInfo(hit) {
+      const name = typeof hit.name === 'string' ? hit.name.trim() : ''
+      if (name === '') throw new Error('missing file name')
+      const meta = typeof hit.meta === 'string' ? hit.meta.trim() : ''
+      await copyText(meta === '' ? name : name + ' (' + meta + ')')
+    }
+
+    /**
+     * Copy the resolved host path of one draft attachment.
+     * @param {object} hit - resolved attachment hit.
+     * @returns {Promise<void>} settles after the clipboard accepts the path.
+     */
+    async function copyPath(hit) {
+      if (typeof hit.path !== 'string' || hit.path === '') throw new Error('missing file path')
+      await copyText(hit.path)
+    }
+
+    /**
+     * Ask the Host to show one absolute path in the OS file manager.
+     * @param {object} hit - resolved attachment hit.
+     * @returns {Promise<void>} settles after the Host accepts the gesture.
+     */
+    async function reveal(hit) {
+      if (typeof hit.path !== 'string' || hit.path === '') throw new Error('missing file path')
+      const result = await remote.session.openWorkspacePath({ path: hit.path, action: 'reveal' })
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        throw new Error(result.error?.message ?? result.error?.code ?? 'reveal failed')
+      }
+    }
+
+    /**
+     * Ask the Host to open one absolute path with its default application.
+     * @param {object} hit - resolved attachment hit.
+     * @returns {Promise<void>} settles after the Host accepts the gesture.
+     */
+    async function open(hit) {
+      if (typeof hit.path !== 'string' || hit.path === '') throw new Error('missing file path')
+      const result = await remote.session.openWorkspacePath({ path: hit.path })
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        throw new Error(result.error?.message ?? result.error?.code ?? 'open failed')
+      }
+    }
+
+    const actions = {
+      describe,
+      copyImage,
+      copyAddress,
+      saveImage,
+      saveFile,
+      copyName,
+      copyInfo,
+      copyPath,
+      reveal,
+      open,
+    }
+
+    ctx.slots.inject('shell.overlay', () =>
+      ctx.slots.register(
+        {
+          name: 'shell.overlay',
+          id: 'attachment-actions.menu',
+          locale: NS,
+          inject: () => ({ actions }),
+        },
+        AttachmentMenu,
+      ),
+    )
+  }
+
+  return {
+    /** Services this Client plugin waits for before applying. */
+    inject: ['slots', 'locale', 'sessions', 'remote', 'remote.session'],
+    apply,
+    __test: { findSurface, menuItems, imageFileName, isLightboxDialog, hostPathOf },
   }
 })
 
@@ -15363,7 +16835,7 @@ __DSH_FEATURE('dsh-instant-ui', function () {
   ].join(',')
   const controls = `:where(${surfaces},.dshlr-rail,.dshss-root,.dshss-settings,
     .dshcs-section,.dshst-headerActions,.dshwp-sidebar,.dshwp-taskFilter,
-    .dshqw-row,.dshqw-editor,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
+    .dshqw-freeze,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
   const css = `
     :is(${surfaces}),
     [role="presentation"]:has(> :is(${surfaces})[aria-modal="true"]),
@@ -16310,6 +17782,9 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-effort-slider.title': '推理强度滑条',
     'feature.dsh-effort-slider.summary': '滑动选择当前模型支持的推理强度。',
     'feature.dsh-effort-slider.note': '松开后生效；可恢复默认强度，并保留原生模型菜单。',
+    'feature.dsh-composer-status.title': '上下文状态按钮',
+    'feature.dsh-composer-status.summary': '把上下文环与对话统计合并为一个上下文按钮：一级菜单选面板，二级菜单看详情。',
+    'feature.dsh-composer-status.note': '上下文按钮位于模型名左侧；只保留一个图标，点击先出三个面板的图标与信息，再展开详情。',
     'feature.dsh-continue.summary': '输入为空时，用继续按钮接着处理当前对话。',
     'feature.dsh-continue.note': '仅在已有对话且未运行时显示；发送结果不明时等待确认。',
     'feature.dsh-selection-toolbar.title': '选区工具栏',
@@ -16360,11 +17835,14 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-file-link-actions.title': '文件操作菜单',
     'feature.dsh-file-link-actions.summary': '右键打开文件、定位文件夹或复制完整路径。',
     'feature.dsh-file-link-actions.note': '打开操作在运行 DSH 的设备上执行。',
+    'feature.dsh-attachment-actions.title': '附件操作菜单',
+    'feature.dsh-attachment-actions.summary': '右键复制、保存或预览对话与输入框里的图片和文件。',
+    'feature.dsh-attachment-actions.note': '图片地址为本地预览时复制 Data URL；桌面拖入的附件可复制路径。',
     'feature.dsh-composer-history.title': '输入历史',
     'feature.dsh-composer-history.summary': '搜索历史输入，或用 ↑ 取回上一条。',
     'feature.dsh-composer-history.note': '历史保存在此浏览器，最多 500 条，仅包含文本。',
     'feature.dsh-queue-withdraw.title': '排队消息',
-    'feature.dsh-queue-withdraw.summary': '撤回、编辑、排序和锁定排队消息。',
+    'feature.dsh-queue-withdraw.summary': '「编辑」撤回输入框、拖动排序、锁定排队消息。',
     'feature.dsh-queue-withdraw.note': '锁定状态在重启后保留。文件撤回需要此浏览器的附件缓存。',
     'feature.dsh-quick-fork.title': '临时侧聊',
     'feature.dsh-quick-fork.summary': '在侧边面板独立追问选中内容。',
@@ -16385,6 +17863,11 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-effort-slider.title': 'Reasoning effort slider',
     'feature.dsh-effort-slider.summary': 'Slide through the current model’s supported reasoning levels.',
     'feature.dsh-effort-slider.note': 'Applies on release, with reset and the native model menu.',
+    'feature.dsh-composer-status.title': 'Context status button',
+    'feature.dsh-composer-status.summary':
+      'Merge the context ring and conversation stats into one context button: pick a panel in the first-level menu, read details in the second.',
+    'feature.dsh-composer-status.note':
+      'The context button sits before the model name; one icon opens the three panel entries with their icons and info, then the detail panel.',
     'feature.dsh-continue.summary': 'Continue the current conversation when the composer is empty.',
     'feature.dsh-continue.note':
       'Shown for idle existing conversations; uncertain sends await confirmation.',
@@ -16448,12 +17931,17 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-file-link-actions.summary':
       'Open, reveal or copy the full path of a file from its context menu.',
     'feature.dsh-file-link-actions.note': 'Open and reveal run on the device hosting DSH.',
+    'feature.dsh-attachment-actions.title': 'Attachment actions',
+    'feature.dsh-attachment-actions.summary':
+      'Right-click images and files in the conversation or composer to copy, save or preview them.',
+    'feature.dsh-attachment-actions.note':
+      'Local previews copy as a data URL; desktop-dropped drafts can expose their path.',
     'feature.dsh-composer-history.title': 'Prompt history',
     'feature.dsh-composer-history.summary':
       'Search earlier prompts or recall the previous one with ArrowUp.',
     'feature.dsh-composer-history.note': 'This browser stores up to 500 text-only records.',
     'feature.dsh-queue-withdraw.title': 'Queued messages',
-    'feature.dsh-queue-withdraw.summary': 'Withdraw, edit, reorder and hold queued messages.',
+    'feature.dsh-queue-withdraw.summary': 'Edit withdraws to the composer; reorder and hold queued messages.',
     'feature.dsh-queue-withdraw.note':
       'Holds survive a restart. File withdrawal requires this browser to retain the attachment cache.',
     'feature.dsh-quick-fork.title': 'Side chat',

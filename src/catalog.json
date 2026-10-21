@@ -54,6 +54,10 @@
       {
         "id": "dsh-effort-slider",
         "source": "src/composer/effort.js"
+      },
+      {
+        "id": "dsh-composer-status",
+        "source": "src/composer/composer-status.js"
       }
     ]
   },
@@ -63,6 +67,10 @@
       {
         "id": "dsh-file-link-actions",
         "source": "src/conversation/file-actions.js"
+      },
+      {
+        "id": "dsh-attachment-actions",
+        "source": "src/conversation/attachment-actions.js"
       },
       {
         "id": "dsh-selection-toolbar",

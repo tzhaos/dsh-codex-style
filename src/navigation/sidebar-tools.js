@@ -561,7 +561,7 @@ env.createSidebarTools = function (React, primitives, createPortal) {
               'span',
               { className: 'dshst-resultState' },
               entry.node.status.state !== 'idle'
-                ? h(StateDot, { state: entry.node.status.state, title: entry.node.status.label })
+                ? h(StateDot, { state: entry.node.status.state })
                 : null,
             )
           : h(entry.icon, { size: 16 }),

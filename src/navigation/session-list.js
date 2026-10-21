@@ -1017,7 +1017,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -1043,7 +1044,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -1054,7 +1056,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   outline: var(--dsw-focus-ring-width, 1px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
 }
-.dshss-iconButton.dshss-small { width: 16px; height: 16px; border-radius: var(--dsw-radius-xs); }
+.dshss-iconButton.dshss-small { width: 16px; height: 16px; border-radius: 999px; corner-shape: round; }
 
 
 
@@ -1129,7 +1131,8 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: 999px;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
@@ -3725,7 +3728,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
                 ),
                 h(
                   'span',
-                  { className: 'dshss-settingsRemovedTitle', title: entry.title },
+                  { className: 'dshss-settingsRemovedTitle' },
                   entry.title === entry.id
                     ? t('settings.removed.unknown', { id: entry.id })
                     : entry.title,

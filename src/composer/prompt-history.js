@@ -849,7 +849,8 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;

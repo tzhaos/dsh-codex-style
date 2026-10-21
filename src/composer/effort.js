@@ -4,7 +4,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const { createPortal } = require('react-dom')
   const {
     MenuSurface,
-    IconRefreshOutlineRegular,
     IconChevronRightOutlineRegular,
     IconChevronDownOutlineRegular,
   } = require('@deepseek-ai/dsh-client-ui-primitives')
@@ -13,7 +12,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const NS = 'effortSlider'
   const zh = {
     label: '推理强度',
-    default: '默认',
+    choose: '选择强度',
+    chooseHint: '尚未选择强度，拖动滑块选择一个强度。',
     none: '关闭',
     minimal: '极低',
     low: '低',
@@ -21,16 +21,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     high: '高',
     xhigh: '极高',
     max: '最大',
-    reset: '恢复默认强度',
     model: '选择模型',
     failed: '强度设置失败，请重试。',
     unknown: '切换结果尚未确认，当前显示已同步的强度。请检查连接后重试。',
-    unsupported: '当前强度已不可用，请恢复默认或切换模型。',
+    unsupported: '当前强度已不可用，请选择其他强度或切换模型。',
     loading: '正在更新…',
   }
   const en = {
     label: 'Reasoning effort',
-    default: 'Default',
+    choose: 'Choose effort',
+    chooseHint: 'No effort selected yet. Choose a level on the slider.',
     none: 'None',
     minimal: 'Minimal',
     low: 'Low',
@@ -38,56 +38,47 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     high: 'High',
     xhigh: 'Extra high',
     max: 'Max',
-    reset: 'Reset reasoning effort',
     model: 'Choose model',
     failed: 'Could not change reasoning effort. Try again.',
     unknown: 'The selection is unconfirmed. Showing the synchronized effort. Check the connection before retrying.',
-    unsupported: 'This effort is no longer available. Reset it or choose a model.',
+    unsupported: 'This effort is no longer available. Choose another level or switch model.',
     loading: 'Updating…',
   }
 
   // Translate standard display names only; provider-specific IDs remain opaque.
   function effortLabel(level, t) {
-    const key = level.id ?? 'default'
-    return ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
+    const key = level.id
+    return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
       ? t(key) : level.name
   }
 
-  // The composer trigger drops a redundant vendor prefix ("DeepSeek V4.1 Flash"
-  // becomes "V4.1 Flash"); the opened effort panel still shows the full name.
-  const VENDOR_PREFIXES = new Set(['deepseek', 'openai', 'anthropic', 'google', 'meta', 'xai', 'mistral'])
-
-  /**
-   * Compact a catalog model name for the composer trigger.
-   * @param {string} name - catalog model name.
-   * @returns {string} trigger label; the input unchanged when it has no vendor prefix.
-   */
-  function shortModelName(name) {
-    if (typeof name !== 'string') return ''
-    const trimmed = name.trim()
-    const match = /^([A-Za-z][\w.-]*)\s+(.+)$/.exec(trimmed)
-    return match !== null && VENDOR_PREFIXES.has(match[1].toLowerCase()) ? match[2] : trimmed
-  }
-
-  function describe(state, defaultLabel) {
+  function describe(state) {
     const current = state.current
     const model = state.groups
       .find((group) => group.id === current?.provider)
       ?.models.find((item) => item.id === current?.model)
     const reasoning = model?.reasoning
+    // Explicit levels only: there is no implicit "default" step. An unset
+    // selection resolves to a concrete level so the control always shows one:
+    // the provider-advertised default, else High, else the strongest level.
+    // "off" is not offered by this control: only levels that actually enable
+    // reasoning stay selectable.
     const levels = !reasoning
       ? []
-      : [
-          ...(reasoning.defaultEffort === undefined ? [{ id: undefined, name: defaultLabel }] : []),
-          ...reasoning.efforts,
-        ]
-    const effective = current?.reasoningEffort ?? reasoning?.defaultEffort
+      : reasoning.efforts.filter((level) => level.id !== 'off' && level.id !== 'none')
+    const advertisedDefault = reasoning?.defaultEffort
+    const fallback = advertisedDefault !== undefined
+      && levels.some((level) => level.id === advertisedDefault)
+      ? advertisedDefault
+      : levels.some((level) => level.id === 'high') ? 'high' : levels[levels.length - 1]?.id
+    const effective = levels.some((level) => level.id === current?.reasoningEffort)
+      ? current.reasoningEffort
+      : fallback
     return {
       model,
       levels,
       effective,
       index: levels.findIndex((level) => level.id === effective),
-      isDefault: effective === reasoning?.defaultEffort,
       // A draft belongs to one exact model, capability list and accepted value.
       key: JSON.stringify([current, reasoning]),
       // Like the native picker, a background catalog refresh can use retained choices.
@@ -95,15 +86,15 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     }
   }
 
-  function selectionFor(state, key, index, reset) {
-    const view = describe(state, '')
+  function selectionFor(state, key, index) {
+    const view = describe(state)
     if (view.key !== key || view.busy || !view.levels.length || !state.current) return null
     const choice = view.levels[index]
-    if (reset ? view.isDefault : !choice || choice.id === view.effective) return null
+    if (!choice || choice.id === view.effective) return null
     return {
       provider: state.current.provider,
       model: state.current.model,
-      ...(!reset && choice.id !== undefined ? { reasoningEffort: choice.id } : {}),
+      reasoningEffort: choice.id,
     }
   }
 
@@ -151,7 +142,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           state.current?.model !== selection.model
         )
           return
-        const view = describe(state, '')
+        const view = describe(state)
         if (
           view.effective ===
           (selection.reasoningEffort ?? view.model?.reasoning?.defaultEffort)
@@ -259,8 +250,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       flight = useRef(null)
     const bridge = useRef(() => {}),
       bypass = useRef(false),
-      syncNativeLabel = useRef(() => {})
-    const compactLabel = useRef(null)
+      syncNativeLabel = useRef(() => {}),
+      originalEffort = useRef(null)
     const focused = useRef(false)
     const live = useRef(false)
     const [button, setButton] = useState(null)
@@ -273,13 +264,11 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const id = useId()
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
-    const view = describe(state, t('default'))
+    const view = describe(state)
     view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level, t) }))
-    const translatedDefault = nativeT?.('effort.providerDefault')
-    const nativeDefault = translatedDefault && translatedDefault !== 'effort.providerDefault' ? translatedDefault : 'Default'
     const metricsKey = JSON.stringify([view.model, view.levels.map((level) => level.name)])
     const latest = useRef(null)
-    latest.current = { view, open, generation, directory, nativeT, nativeDefault }
+    latest.current = { view, open, generation, directory, nativeT }
     const ready = () =>
       !!button?.isConnected &&
       !button.disabled &&
@@ -376,18 +365,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         else node.setAttribute(key, value)
       }
       const sync = () => {
-        const { view, nativeT, nativeDefault } = latest.current
+        const { view, nativeT } = latest.current
         const effort = button.querySelector('.wq12jW_triggerEffort')
-        const label = view.levels[view.index]?.name
+        const label = view.levels[view.index]?.name ?? (view.levels.length ? t('choose') : undefined)
         if (!effort || !label) return
-        const original = view.effective === undefined ? nativeDefault
-          : view.model.reasoning.efforts.find((level) => level.id === view.effective)?.name ?? view.effective
+        // Capture the host label once so disposal restores it exactly.
+        if (originalEffort.current === null) originalEffort.current = effort.textContent
+        const original = originalEffort.current ?? ''
         // The host renders this leaf as a plain string, with no managed child elements.
         write(effort, 'textContent', label, original)
-        // Never rewrite the host label: it owns the provider/model cells the
-        // trigger detection relies on. A separate compact label is rendered
-        // next to it instead (see the effect below).
-        const model = view.model?.name ?? ''
+        const model = button.querySelector('.wq12jW_triggerLabel')?.textContent
         const aria = nativeT?.('trigger.ariaEffort', { model, effort: label })
         if (aria && aria !== 'trigger.ariaEffort')
           write(button, 'aria-label', aria, nativeT('trigger.ariaEffort', { model, effort: original }))
@@ -408,33 +395,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
           else if (previous.original === null) node.removeAttribute(key)
           else node.setAttribute(key, previous.original)
         }
+        originalEffort.current = null
       }
     }, [button])
-    useLayoutEffect(() => {
-      if (!button) return
-      const labelNode = button.querySelector('.wq12jW_triggerLabel')
-      if (labelNode === null) return
-      let current = compactLabel.current
-      if (current === null || !current.element.isConnected) {
-        const element = document.createElement('span')
-        element.className = 'dshe-model-label'
-        element.setAttribute('aria-hidden', 'true')
-        const text = document.createTextNode('')
-        element.append(text)
-        current = { element, text }
-        compactLabel.current = current
-      }
-      // Keep the compact label immediately after the host label so the flex row
-      // preserves the native reading order; the host label stays in the DOM for
-      // the provider/model cells and is hidden by CSS while enhanced.
-      labelNode.after(current.element)
-      const short = shortModelName(view.model?.name ?? '')
-      if (current.text.data !== short) current.text.data = short
-      return () => {
-        current.element.remove()
-        compactLabel.current = null
-      }
-    }, [button, view.key, view.model?.name, metricsKey])
     useLayoutEffect(() => syncNativeLabel.current(), [view.key, metricsKey])
     useLayoutEffect(() => {
       if (!button || !view.model || !view.levels.length) return
@@ -445,38 +408,23 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       let alive = true
       const measure = () => {
         if (!alive || !button.isConnected) return
-        // The compact model label replaces the host label visually; the effort
-        // name reserves the widest localized level.
-        button.dataset.dsheTrigger = ''
         const textStyle = getComputedStyle(effort), style = getComputedStyle(button)
         context.font = textStyle.font
         const spacing = parseFloat(textStyle.letterSpacing) || 0
         // Reserve all localized names before selection so the control never shifts.
         const labels = view.levels.map((level) => level.name)
         const widthOf = (text) => context.measureText(text ?? '').width + Math.max(0, (text?.length ?? 0) - 1) * spacing
-        // One pixel of slack keeps the widest level from ellipsizing on subpixel
-        // rounding; the host's responsive max-width still applies.
-        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf))) + 1
-        const compact = button.querySelector('.dshe-model-label')
-        let modelWidth = 0
-        if (compact !== null) {
-          const labelStyle = getComputedStyle(compact)
-          context.font = labelStyle.font
-          const labelSpacing = parseFloat(labelStyle.letterSpacing) || 0
-          const text = compact.textContent ?? ''
-          modelWidth = Math.ceil(context.measureText(text).width + Math.max(0, text.length - 1) * labelSpacing)
-        }
+        const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
-          ? effortWidth : child === compact ? modelWidth
-            : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
-              : Math.max(16, child.getBoundingClientRect().width)), 0)
+          ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
+            : Math.max(16, child.getBoundingClientRect().width)), 0)
           + Math.max(0, children.length - 1) * (parseFloat(style.columnGap) || 0)
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
-          + 1
         // Reserve the widest advertised level; the host's responsive max-width still applies.
         button.style.setProperty('--dshe-trigger-width', Math.ceil(width) + 'px')
         button.style.setProperty('--dshe-effort-width', effortWidth + 'px')
+        button.dataset.dsheTrigger = ''
       }
       measure()
       const resize = new ResizeObserver(measure)
@@ -620,23 +568,21 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       }
     }, [open, position !== null, view.busy, pending])
 
-    const commit = async (value, reset = false) => {
+    const commit = async (value) => {
       if (flight.current) return
       draft.current = null
       pointer.current = null
       if (!value || !ready()) return cancel()
-      const selection = selectionFor(directory.store.getSnapshot(), value.key, value.index, reset)
+      const selection = selectionFor(directory.store.getSnapshot(), value.key, value.index)
       if (!selection) return cancel()
       // Keep the user's target visible until it is confirmed or explicitly rolled back.
-      setPreview({ key: view.key, index: reset
-        ? view.levels.findIndex((level) => level.id === view.model.reasoning.defaultEffort)
-        : value.index })
+      setPreview({ key: view.key, index: value.index })
       const operation = {
         controller: new AbortController(),
         generation: connected.getSnapshot(),
         model: selection.model,
         provider: selection.provider,
-        effort: selection.reasoningEffort ?? view.model.reasoning.defaultEffort,
+        effort: selection.reasoningEffort,
       }
       flight.current = operation
       setPending(true)
@@ -719,8 +665,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   {
                     type: 'button',
                     className: 'dshe-model',
-                    'aria-label': t('model'),
-                    title: view.model?.name,
+                    'aria-label': view.model?.name ?? t('model'),
                     disabled: pending || view.busy,
                     onClick: () => {
                       cancel()
@@ -740,26 +685,14 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   },
                   h('span', { className: 'dshe-levelBox' },
                     h('span', { className: 'dshe-level', 'aria-live': 'polite' },
-                      level?.name ?? view.effective ?? t('default')),
+                      level?.name ?? view.effective ?? t('choose')),
                     view.levels.map((item) => h('span', {
-                      className: 'dshe-levelMeasure', key: item.id === undefined ? 'provider-default' : 'effort:' + item.id, 'aria-hidden': true,
+                      className: 'dshe-levelMeasure', key: 'effort:' + item.id, 'aria-hidden': true,
                     }, item.name))),
                   h('span', { className: 'dshe-modelCaption' },
                     h('span', null, view.model?.name),
                     h(IconChevronRightOutlineRegular, { size: 12 })),
                 ),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshe-reset',
-                  title: t('reset'),
-                  'aria-label': t('reset'),
-                  disabled: disabled || view.isDefault,
-                  onClick: () => void commit({ key: view.key, index: view.index }, true),
-                },
-                h(IconRefreshOutlineRegular, { size: 18 }),
               ),
               h(
                 'div',
@@ -768,7 +701,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   'data-single': view.levels.length === 1 ? '' : undefined,
                   'data-unknown': view.index < 0 ? '' : undefined,
                   'data-disabled':
-                    (disabled && !pending) || view.levels.length < 2 || view.index < 0 ? '' : undefined,
+                    (disabled && !pending) || view.levels.length < 2 ? '' : undefined,
                   style: {
                     '--dshe-position': `calc(12px + (100% - 24px) * ${fraction})`,
                     '--dshe-fill': fraction === 0 ? '0px' : fraction === 1 ? '100%' : 'var(--dshe-position)',
@@ -779,7 +712,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   { className: 'dshe-dots', 'aria-hidden': true },
                   view.levels.map((item, index) =>
                     h('span', {
-                      key: item.id ?? 'provider-default',
+                      key: item.id,
                       'data-filled': index <= displayed ? '' : undefined,
                     }),
                   ),
@@ -791,9 +724,9 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                   max: Math.max(0, view.levels.length - 1),
                   step: 1,
                   value: Math.max(0, displayed),
-                  disabled: disabled || view.levels.length < 2 || view.index < 0,
+                  disabled: disabled || view.levels.length < 2,
                   'aria-label': t('label'),
-                  'aria-valuetext': level?.name ?? view.effective,
+                  'aria-valuetext': level?.name ?? t('choose'),
                   'aria-describedby': error || view.index < 0 ? id + '-status' : undefined,
                   onChange: change,
                   onPointerDown: (event) => {
@@ -842,7 +775,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
                 ? h(
                     'div',
                     { className: 'dshe-status', id: id + '-status', role: 'status' },
-                    error ?? t('unsupported'),
+                    error ?? t('chooseHint'),
                   )
                 : null,
             ),
@@ -854,12 +787,8 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   const CSS = `
     .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
     .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
-    /* The host label keeps its provider/model cells but is visually replaced by
-       the compact model label; the effort panel shows the full model name. */
-    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerLabel{display:none;}
-    .dshe-model-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label){flex:none;width:16px;height:16px;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-model-label):not(.dshe-native-chevron){margin-left:auto;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
+    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
     .wq12jW_trigger[data-dshe-updating]>.dshe-native-chevron{display:grid;}
     .wq12jW_trigger[data-dshe-updating]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){visibility:hidden;}
@@ -871,7 +800,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     .dshe-level,.dshe-levelMeasure{font-size:15px;line-height:20px;font-weight:600;color:var(--dsw-alias-state-business-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .dshe-model{display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;min-width:0;margin:-4px 0;padding:4px 8px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}
     .dshe-modelCaption{display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;}.dshe-model span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dshe-model svg{flex:none;}.dshe-model:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
-    .dshe-reset{position:absolute;right:6px;top:6px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}.dshe-reset:hover{background:var(--dsw-alias-interactive-bg-hover);}
     .dshe-panel button:disabled{opacity:.45;cursor:default;}.dshe-panel button:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px;}
     .dshe-panel[aria-busy="true"] .dshe-model:disabled{opacity:1;}
     .dshe-track{position:relative;height:24px;margin-top:12px;border-radius:12px;corner-shape:round;background:linear-gradient(to right,var(--dsw-alias-state-business-primary) 0 var(--dshe-fill),var(--dsw-alias-interactive-bg-hover-solid) var(--dshe-fill) 100%);}
@@ -921,6 +849,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   return {
     inject: ['slots', 'locale', 'modelDirectories', 'connection'],
     apply,
-    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, shortModelName, zh, en },
+    __test: { describe, selectionFor, selectAndConfirm, place, effortLabel, zh, en },
   }
 })

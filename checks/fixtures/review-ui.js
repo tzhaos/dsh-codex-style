@@ -65,7 +65,37 @@ const generation = store({ id: 'fixture-generation', host: 'fixture-host' })
 const composerBlock = store(undefined)
 const emptyUploads = store({})
 const emptySource = store(undefined)
-const mode = store({ screen: 'hero', collapsed: false })
+const query = new URLSearchParams(location.search)
+const statusMode = query.get('status') === '1'
+const statusScreen = query.get('screen')
+const initialScreen =
+  statusScreen === 'hero' || statusScreen === 'active' ? statusScreen : statusMode ? 'active' : 'hero'
+const language = query.get('lang') === 'en' ? 'en' : 'zh'
+/** Composer status projections; opt-in through `?status=1` so other checks keep the empty dock. */
+const statusProjections = statusMode
+  ? {
+      contextPressure: store({ pressureTokens: 48000, projectedTokens: 61200, contextWindow: 128000 }),
+      contextBreakdown: store({ systemTokens: 5200, toolsTokens: 8100, messageTokens: 47800 }),
+      tokenUsage: store({ uncachedInputTokens: 21000, cacheReadTokens: 46000, cacheWriteTokens: 0, outputTokens: 7800 }),
+      sessionStats: store({ turns: 1, steps: 2, llmMs: 5100, toolMs: 1200, ttftMs: 600, ttftSteps: 2, decodeMs: 2000, decodeTokens: 496 }),
+    }
+  : null
+// StatsPills.module.css from the 0.2.1-rc.2 ui-chat host package, copied
+// verbatim so the mock anchors paint exactly like the native stat pills.
+const statPillsCss =
+  '.iq1doa_anchor{min-width:0;font-size:calc(var(--dsh-content-font-size-secondary,13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));display:inline-flex}.iq1doa_pill{box-sizing:border-box;border-radius:var(--dsw-radius-sm);max-width:100%;color:var(--dsw-alias-label-tertiary);font:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;background:0 0;border:none;align-items:center;gap:6px;padding:1px 8px;display:inline-flex}.iq1doa_pill svg{flex:none;width:14px;height:14px}button.iq1doa_pill{cursor:pointer}button.iq1doa_pill:hover,button.iq1doa_pill[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.iq1doa_label{text-overflow:ellipsis;min-width:0;overflow:hidden}.iq1doa_sep{color:var(--dsw-alias-separator-primary);margin:0 6px}'
+if (statusMode) {
+  const style = document.createElement('style')
+  style.dataset.fixture = 'composer-status-stat-pills'
+  style.textContent = statPillsCss
+  document.head.append(style)
+}
+/** Host-equivalent labels for the two mock stat pills. */
+const statLabels =
+  language === 'en'
+    ? { activity: '1 turns 2 steps · 248 tok/s', usage: '30.9K tok · Cache hit 50%' }
+    : { activity: '1 轮 2 步 · 248 tok/s', usage: '30.9K tok · 缓存命中 50%' }
+const mode = store({ screen: initialScreen, collapsed: false })
 const shell = new host.SessionInputShell({ inbox, defaultSink: async () => ({ kind: 'success' }) })
 const drafts = new Map()
 const released = []
@@ -195,7 +225,6 @@ const bindingFor = (id) => {
   return sessionBindings.get(id)
 }
 const closeHandlers = new Map()
-const language = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh'
 const dictionaries = new Map()
 dictionaries.set('model', modules['@deepseek-ai/dsh-client-ui-model-selection'][language === 'en' ? '__reviewEnglishLocale' : '__reviewLocale'])
 const tFor =
@@ -343,8 +372,10 @@ window.__DSH_CODEX_STYLE_FEATURES__ = [
   'dsh-continue',
   'dsh-effort-slider',
   'dsh-selection-toolbar',
+  'dsh-attachment-actions',
   'dsh-quick-fork',
   'dsh-codex-style.settings',
+  ...(statusMode ? ['dsh-composer-status'] : []),
 ]
 window.__DSH_CODEX_STYLE_ISOLATION__ = true
 globalThis.__DSH_CODEX_STYLE_FEATURES__ = window.__DSH_CODEX_STYLE_FEATURES__
@@ -384,8 +415,11 @@ const standard = {
   usePanelInfo: (selector) => useStore(panel, selector),
   useSession: (selector) => useStore(sessionState, selector),
   useInput: (selector) => useStore(shell.state, selector),
-  useProjection: (name, selector = (value) => value) =>
-    name === 'inbox' ? useStore(inbox, selector) : selector(undefined),
+  useProjection: (name, selector = (value) => value) => {
+    if (name === 'inbox') return useStore(inbox, selector)
+    if (statusMode && Object.hasOwn(statusProjections, name)) return useStore(statusProjections[name], selector)
+    return selector(undefined)
+  },
 }
 const { createWorkbenchFixture } = await import('./workbench-fixture.js')
 const workbench = createWorkbenchFixture({ React, modules, services, store, useStore, registrations,
@@ -450,7 +484,48 @@ function NativeLauncher() {
     },
   })
 }
+// Mock of the host ui-chat stat pill (DialogPill shape) rendered inside the native dock.
+function ComposerStatPill({ stat, label, icon: Icon }) {
+  return h(
+    'span',
+    { className: 'iq1doa_anchor', 'data-composer-stat': stat },
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'iq1doa_pill',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': false,
+        'aria-label': label,
+      },
+      h(Icon, {}),
+      h('span', { className: 'iq1doa_label' }, label),
+    ),
+  )
+}
 function renderSlot(name, owner = {}, options = {}) {
+  if (name === 'conversation.composer.dock') {
+    const mocks = statusMode
+      ? [
+          h(ComposerStatPill, {
+            key: 'activity',
+            stat: 'activity',
+            label: statLabels.activity,
+            icon: p.IconGaugeOutlineRegular,
+          }),
+          h(ComposerStatPill, {
+            key: 'usage',
+            stat: 'usage',
+            label: statLabels.usage,
+            icon: p.IconDatabaseOutlineRegular,
+          }),
+        ]
+      : []
+    const entries = registered(name, owner)
+    return mocks.length > 0 || entries.length > 0
+      ? h(React.Fragment, null, mocks, entries)
+      : (options.fallback ?? null)
+  }
   if (name === 'conversation.input.permission') return h(
     modules['@deepseek-ai/dsh-client-ui-permission-presets'].__review.PermissionSelect,
     { ...owner, locked: false,
@@ -613,6 +688,8 @@ window.review = {
   sessionEvents,
   generation,
   composerBlock,
+  statusMode,
+  statusProjections,
   statuses,
   drafts,
   released,

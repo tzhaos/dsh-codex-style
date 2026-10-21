@@ -59,13 +59,31 @@ function featureSource(id) {
   return next === -1 ? clientSource.slice(start) : clientSource.slice(start, next)
 }
 
+/** Slice the feature's stylesheet literal out of the bundle source. */
+function stylesheetOf(source) {
+  const start = source.indexOf('const CSS = `')
+  const end = source.indexOf('\n`', start)
+  assert(start !== -1 && end !== -1, 'stylesheet found')
+  return source.slice(start, end)
+}
+
+/** Extract one flat CSS rule's declarations from a stylesheet. */
+function styleRule(css, selector) {
+  const start = css.indexOf(selector)
+  assert(start !== -1, 'rule ' + selector + ' present')
+  const open = css.indexOf('{', start)
+  const close = css.indexOf('}', open)
+  assert(open !== -1 && close !== -1, 'rule body ' + selector + ' present')
+  return css.slice(open + 1, close)
+}
+
 // ---------------------------------------------------------------------------
 // 1. Static contract
 // ---------------------------------------------------------------------------
 
 await check('manifest declares the merged DSH bundle and web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.2.0')
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'semantic version')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')
@@ -321,6 +339,8 @@ class FakeNode {
 
   hasAttribute(name) { return this.attributes.has(name) }
 
+  removeAttribute(name) { this.attributes.delete(name) }
+
   addEventListener(type, callback) {
     if (!this.listeners.has(type)) this.listeners.set(type, [])
     this.listeners.get(type).push(callback)
@@ -379,6 +399,7 @@ class FakeNode {
   querySelectorAll(selector) {
     const descendants = this.descendants()
     if (selector === 'li') return descendants.filter((node) => node.tagName === 'LI')
+    if (selector === 'button') return descendants.filter((node) => node.tagName === 'BUTTON')
     if (selector === 'button[aria-label]') {
       return descendants.filter((node) => node.tagName === 'BUTTON' && node.getAttribute('aria-label') !== null)
     }
@@ -392,9 +413,6 @@ class FakeNode {
     }
     if (selector === '[data-dshq-handle]') {
       return descendants.find((node) => node.getAttribute('data-dshq-handle') !== null) ?? null
-    }
-    if (selector === '[data-dshq-withdraw]') {
-      return descendants.find((node) => node.getAttribute('data-dshq-withdraw') !== null) ?? null
     }
     if (selector === '[data-dshq-freeze]') {
       return descendants.find((node) => node.getAttribute('data-dshq-freeze') !== null) ?? null
@@ -475,9 +493,8 @@ function createFakeDocument(queueText, rowCount = 1) {
     },
     querySelectorAll: (selector) => selector === '[data-queue-dock]' ? (dock.isConnected ? [dock] : [])
       : selector === '[data-dshq-row]' ? rows.filter((row) => row.getAttribute('data-dshq-row') !== null)
-        : selector === '[data-dshq-withdraw]' ? rows.flatMap((row) => row.descendants()).filter((node) => node.getAttribute('data-dshq-withdraw') !== null)
-          : selector === '[data-dshq-freeze]' ? rows.flatMap((row) => row.descendants()).filter((node) => node.getAttribute('data-dshq-freeze') !== null)
-            : [],
+        : selector === '[data-dshq-freeze]' ? rows.flatMap((row) => row.descendants()).filter((node) => node.getAttribute('data-dshq-freeze') !== null)
+          : [],
   }
   void queueText
   return document
@@ -521,7 +538,8 @@ function loadClient({ react, document, sessions, locale, fetch }) {
     plugin: loaded.factory((id) => {
       if (id === 'react') return react
       if (id === 'react-dom') return { createPortal: (node) => node }
-      if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: () => null, Modal: () => null }
+      if (id === '@deepseek-ai/dsh-client-ui-primitives')
+        return { Button: () => null, Modal: () => null, ImageLightbox: () => null }
       throw new Error('unexpected require ' + id)
     }),
     storage,
@@ -695,7 +713,7 @@ await check('locked rows use a strikethrough and a per-row lock instead of a blu
   assert(source.includes('dshqw-locked-row'))
   assert(source.includes('text-decoration: line-through'))
   assert(source.includes('LOCK_ICON'))
-  assert(source.includes('UNLOCK_ICON'))
+  assert(source.includes('QUEUE_GLYPH'))
   assert(source.includes('readFrozen'))
   assert(!source.includes('dshqw-frozen-item'), 'no synthetic rows')
   assert(!source.includes('box-shadow: inset 0 0 0 1px color-mix'), 'no outline indicator')
@@ -711,40 +729,111 @@ await check('queue layout does not upload diagnostics or append unbounded host l
 
 await check('injected actions match the Host action geometry', () => {
   const source = featureSource('dsh-queue-withdraw')
-  assert(source.includes('width: 28px;'), '28px hit box')
-  assert(source.includes('height: 28px;'), '28px hit box height')
-  assert(source.includes('border-radius: 999px'), 'circle hit box')
-  assert(!source.includes('width: 20px'), 'no shrunken lock button')
-  assert(!source.includes('viewBox="0 0 16 16" width="14"'), 'glyphs fill the 14px box')
-  assert(source.includes('row.insertBefore(freeze, actions)'), 'lock precedes the native actions')
-  assert(source.includes('row.append?.(withdraw)'), 'withdraw trails the native actions')
+  const css = stylesheetOf(source)
+  const toggle = styleRule(css, '.dshqw-lockToggle {')
+  assert(toggle.includes('width: 28px;'), '28px hit box')
+  assert(toggle.includes('height: 28px;'), '28px hit box height')
+  assert(toggle.includes('border-radius: 999px'), 'circle hit box')
+  assert(toggle.includes('corner-shape: round'), 'circular superellipse like the native buttons')
+  assert(toggle.includes('color: var(--dsw-alias-label-tertiary)'), 'native action color')
+  assert(!toggle.includes('order: -1'), 'the lock no longer lives in the Host action cluster')
+  assert(!source.includes('actions.append(freeze)'), 'the lock is not appended to the action cluster')
+  assert(css.includes('.dshqw-lockToggle > svg { width: 16px; height: 16px; }'), '16px leading glyph')
+  assert(css.includes('.dshqw-lockToggle:hover:not(:disabled)'), 'native hover pill')
+  assert(css.includes('.dshqw-lockToggle:focus-visible'), 'native focus ring')
+  assert(css.includes('.dshqw-lockToggle:disabled'), 'native disabled treatment')
+  assert(source.includes('grip.nextSibling'), 'the toggle sits right after the drag grip')
+  assert(source.includes("row.insertBefore?.(freeze"), 'the toggle is placed at the row leading edge')
+  assert(source.includes("innerHTML = QUEUE_GLYPH"), 'the message icon is the idle face of the toggle')
+  const icons = source.slice(source.indexOf('const ICON_SVG_ATTRS ='), source.indexOf('const QUEUE_GLYPH ='))
+  assert(icons.includes('const ICON_SVG_ATTRS ='), 'shared icon attributes')
+  assert(icons.includes('viewBox="0 0 16 16"'), '16-unit icon grid')
+  assert(icons.includes('stroke-width="1"'), 'one-pixel icon stroke')
+  assert(icons.includes('stroke="currentColor"'), 'currentColor paths')
+  assert(!icons.includes(' width="') && !icons.includes(' height="'), 'no fixed glyph size attributes')
+  assert(!icons.includes('stroke-linecap') && !icons.includes('stroke-linejoin'), 'no linecap/linejoin overrides')
+  assert(!source.includes('2.3 1.5 11.4 12.9'), 'old tight icon viewBox removed')
 })
 
-await check('a locked message disables editing and unlocking returns it to the queue', async () => {
-  let ids = ['item-1']
+await check('the Host steer and remove actions keep their native presentation', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  for (const removed of ['data-dshq-native-action', 'data-dshq-action-label', "'steer.label'", 'mask: url('])
+    assert.equal(source.includes(removed), false, removed + ' is gone')
+  assert(source.includes('button[aria-label]'), 'native actions are read from the Host labels')
+  assert(source.includes('/移除|删除|Remove|Delete/i'), 'only the remove control is intercepted')
+})
+
+await check('queue image previews use the Host lightbox', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  assert(source.includes('ImageLightbox'), 'the Host ImageLightbox primitive is used')
+  assert.equal(source.includes('dshqw-previewImage'), false, 'no bespoke preview modal remains')
+  assert(source.includes("labels: { dialog: t('preview.title'), close: t('preview.close') }"), 'localized lightbox labels')
+  assert(source.includes('openPreview(image)'), 'queue thumbnails route to the Host lightbox')
+})
+
+await check('the queue handle uses the Host message icon artwork', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  const glyph = source.slice(source.indexOf('const QUEUE_GLYPH ='), source.indexOf('const HANDLE_ICON ='))
+  assert(glyph.includes('dshqw-queueGlyph'), 'handle glyph class kept')
+  assert(glyph.includes('viewBox="0 0 16 16"'), 'native icon grid')
+  assert(glyph.includes('stroke-width="1"'), 'native one-pixel stroke')
+  assert(glyph.includes('M2.37067 11.2497'), 'native IconQueueOutlineRegular bubble path')
+  assert(!glyph.includes('M3 2.5v7a2 2 0 0 0 2 2h8'), 'old bespoke queue glyph removed')
+})
+
+await check('the queue dock is presented flat and cannot collapse', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  const css = stylesheetOf(source)
+  assert(css.includes('.v1kfCW_header { display: none; }'), 'collapse header hidden')
+  assert(css.includes('.v1kfCW_list[hidden] { display: block; }'), 'collapsed list forced open')
+  assert(source.includes("getAttribute('aria-expanded') === 'false'"), 'a collapsed Host dock is expanded in place')
+})
+
+await check('replacing a non-empty composer draft asks before withdrawing', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  assert(source.includes("'draftReplace.message'"), 'localized confirmation message')
+  assert(source.includes('window.confirm'), 'browser confirmation before replacing the draft')
+  assert(source.includes('previousDraft.trim()'), 'only when the draft already holds text')
+  assert(source.includes('previousIds.length > 0'), 'attachments count as draft content')
+})
+
+await check('locked rows keep the withdraw control enabled and toggle the closed lock', async () => {
+  let ids = []
   const applied = scenario({
     fetch: async (url) => {
       if (url.includes('/frozen')) return { ok: true, json: async () => ({ ok: true, ids: [...ids] }) }
+      if (url.includes('/freeze')) {
+        ids = ['item-1']
+        return { ok: true, json: async () => ({ ok: true, index: 0 }) }
+      }
       if (url.includes('/thaw')) {
-        ids = ids.filter((id) => id !== 'item-1')
+        ids = []
         return { ok: true, json: async () => ({ ok: true }) }
       }
       return { ok: true, json: async () => ({ ok: true }) }
     },
   })
+  const row = applied.document._rows[0]
   const hostEdit = applied.document._actions.children.find((node) => node.getAttribute('aria-label') === '编辑')
   mountDecoration(applied, [queueItem('queued text')])
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.equal(hostEdit.disabled, true, 'Host edit disabled while locked')
-  assert.equal(applied.document._rows[0].classList.contains('dshqw-locked-row'), true)
-  const lock = applied.document._rows[0].descendants().find((node) => node.getAttribute('data-dshq-freeze') !== null)
+  const lock = row.descendants().find((node) => node.getAttribute('data-dshq-freeze') !== null)
   assert(lock, 'per-row lock button rendered')
-  assert.equal(lock.getAttribute('data-locked'), 'true')
+  assert.equal(lock.getAttribute('data-locked'), 'false', 'the row starts unlocked')
+  assert.equal(hostEdit.disabled, false, 'withdrawal is available on an unlocked row')
   await lock.dispatch('click')
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.equal(hostEdit.disabled, false, 'edit restored after unlock')
-  assert.equal(applied.document._rows[0].classList.contains('dshqw-locked-row'), false)
+  assert.equal(row.classList.contains('dshqw-locked-row'), true, 'the locked row is struck through')
+  assert.equal(lock.getAttribute('data-locked'), 'true', 'the closed lock is shown')
+  assert.equal(lock.getAttribute('aria-pressed'), 'true', 'the toggle reports its pressed state')
+  assert.equal(lock.getAttribute('aria-label'), applied.t('frozen.activate'), 'the closed lock explains its action')
+  assert(lock.innerHTML.includes('viewBox="0 0 16 16"'), 'the closed lock uses the native icon grid')
+  assert.equal(hostEdit.disabled, false, 'locked rows keep withdrawal available')
+  await lock.dispatch('click')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(row.classList.contains('dshqw-locked-row'), false, 'the row is released')
   assert.equal(lock.getAttribute('data-locked'), 'false')
+  assert.equal(hostEdit.disabled, false, 'withdrawal stays available after unlocking')
 })
 
 await check('an empty conversation renders no overlay tree', () => {
@@ -886,13 +975,38 @@ await check('forgetCached drops files after their queue message leaves', async (
   equal(applied.notices, [{ level: 'error', text: 'cache-missing' }])
 })
 
-await check('text messages keep the Host native inline editor', () => {
-  const applied = scenario({ draft: 'existing' })
+await check('the Host edit control withdraws the queued message into the composer', async () => {
+  const requests = []
+  const applied = scenario({
+    draft: 'existing',
+    fetch: async (url, init) => {
+      requests.push({ url, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined })
+      return { ok: true, json: async () => ({ ok: true, ids: [] }) }
+    },
+  })
   const hostEdit = applied.document._actions.children.find((node) => node.getAttribute('aria-label') === '编辑')
   mountDecoration(applied, [queueItem('queued text')])
-  assert.equal(hostEdit.disabled, false)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(hostEdit.disabled, false, 'text messages stay withdrawable')
   assert.equal(hostEdit.getAttribute('aria-label'), '编辑', 'the Host label is untouched')
-  assert.equal(hostEdit.getAttribute('data-dshq-edit'), null, 'no interception marker')
+  assert.equal(hostEdit.getAttribute('data-dshq-edit'), '', 'the Host edit control is re-purposed')
+  await hostEdit.dispatch('click')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(applied.draft.value, 'queued text', 'the queued text lands in the composer')
+  equal(applied.updates, [{ itemId: 'item-1', action: { kind: 'remove' } }], 'the queue item is removed')
+  assert.equal(
+    requests.some((request) => request.url.includes('/dsh-queue-withdraw/update') || request.body?.action === 'edit'),
+    false,
+    'the Host inline editor is never opened',
+  )
+  assert.equal(applied.draftCalls.length, 0, 'text withdrawal needs no attachments')
+})
+
+await check('the previous draft is read as published text, not the structured document', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  assert(source.includes("const draft = shell?.snapshot?.draft"), 'published draft text is the source')
+  assert.equal(source.includes('shell?.draftSnapshot'), false, 'the structured draft document is never treated as text')
+  assert.equal(source.includes('previousDraft.trim'), true, 'the confirmation still inspects the text draft')
 })
 
 await check('native queue services retain their receiver-sensitive method identity', async () => {
@@ -904,29 +1018,51 @@ await check('native queue services retain their receiver-sensitive method identi
 
 })
 
-await check('attachment-only messages fall back to the plugin editor', () => {
-  const applied = scenario({ draft: 'existing' })
+await check('attachment-only messages withdraw through the edit control', async () => {
+  const applied = scenario()
   const item = { id: 'item-1', content: [{ type: 'image', attachment: { attachmentId: 'image-1', mediaType: 'image/png' } }] }
   const hostEdit = applied.document._actions.children.find((node) => node.getAttribute('aria-label') === '编辑')
   hostEdit.disabled = true
   mountDecoration(applied, [item])
-  assert.equal(hostEdit.disabled, false, 'the Host control is re-enabled for the fallback')
-  assert.equal(hostEdit.getAttribute('aria-label'), '编辑排队消息')
+  assert.equal(hostEdit.disabled, false, 'the Host control is enabled for the fallback')
+  assert.equal(hostEdit.getAttribute('aria-label'), '编辑', 'the Host label is untouched')
+  await hostEdit.dispatch('click')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  equal(applied.readCalls, ['image-1'], 'the image is read back')
+  assert.equal(applied.draftCalls.length, 1, 'the attachment is turned into a draft')
+  assert.equal(applied.addedAttachments.length, 1, 'the draft attachment is admitted')
+  equal(applied.addedAttachments, ['draft-1-0'])
+  equal(applied.updates, [{ itemId: 'item-1', action: { kind: 'remove' } }], 'the queue item is removed')
+  assert.equal(applied.draft.value, '', 'the withdrawn image leaves the composer text empty')
 })
 
 await check('unsupported queue content leaves the Host edit control disabled', () => {
   const applied = scenario()
   const item = queueItem('queued text', [{ type: 'audio', attachment: { attachmentId: 'audio-1' } }])
   const hostEdit = applied.document._actions.children.find((node) => node.getAttribute('aria-label') === '编辑')
+  hostEdit.setAttribute('title', '包含非文本内容，暂不支持编辑')
   hostEdit.disabled = true
   mountDecoration(applied, [item])
-  assert.equal(hostEdit.disabled, true)
+  assert.equal(hostEdit.disabled, true, 'unsupported content is not withdrawable')
+  assert.equal(hostEdit.getAttribute('title'), null, 'the native browser tooltip is stripped')
+  assert.equal(hostEdit.getAttribute('aria-description'), applied.t('button.attachments'), 'the refusal explains why')
+  assert.equal(hostEdit.getAttribute('aria-label'), '编辑', 'the Host label is untouched')
 })
 
-await check('a separate withdraw control is injected into the Host row', () => {
+await check('plugin-owned queue controls never write a native title tooltip', () => {
   const source = featureSource('dsh-queue-withdraw')
-  assert(source.includes("data-dshq-withdraw"))
-  assert(source.includes('withdrawThrough(withdraw'))
+  assert.equal(source.includes("setAttribute('title'"), false, 'injected controls have no native title')
+  assert.equal(source.includes('button.title ='), false, 'the lock state never writes a native title')
+  assert(source.includes("edit.removeAttribute?.('title')"), 'the Host refusal title is stripped')
+  assert(source.includes("attributeFilter: ['disabled', 'hidden', 'aria-label']"), 'title mutations do not re-trigger the sync')
+})
+
+await check('no row menu or second withdraw control is injected', () => {
+  const source = featureSource('dsh-queue-withdraw')
+  for (const removed of ['data-dshq-withdraw', 'data-dshq-menu', 'dshqw-more', 'QueueRowMenu', "'editor."])
+    assert.equal(source.includes(removed), false, removed + ' is gone')
+  assert(source.includes('withdrawThrough(edit'), 'withdrawal re-uses the Host edit control')
+  assert(source.includes("data-dshq-edit"), 'the Host edit control is the only withdraw affordance')
 })
 
 await check('rows expose a hover drag handle alongside their queue status', () => {

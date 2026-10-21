@@ -5,14 +5,14 @@
  */
 env.presentationCSS = `
 .dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section,
-.dshch-panel, .dshqf-panel, .dshqw-editor, .dshhp-tooltip,
+.dshch-panel, .dshqf-panel, .dshhp-tooltip,
 .dshwp-sidebar, .dshwp-skills, .dshwp-taskLanding {
   font-family: var(--dsw-font-family, inherit);
 }
-:where(.dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section, .dshqf-panel, .dshqw-editor) :where(button, input, textarea, select) {
+:where(.dshss-root, .dshss-settings, .dshss-dialogContent, .dshcs-section, .dshqf-panel) :where(button, input, textarea, select) {
   font-family: inherit;
 }
-:where(.dshcs-section, .dshqf-panel, .dshqw-editor) :where(button, input, textarea, select) { box-sizing: border-box; }
+:where(.dshcs-section, .dshqf-panel) :where(button, input, textarea, select) { box-sizing: border-box; }
 /* One viewport background joins the caption and rail. Fade before native window controls. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));

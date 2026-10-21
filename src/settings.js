@@ -73,6 +73,9 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-effort-slider.title': '推理强度滑条',
     'feature.dsh-effort-slider.summary': '滑动选择当前模型支持的推理强度。',
     'feature.dsh-effort-slider.note': '松开后生效；可恢复默认强度，并保留原生模型菜单。',
+    'feature.dsh-composer-status.title': '上下文状态按钮',
+    'feature.dsh-composer-status.summary': '把上下文环与对话统计合并为一个上下文按钮：一级菜单选面板，二级菜单看详情。',
+    'feature.dsh-composer-status.note': '上下文按钮位于模型名左侧；只保留一个图标，点击先出三个面板的图标与信息，再展开详情。',
     'feature.dsh-continue.summary': '输入为空时，用继续按钮接着处理当前对话。',
     'feature.dsh-continue.note': '仅在已有对话且未运行时显示；发送结果不明时等待确认。',
     'feature.dsh-selection-toolbar.title': '选区工具栏',
@@ -123,11 +126,14 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-file-link-actions.title': '文件操作菜单',
     'feature.dsh-file-link-actions.summary': '右键打开文件、定位文件夹或复制完整路径。',
     'feature.dsh-file-link-actions.note': '打开操作在运行 DSH 的设备上执行。',
+    'feature.dsh-attachment-actions.title': '附件操作菜单',
+    'feature.dsh-attachment-actions.summary': '右键复制、保存或预览对话与输入框里的图片和文件。',
+    'feature.dsh-attachment-actions.note': '图片地址为本地预览时复制 Data URL；桌面拖入的附件可复制路径。',
     'feature.dsh-composer-history.title': '输入历史',
     'feature.dsh-composer-history.summary': '搜索历史输入，或用 ↑ 取回上一条。',
     'feature.dsh-composer-history.note': '历史保存在此浏览器，最多 500 条，仅包含文本。',
     'feature.dsh-queue-withdraw.title': '排队消息',
-    'feature.dsh-queue-withdraw.summary': '撤回、编辑、排序和锁定排队消息。',
+    'feature.dsh-queue-withdraw.summary': '「编辑」撤回输入框、拖动排序、锁定排队消息。',
     'feature.dsh-queue-withdraw.note': '锁定状态在重启后保留。文件撤回需要此浏览器的附件缓存。',
     'feature.dsh-quick-fork.title': '临时侧聊',
     'feature.dsh-quick-fork.summary': '在侧边面板独立追问选中内容。',
@@ -148,6 +154,11 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-effort-slider.title': 'Reasoning effort slider',
     'feature.dsh-effort-slider.summary': 'Slide through the current model’s supported reasoning levels.',
     'feature.dsh-effort-slider.note': 'Applies on release, with reset and the native model menu.',
+    'feature.dsh-composer-status.title': 'Context status button',
+    'feature.dsh-composer-status.summary':
+      'Merge the context ring and conversation stats into one context button: pick a panel in the first-level menu, read details in the second.',
+    'feature.dsh-composer-status.note':
+      'The context button sits before the model name; one icon opens the three panel entries with their icons and info, then the detail panel.',
     'feature.dsh-continue.summary': 'Continue the current conversation when the composer is empty.',
     'feature.dsh-continue.note':
       'Shown for idle existing conversations; uncertain sends await confirmation.',
@@ -211,12 +222,17 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-file-link-actions.summary':
       'Open, reveal or copy the full path of a file from its context menu.',
     'feature.dsh-file-link-actions.note': 'Open and reveal run on the device hosting DSH.',
+    'feature.dsh-attachment-actions.title': 'Attachment actions',
+    'feature.dsh-attachment-actions.summary':
+      'Right-click images and files in the conversation or composer to copy, save or preview them.',
+    'feature.dsh-attachment-actions.note':
+      'Local previews copy as a data URL; desktop-dropped drafts can expose their path.',
     'feature.dsh-composer-history.title': 'Prompt history',
     'feature.dsh-composer-history.summary':
       'Search earlier prompts or recall the previous one with ArrowUp.',
     'feature.dsh-composer-history.note': 'This browser stores up to 500 text-only records.',
     'feature.dsh-queue-withdraw.title': 'Queued messages',
-    'feature.dsh-queue-withdraw.summary': 'Withdraw, edit, reorder and hold queued messages.',
+    'feature.dsh-queue-withdraw.summary': 'Edit withdraws to the composer; reorder and hold queued messages.',
     'feature.dsh-queue-withdraw.note':
       'Holds survive a restart. File withdrawal requires this browser to retain the attachment cache.',
     'feature.dsh-quick-fork.title': 'Side chat',

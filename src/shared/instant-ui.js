@@ -9,7 +9,7 @@ __DSH_FEATURE('dsh-instant-ui', function () {
   ].join(',')
   const controls = `:where(${surfaces},.dshlr-rail,.dshss-root,.dshss-settings,
     .dshcs-section,.dshst-headerActions,.dshwp-sidebar,.dshwp-taskFilter,
-    .dshqw-row,.dshqw-editor,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
+    .dshqw-freeze,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
   const css = `
     :is(${surfaces}),
     [role="presentation"]:has(> :is(${surfaces})[aria-modal="true"]),

@@ -7,14 +7,7 @@
  */
 __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   const React = require('react')
-  const { createPortal } = require('react-dom')
-  const {
-    Button,
-    Modal,
-    Menu,
-    IconEllipsisOutlineRegular,
-    IconEditOutlineRegular,
-  } = require('@deepseek-ai/dsh-client-ui-primitives')
+  const { ImageLightbox } = require('@deepseek-ai/dsh-client-ui-primitives')
   const { useEffect, useMemo, useRef, useState } = React
   const h = React.createElement
 
@@ -22,177 +15,82 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   const NS = 'queueWithdraw'
 
   const zh = {
-    'button.label': '撤回到输入栏',
-    'button.tooltip': '把这条排队消息撤回输入栏',
     'button.attachments': '这条消息包含暂不支持的附件内容',
     'button.cacheMissing': '没有找到该文件附件的本地缓存，无法撤回',
-    'button.cacheHint': '撤回文件附件（使用本插件的本地缓存）',
-    'button.editHint': '编辑排队消息',
-    'withdraw.tooltip': '撤回输入栏（替换输入框内容）',
-    'menu.label': '更多操作',
-    'menu.edit': '编辑消息',
-    'menu.withdraw': '撤回到输入框',
-    'menu.freeze': '冻结消息',
-    'menu.thaw': '解冻消息',
-    'steer.label': '引导',
     'remove.missing': '消息已离开队列，可能已开始发送。',
     'remove.unavailable': '会话尚未就绪，暂时无法删除。',
     'remove.writer': '删除失败：会话正由其他 DSH 实例占用。',
     'remove.ownership': '删除失败：会话当前无法修改队列。{detail}',
     'remove.failed': '删除失败：{detail}',
     'remove.unknown': '删除结果尚未确认，消息仍在队列时可重试。{detail}',
-    'editor.title': '编辑排队消息',
-    'editor.placeholder': '消息内容',
-    'editor.addAttachment': '添加附件',
-    'editor.removeAttachment': '移除附件',
-    'editor.preview': '预览附件',
-    'editor.attachment': '附件',
-    'editor.cancel': '取消',
-    'editor.save': '保存',
-    'editor.failed': '保存失败，排队消息可能已变化',
-    'merge.drop': '松开以合并到此消息末尾',
+    'preview.title': '预览附件',
+    'preview.close': '关闭',
     'reorder.tooltip': '拖动排序排队消息',
     'reorder.failed': '排序失败，队列可能已变化',
-    'merge.label': '合并',
-    'merge.tooltip': '把纯文本排队消息合并成一条',
     'merge.failed': '合并失败，队列可能已变化',
-    'merge.attachments': '含附件的排队消息无法合并',
     'button.empty': '这条排队消息没有可撤回的文本',
     'button.failed': '撤回失败，消息仍在队列中',
+    'draftReplace.message': '输入框已有内容，撤回这条排队消息会替换现有草稿。继续？',
     'withdraw.unknown': '撤回结果尚未确认，内容已保留在输入框。请检查队列后再发送。',
     'freeze.tooltip': '锁定，本轮结束不发送',
     'freeze.failed': '锁定失败，队列可能已变化',
-    'frozen.thaw': '解锁',
     'frozen.activate': '解锁',
     'frozen.thawFailed': '解锁失败，队列可能已变化',
   }
 
   const en = {
-    'button.label': 'Withdraw to input',
-    'button.tooltip': 'Withdraw this queued message back into the composer',
     'button.attachments': 'This message contains attachment content that cannot be withdrawn',
     'button.cacheMissing':
       'No local cache was found for this file attachment; it cannot be withdrawn',
-    'button.cacheHint': "Withdraw file attachment (uses this plugin's local cache)",
-    'button.editHint': 'Edit queued message',
-    'withdraw.tooltip': 'Withdraw to input (replaces the composer)',
-    'menu.label': 'More actions',
-    'menu.edit': 'Edit message',
-    'menu.withdraw': 'Move to composer',
-    'menu.freeze': 'Freeze message',
-    'menu.thaw': 'Unfreeze message',
-    'steer.label': 'Steer',
     'remove.missing': 'The message has left the queue and may have started sending.',
     'remove.unavailable': 'The session is not ready to remove messages.',
     'remove.writer': 'Could not remove: another DSH instance owns this session.',
     'remove.ownership': 'This session cannot currently modify its queue. {detail}',
     'remove.failed': 'Could not remove: {detail}',
     'remove.unknown': 'Removal is unconfirmed. Retry if the message remains queued. {detail}',
-    'editor.title': 'Edit queued message',
-    'editor.placeholder': 'Message content',
-    'editor.addAttachment': 'Add attachment',
-    'editor.removeAttachment': 'Remove attachment',
-    'editor.preview': 'Preview attachment',
-    'editor.attachment': 'Attachment',
-    'editor.cancel': 'Cancel',
-    'editor.save': 'Save',
-    'editor.failed': 'Save failed; the queue may have changed',
-    'merge.drop': 'Release to merge at the end of this message',
+    'preview.title': 'Preview attachment',
+    'preview.close': 'Close',
     'reorder.tooltip': 'Drag to reorder queued messages',
     'reorder.failed': 'Reorder failed; the queue may have changed',
-    'merge.label': 'Merge',
-    'merge.tooltip': 'Merge the queued text messages into one',
     'merge.failed': 'Merge failed; the queue may have changed',
-    'merge.attachments': 'Messages with attachments cannot be merged',
     'button.empty': 'This queued message has no text to withdraw',
     'button.failed': 'Withdraw failed; the message is still queued',
+    'draftReplace.message':
+      'The composer already has content. Withdrawing this queued message replaces it. Continue?',
     'withdraw.unknown': 'Withdrawal is unconfirmed. Content is kept in the composer; check the queue before sending.',
     'freeze.tooltip': 'Lock: do not send it when the turn ends',
     'freeze.failed': 'Lock failed; the queue may have changed',
-    'frozen.thaw': 'Unlock',
     'frozen.activate': 'Unlock',
     'frozen.thawFailed': 'Unlock failed; the queue may have changed',
   }
 
-  /** Icon used by the injected row action. */
-  /** Withdraw icon: down arrow onto the composer line. The viewBox is the
-   *  glyph's tight box so it fills the 14px action box like the Host icons. */
-  const WITHDRAW_ICON =
-    '<svg viewBox="2.1 1.5 11.8 12.4" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v7"/><path d="M5.2 6.6 8 9.4 10.8 6.6"/><path d="M2.8 13.2h10.4"/></svg>'
-
-  /** Closed lock for the per-row lock action. Tight viewBox: fills 14px. */
+  /**
+   * Row icons use the Host icon language: the same 16-unit grid, regular
+   * one-pixel stroke and currentColor paths as the primitive icon set. The
+   * leading message icon renders at 16px inside a 28px button; the lock swap
+   * keeps the native optical weight.
+   */
+  const ICON_SVG_ATTRS = 'viewBox="0 0 16 16" fill="none" stroke-width="1" aria-hidden="true"'
+  /**
+   * Closed lock: the shackle meets the body's top edge. The body spans 11 of
+   * the 16 grid units, close to the 12.6-unit reach of the native edit icon, so
+   * the glyph keeps the same optical size as its neighbours.
+   */
   const LOCK_ICON =
-    '<svg viewBox="2.3 1.5 11.4 12.9" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.9" width="10" height="6.8" rx="1.6"/><path d="M5.3 6.9V4.9a2.7 2.7 0 0 1 5.4 0v2"/></svg>'
-  const UNLOCK_ICON =
-    '<svg viewBox="2.3 1.5 11.4 12.9" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.9" width="10" height="6.8" rx="1.6"/><path d="M5.3 6.9V4.9a2.7 2.7 0 0 1 5.4 0"/></svg>'
+    '<svg ' +
+    ICON_SVG_ATTRS +
+    '><path d="M5 6.25H11C12.1 6.25 13 7.15 13 8.25V12C13 13.1 12.1 14 11 14H5C3.9 14 3 13.1 3 12V8.25C3 7.15 3.9 6.25 5 6.25Z" stroke="currentColor"/><path d="M5.5 6.25V4.25A2.5 2.5 0 0 1 10.5 4.25V6.25" stroke="currentColor"/></svg>'
 
+  /**
+   * The leading glyph is the Host's own message icon (IconQueueOutlineRegular,
+   * the artwork the native queue dock uses for its single-row lead). It is the
+   * idle face of the lock toggle: the same button shows the closed lock while
+   * the message is held, so the icon stays useful instead of pure decoration.
+   */
+  const QUEUE_GLYPH =
+    '<svg class="dshqw-queueGlyph" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke-width="1" aria-hidden="true"><path d="M5 6.75H11" stroke="currentColor"/><path d="M5 9H8" stroke="currentColor"/><path d="M2.37067 11.2497C1.5872 9.89252 1.32042 8.29798 1.61945 6.7597C1.91847 5.22141 2.76317 3.84293 3.99801 2.87809C5.23285 1.91325 6.7747 1.427 8.33964 1.50888C9.90458 1.59076 11.3873 2.23526 12.5147 3.32369C13.6422 4.41232 14.3384 5.8717 14.4751 7.43304C14.6118 8.99438 14.1797 10.5525 13.2585 11.8205C12.3372 13.0885 10.9889 13.9809 9.4617 14.3334C8.18666 14.6277 6.8587 14.529 5.64964 14.0601C5.17095 13.8745 4.76937 13.4929 4.26509 13.3963C3.67389 13.2832 2.95232 13.5595 2.0377 14.3334" stroke="currentColor"/></svg>'
   const HANDLE_ICON =
-    '<svg class="dshqw-grip" viewBox="0 0 8 16" width="8" height="16" fill="currentColor" aria-hidden="true"><circle cx="2" cy="4" r=".8"/><circle cx="6" cy="4" r=".8"/><circle cx="2" cy="8" r=".8"/><circle cx="6" cy="8" r=".8"/><circle cx="2" cy="12" r=".8"/><circle cx="6" cy="12" r=".8"/></svg><svg class="dshqw-queueGlyph" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5v7a2 2 0 0 0 2 2h8m-2.5-2.5 2.5 2.5-2.5 2.5M6.5 3.5H13M6.5 6.5H13"/></svg><span class="dshqw-lockGlyph">' +
-    LOCK_ICON +
-    '</span>'
-
-  /** Menu actions relay to live Host controls, preserving their busy guards. */
-  function QueueRowMenu({
-    row,
-    held,
-    disabled,
-    editDisabled,
-    withdrawDisabled,
-    freezeDisabled,
-    t,
-  }) {
-    const [open, setOpen] = useState(false)
-    const icon = (markup) =>
-      h('span', { className: 'dshqw-menuIcon', dangerouslySetInnerHTML: { __html: markup } })
-    return h(Menu, {
-      listClassName: 'dsh-motion-surface',
-      open,
-      onClose: () => setOpen(false),
-      portal: true,
-      align: 'end',
-      autoFocus: true,
-      anchor: h(
-        'button',
-        {
-          type: 'button',
-          className: 'dshqw-more',
-          'aria-label': t('menu.label'),
-          'aria-haspopup': 'menu',
-          'aria-expanded': open,
-          disabled,
-          onClick: () => setOpen((value) => !value),
-        },
-        h(IconEllipsisOutlineRegular, { size: 14 }),
-      ),
-      items: [
-        {
-          id: 'edit',
-          label: t('menu.edit'),
-          icon: h(IconEditOutlineRegular, { size: 16 }),
-          disabled: editDisabled,
-        },
-        {
-          id: 'withdraw',
-          label: t('menu.withdraw'),
-          icon: icon(WITHDRAW_ICON),
-          disabled: withdrawDisabled,
-        },
-        {
-          id: 'freeze',
-          label: t(held ? 'menu.thaw' : 'menu.freeze'),
-          icon: icon(held ? UNLOCK_ICON : LOCK_ICON),
-          disabled: freezeDisabled,
-        },
-      ],
-      onSelect: (id) => {
-        setOpen(false)
-        if (row.isConnected === false) return
-        const button =
-          id === 'edit' ? hostEditButtonOf(row) : row.querySelector('[data-dshq-' + id + ']')
-        if (button && !button.disabled) button.click()
-      },
-    })
-  }
+    '<svg class="dshqw-grip" viewBox="0 0 8 16" width="8" height="16" fill="currentColor" aria-hidden="true"><circle cx="2" cy="4" r=".8"/><circle cx="6" cy="4" r=".8"/><circle cx="2" cy="8" r=".8"/><circle cx="6" cy="8" r=".8"/><circle cx="2" cy="12" r=".8"/><circle cx="6" cy="12" r=".8"/></svg>'
 
   const REORDER_PATH = '/dsh-queue-withdraw/reorder'
   const UPDATE_PATH = '/dsh-queue-withdraw/update'
@@ -718,7 +616,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   function hostEditButtonOf(row) {
     if (typeof row.querySelectorAll !== 'function') return null
     for (const candidate of row.querySelectorAll('button[aria-label]')) {
-      if (candidate.hasAttribute?.('data-dsh-queue-withdraw') === true) continue
       const label = candidate.getAttribute?.('aria-label') ?? ''
       if (/编辑|Edit/i.test(label) && !/取消|Cancel/i.test(label)) return candidate
     }
@@ -738,146 +635,14 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     row.append?.(button)
   }
 
-  /** Attachment edits use the host modal for focus, Escape and scroll locking. */
-  function QueueEditor({ item, actions, t, onClose }) {
-    const [text, setText] = useState(() => textOfContent(item.content))
-    const [kept, setKept] = useState(() =>
-      (item.content ?? []).filter((block) => block?.type === 'image' || block?.type === 'file'),
-    )
-    const [added, setAdded] = useState([])
-    const [busy, setBusy] = useState(false)
-    const [error, setError] = useState('')
-    const input = useRef(null)
-    const textarea = useRef(null)
-    useEffect(() => {
-      textarea.current?.focus()
-    }, [])
-    const close = () => {
-      if (!busy) onClose()
-    }
-    const readFiles = async (event) => {
-      const files = [...(event.target.files ?? [])]
-      event.target.value = ''
-      setBusy(true)
-      try {
-        const next = []
-        for (const file of files) {
-          const data = await new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onerror = () => reject(reader.error)
-            reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-            reader.readAsDataURL(file)
-          })
-          if (data === '') throw new Error('empty file')
-          next.push({
-            name: file.name,
-            mediaType: file.type,
-            kind: file.type.startsWith('image/') ? 'image' : 'file',
-            data,
-          })
-        }
-        setAdded((current) => [...current, ...next])
-      } catch {
-        setError(t('editor.failed'))
-      } finally {
-        setBusy(false)
-      }
-    }
-    const save = async () => {
-      if (busy) return
-      setBusy(true)
-      try {
-        if (await actions.updateItem(item.id, text, kept, added, t('editor.failed'))) onClose()
-        else setError(t('editor.failed'))
-      } finally {
-        setBusy(false)
-      }
-    }
-    const chips = (items, setter) =>
-      items.map((block, index) =>
-        h(
-          'span',
-          { className: 'dshqw-editorChip', key: index },
-          block.attachment?.name ?? block.name ?? t('editor.attachment'),
-          h(
-            'button',
-            {
-              type: 'button',
-              disabled: busy,
-              className: 'dshqw-editorChipRemove',
-              'aria-label': t('editor.removeAttachment'),
-              onClick: () => setter((current) => current.filter((_value, i) => i !== index)),
-            },
-            '×',
-          ),
-        ),
-      )
-    return h(
-      Modal,
-      {
-        className: 'dsh-motion-surface',
-        open: true,
-        title: t('editor.title'),
-        closeLabel: t('editor.cancel'),
-        onClose: close,
-        footer: h(
-          'div',
-          { className: 'dshqw-editorActions' },
-          h(Button, { variant: 'ghost', disabled: busy, onClick: close }, t('editor.cancel')),
-          h(
-            Button,
-            {
-              variant: 'primary',
-              disabled: busy || (text.trim() === '' && kept.length + added.length === 0),
-              onClick: () => {
-                void save()
-              },
-            },
-            t('editor.save'),
-          ),
-        ),
-      },
-      h(
-        'div',
-        { className: 'dshqw-editor' },
-        h('textarea', {
-          ref: textarea,
-          className: 'dshqw-editorText',
-          value: text,
-          disabled: busy,
-          'aria-label': t('editor.placeholder'),
-          onChange: (event) => setText(event.target.value),
-        }),
-        h('div', { className: 'dshqw-editorChips' }, chips(kept, setKept), chips(added, setAdded)),
-        h('input', {
-          ref: input,
-          type: 'file',
-          multiple: true,
-          hidden: true,
-          onChange: (event) => {
-            void readFiles(event)
-          },
-        }),
-        h(
-          Button,
-          { variant: 'ghost', disabled: busy, onClick: () => input.current?.click() },
-          t('editor.addAttachment'),
-        ),
-        error === '' ? null : h('p', { role: 'alert', className: 'dshqw-editorError' }, error),
-      ),
-    )
-  }
-
   /**
-   * The global decoration layer. It
-   * reconciles one injected button with each host queue row.
+   * The global decoration layer. It reconciles one injected lock control and
+   * re-purposes the Host edit control on each queue row.
    * @param {object} props - session id, standard hooks, injected actions and translator.
    * @returns {null} no React output.
    */
   function QueueWithdraw({ sessionId, useSession, useProjection, actions, t }) {
-    const [editor, setEditor] = useState(null)
     const [preview, setPreview] = useState(null)
-    const [rowMenus, setRowMenus] = useState([])
     const inbox = useProjection('inbox')
     const queue = useMemo(
       () => (Array.isArray(inbox?.['next-turn']) ? inbox['next-turn'] : []),
@@ -925,14 +690,12 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     useEffect(() => {
       if (typeof document === 'undefined' || typeof MutationObserver !== 'function')
         return undefined
-      const editItems = new Map()
-      const editEntries = new Set()
-      const editOriginal = new Map()
+      const editRestores = new Map()
+      const editIntercepted = new WeakSet()
       const previewOriginal = new Map()
       const rowItems = new WeakMap()
-      const nativeActionNodes = new Set()
       const removeButtons = new Set()
-      const removalDisabled = new Set()
+      const busyDisabled = new Set()
       const expandingHeaders = new WeakSet()
       const decoratedDocks = new Set()
       const listeners = new Map()
@@ -964,27 +727,50 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           }, 0)
         }
       }
-      /** Withdraw one queue item through the Host edit control. */
+      /**
+       * One withdrawal at a time. The composer draft is replaced wholesale, so
+       * two concurrent withdrawals would drop one message's text: a second
+       * click (or drop) is ignored until the first Host round-trip settles.
+       */
+      let withdrawing = false
+
+      /**
+       * Withdraw one queue item back into the composer. Returns whether the
+       * Host accepted the removal.
+       * @param {Element|null} button - triggering control, disabled while busy.
+       * @param {object} item - queue item with id and content.
+       * @returns {Promise<boolean>} whether the item left the queue.
+       */
+      const withdrawItem = async (button, item) => {
+        if (withdrawing) return false
+        withdrawing = true
+        if (button !== null && button !== undefined) button.disabled = true
+        try {
+          const accepted = await actionsRef.current.withdraw(
+            item,
+            tRef.current('button.empty'),
+            tRef.current('button.failed'),
+            tRef.current('button.attachments'),
+            tRef.current('button.cacheMissing'),
+          )
+          if (accepted !== true) return false
+          // A withdrawn message leaves the queue, so its lock must go too.
+          const id = String(item.id)
+          if (frozenIdsOf(sessionId).has(id)) {
+            await actionsRef.current.thaw(id, tRef.current('frozen.thawFailed'))
+            await refreshFrozenRef.current()
+          }
+          return true
+        } finally {
+          withdrawing = false
+          sync()
+        }
+      }
+
+      /** Withdraw from the re-purposed Host edit control. */
       const withdrawThrough = async (button, item) => {
         if (button.disabled) return
-        button.disabled = true
-        const accepted = await actionsRef.current.withdraw(
-          item,
-          tRef.current('button.empty'),
-          tRef.current('button.failed'),
-          tRef.current('button.attachments'),
-          tRef.current('button.cacheMissing'),
-        )
-        if (accepted !== true) {
-          button.disabled = false
-          return
-        }
-        // A withdrawn message leaves the queue, so its lock must go too.
-        const id = String(item.id)
-        if (frozenIdsOf(sessionId).has(id)) {
-          await actionsRef.current.thaw(id, tRef.current('frozen.thawFailed'))
-          await refreshFrozenRef.current()
-        }
+        await withdrawItem(button, item)
       }
 
       /**
@@ -1007,10 +793,18 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         button.disabled = false
       }
 
-      const closeEditor = () => setEditor(null)
-      const openEditor = (_row, item) => setEditor({ item })
-      const openPreview = (src) => {
-        if (typeof src === 'string' && src !== '') setPreview(src)
+      /**
+       * Open the Host's own image lightbox for one queue thumbnail. The queue
+       * rows reuse the same primitive the composer and transcripts use, so the
+       * preview surface stays native instead of a second custom modal.
+       * @param {Element} image - queue row thumbnail.
+       */
+      const openPreview = (image) => {
+        if (image === null || image === undefined) return
+        const src = image.currentSrc || image.src || image.getAttribute?.('src') || ''
+        if (typeof src !== 'string' || src === '') return
+        const alt = image.getAttribute?.('alt') ?? ''
+        setPreview({ src, alt: typeof alt === 'string' ? alt : '' })
       }
 
       /** Whether a pointer drag is currently moving a queue row. */
@@ -1163,21 +957,15 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             const targetItem = rowItems.get(mergeWith)
             if (targetItem !== undefined && String(targetItem.id) !== String(current.id)) {
               await actionsRef.current.mergeInto(
-                String(targetItem.id),
-                String(current.id),
+                targetItem,
+                current,
                 tRef.current('merge.failed'),
               )
             }
             return
           }
           if (composerDrop !== null) {
-            await actionsRef.current.withdraw(
-              current,
-              tRef.current('button.empty'),
-              tRef.current('button.failed'),
-              tRef.current('button.attachments'),
-              tRef.current('button.cacheMissing'),
-            )
+            await withdrawItem(null, current)
             return
           }
           if (order.length !== initial.length || order.some((id, index) => id !== initial[index])) {
@@ -1193,16 +981,15 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
       }
 
       /**
-       * Give each Host row one handle and one menu mount. Hidden action
-       * relays retain the existing withdrawal and freeze state transitions.
+       * Give each Host row its drag handle and the inline lock toggle. The lock
+       * is a visible peer of the Host's own row actions; withdrawal itself is
+       * re-purposed onto the Host edit control instead of a second button.
        * @param {Element} row - host queue row.
        * @param {object} item - queue item currently shown by the row.
-       * @returns {Element|null} the injected withdraw button.
        */
       const ensureRow = (row, item) => {
-        if (typeof row.querySelector !== 'function') return null
+        if (typeof row.querySelector !== 'function') return
         rowItems.set(row, item)
-        const actions = row.querySelector?.('[class*="actions"]') ?? null
         if (row.getAttribute?.('data-dshq-row') !== '') {
           row.setAttribute('data-dshq-row', '')
           listen(row, 'pointerdown', (event) => beginRowDrag(row, event))
@@ -1214,7 +1001,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           handle.className = 'dshqw-handle'
           handle.setAttribute('data-dshq-handle', '')
           handle.setAttribute('aria-label', tRef.current('reorder.tooltip'))
-          handle.setAttribute('title', tRef.current('reorder.tooltip'))
           handle.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown')
           handle.innerHTML = HANDLE_ICON
           listen(handle, 'pointerdown', (event) => {
@@ -1237,162 +1023,116 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           })
           placeButton(row, handle)
         }
-        if (!row.querySelector('[data-dshq-menu]')) {
-          const mount = document.createElement('span')
-          mount.className = 'dshqw-menuMount'
-          mount.setAttribute('data-dshq-menu', '')
-          row.append(mount)
-        }
-        let withdraw = row.querySelector?.('[data-dshq-withdraw]')
-        if (withdraw === null || withdraw === undefined) {
-          withdraw = document.createElement('button')
-          withdraw.type = 'button'
-          withdraw.className = 'dshqw-withdraw'
-          withdraw.setAttribute('data-dshq-withdraw', '')
-          withdraw.setAttribute('aria-label', tRef.current('withdraw.tooltip'))
-          withdraw.setAttribute('aria-hidden', 'true')
-          withdraw.tabIndex = -1
-          withdraw.innerHTML = WITHDRAW_ICON
-          withdraw.addEventListener('click', (event) => {
-            event.preventDefault?.()
-            event.stopPropagation?.()
-            const target = rowItems.get(row)
-            if (target !== undefined) void withdrawThrough(withdraw, target)
-          })
-          // Appended once, at the dock's trailing edge, after the native
-          // actions: the left text edge never moves when React re-creates the
-          // row and this button is re-added.
-          row.append?.(withdraw)
-        }
         let freeze = row.querySelector?.('[data-dshq-freeze]')
         if (freeze === null || freeze === undefined) {
           freeze = document.createElement('button')
           freeze.type = 'button'
-          freeze.className = 'dshqw-freeze'
+          freeze.className = 'dshqw-lockToggle'
           freeze.setAttribute('data-dshq-freeze', '')
           freeze.setAttribute('aria-label', tRef.current('freeze.tooltip'))
-          freeze.setAttribute('title', tRef.current('freeze.tooltip'))
-          freeze.setAttribute('aria-hidden', 'true')
-          freeze.tabIndex = -1
-          freeze.innerHTML = UNLOCK_ICON
-          freeze.addEventListener('click', (event) => {
+          freeze.setAttribute('aria-pressed', 'false')
+          freeze.innerHTML = QUEUE_GLYPH
+          listen(freeze, 'click', (event) => {
             event.preventDefault?.()
             event.stopPropagation?.()
             const target = rowItems.get(row)
             if (target !== undefined) void freezeThrough(freeze, target)
           })
-          // The lock sits just before the native action cluster.
-          if (actions !== null && actions !== undefined) row.insertBefore(freeze, actions)
-          else row.append?.(freeze)
-        }
-        return withdraw
-      }
-
-      const syncNativeActions = (row) => {
-        const box = row.querySelector('[class*="actions"]')
-        if (!box) return
-        const edit = hostEditButtonOf(row)
-        for (const button of box.querySelectorAll('button[aria-label]')) {
-          const label = button.getAttribute('aria-label') ?? ''
-          const kind =
-            button === edit
-              ? 'edit'
-              : /引导|插话|Steer/i.test(label)
-                ? 'steer'
-                : /移除|删除|Remove|Delete/i.test(label)
-                  ? 'remove'
-                  : null
-          let wrapper = button
-          while (wrapper.parentElement && wrapper.parentElement !== box)
-            wrapper = wrapper.parentElement
-          if (!kind) {
-            wrapper.removeAttribute('data-dshq-native-action')
-            continue
-          }
-          wrapper.setAttribute('data-dshq-native-action', kind)
-          if (kind === 'steer')
-            button.setAttribute('data-dshq-action-label', tRef.current('steer.label'))
-          nativeActionNodes.add(wrapper)
-          if (kind === 'remove' && !removeButtons.has(button)) {
-            removeButtons.add(button)
-            listen(
-              button,
-              'click',
-              async (event) => {
-                event.preventDefault?.()
-                event.stopImmediatePropagation?.()
-                const item = rowItems.get(row)
-                if (button.disabled || !item) return
-                const accepted = await actionsRef.current.removal?.remove(item.id)
-                if (accepted && !disposed && frozenIdsOf(sessionId).has(String(item.id))) {
-                  await actionsRef.current.thaw(String(item.id), tRef.current('frozen.thawFailed'))
-                  await refreshFrozenRef.current()
-                }
-              },
-              true,
-            )
-          }
+          // The leading message icon doubles as the lock toggle. It sits right
+          // after the drag grip so dragging and locking stay separate gestures.
+          const grip = row.querySelector?.('[data-dshq-handle]') ?? null
+          if (grip !== null && grip !== undefined) row.insertBefore?.(freeze, grip.nextSibling ?? null)
+          else row.insertBefore?.(freeze, row.firstChild ?? null)
         }
       }
 
       /**
-       * Leave text messages to the Host's own inline editor. Only a message
-       * made purely of attachments — which the Host refuses to edit — falls
-       * back to this plugin's editor.
+       * The Host's remove control is the only native action this plugin
+       * intercepts: it relays through the session-scoped removal controller so
+       * ownership errors are reported once. Steer and the other Host controls
+       * keep their native labels, icons, order and tooltips untouched.
        */
-      const syncHostEdit = (row, item) => {
-        if (typeof row.querySelectorAll !== 'function') return
-        const plan = withdrawPlan(item?.content)
-        const edit = hostEditButtonOf(row)
-        if (edit === null) return
-        if (plan.unsupported || plan.attachments.length === 0) {
-          editItems.delete(edit)
-          if (edit.hasAttribute?.('data-dshq-edit')) {
-            edit.removeAttribute('data-dshq-edit')
-            edit.setAttribute('aria-label', editOriginal.get(edit)?.label ?? 'Edit')
-            if (plan.text !== '' && !actionsRef.current.removal?.busy() && edit.disabled !== false)
-              edit.disabled = false
-          }
-          return
-        }
-        editItems.set(edit, item)
-        editEntries.add(edit)
-        const first = !editOriginal.has(edit)
-        if (first)
-          editOriginal.set(edit, {
-            label: edit.getAttribute('aria-label'),
-            disabled: edit.disabled,
-          })
-        const held =
-          frozenIdsOf(sessionId).has(String(item.id)) || !!actionsRef.current.removal?.busy()
-        if (edit.disabled !== held) edit.disabled = held
-        edit.setAttribute('aria-label', tRef.current('button.editHint'))
-        edit.setAttribute('data-dshq-edit', '')
-        if (first) {
-          for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'focus']) {
-            listen(
-              edit,
-              type,
-              (event) => {
-                if (editItems.has(edit)) event.stopImmediatePropagation?.()
-              },
-              true,
-            )
-          }
+      const syncNativeActions = (row) => {
+        const box = row.querySelector('[class*="actions"]')
+        if (!box) return
+        for (const button of box.querySelectorAll('button[aria-label]')) {
+          const label = button.getAttribute('aria-label') ?? ''
+          if (!/移除|删除|Remove|Delete/i.test(label)) continue
+          if (removeButtons.has(button)) continue
+          removeButtons.add(button)
           listen(
-            edit,
+            button,
             'click',
-            (event) => {
-              const current = editItems.get(edit)
-              if (current === undefined || edit.disabled) return
+            async (event) => {
               event.preventDefault?.()
               event.stopImmediatePropagation?.()
-              event.stopPropagation?.()
-              if (current !== undefined) openEditor(row, current)
+              const item = rowItems.get(row)
+              if (button.disabled || !item) return
+              const accepted = await actionsRef.current.removal?.remove(item.id)
+              if (accepted && !disposed && frozenIdsOf(sessionId).has(String(item.id))) {
+                await actionsRef.current.thaw(String(item.id), tRef.current('frozen.thawFailed'))
+                await refreshFrozenRef.current()
+              }
             },
             true,
           )
         }
+      }
+
+      /**
+       * Re-purpose the Host edit control: it withdraws the message back into
+       * the composer, where it can be edited and sent again. The Host's inline
+       * editor is never opened, so the row keeps only one "编辑" action and no
+       * in-place edit state. Content that cannot be rehydrated stays disabled.
+       */
+      const syncNativeEdit = (row, item) => {
+        if (typeof row.querySelectorAll !== 'function') return
+        const edit = hostEditButtonOf(row)
+        if (edit === null) return
+        const plan = withdrawPlan(item?.content)
+        const blocked = plan.unsupported || (plan.text === '' && plan.attachments.length === 0)
+        if (!editRestores.has(edit)) {
+          editRestores.set(edit, {
+            disabled: edit.disabled,
+            title: edit.getAttribute?.('title') ?? null,
+          })
+        }
+        const disabled = blocked || withdrawing || !!actionsRef.current.removal?.busy()
+        if (edit.disabled !== disabled) edit.disabled = disabled
+        // The custom hover layer owns every tooltip. Strip the Host's native
+        // `title` (its refusal text) so no browser tooltip leaks through; the
+        // unsupported hint travels as an assistive description instead.
+        if (edit.hasAttribute?.('title')) edit.removeAttribute?.('title')
+        if (blocked) {
+          const hint = tRef.current('button.attachments')
+          if (edit.getAttribute?.('aria-description') !== hint)
+            edit.setAttribute?.('aria-description', hint)
+        } else if (edit.hasAttribute?.('aria-description')) {
+          edit.removeAttribute?.('aria-description')
+        }
+        edit.setAttribute?.('data-dshq-edit', '')
+        if (editIntercepted.has(edit)) return
+        editIntercepted.add(edit)
+        listen(
+          edit,
+          'click',
+          (event) => {
+            if (withdrawing) {
+              event.preventDefault?.()
+              event.stopImmediatePropagation?.()
+              event.stopPropagation?.()
+              return
+            }
+            if (edit.disabled) return
+            const current = rowItems.get(row)
+            if (current === undefined) return
+            event.preventDefault?.()
+            event.stopImmediatePropagation?.()
+            event.stopPropagation?.()
+            void withdrawThrough(edit, current)
+          },
+          true,
+        )
       }
       /** Make host queue image thumbnails clickable. */
       const syncPreviews = (row) => {
@@ -1408,7 +1148,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             (event) => {
               event.preventDefault?.()
               event.stopPropagation?.()
-              openPreview(image.getAttribute('src') ?? '')
+              openPreview(image)
             },
             true,
           )
@@ -1417,9 +1157,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 
       /**
        * Reflect the Host's held set on one live queue row: struck-through
-       * text, a closed lock at the dock's trailing edge, and a disabled edit
-       * control. Withdraw and the rest of the row stay available; the message
-       * itself never leaves `next-turn`, only the claim skips it.
+       * text and the closed lock in both the handle and the row action. The
+       * message stays queued; only the claim skips it at the turn boundary.
+       * Editing (now withdrawal) stays available because withdrawing a held
+       * message releases its hold.
        */
       const decorateFrozenRow = (row, item) => {
         const frozen = frozenIdsOf(sessionId).has(String(item.id))
@@ -1431,29 +1172,19 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           if (button.classList?.contains?.('dshqw-freeze-on') !== frozen) {
             button.classList?.toggle?.('dshqw-freeze-on', frozen)
           }
-          const icon = frozen ? LOCK_ICON : UNLOCK_ICON
+          const icon = frozen ? LOCK_ICON : QUEUE_GLYPH
           if (button.getAttribute?.('data-locked') !== String(frozen)) {
             button.setAttribute?.('data-locked', String(frozen))
             button.innerHTML = icon
           }
           const label = frozen ? tRef.current('frozen.activate') : tRef.current('freeze.tooltip')
-          if (button.title !== label) button.title = label
+          // The custom hover layer owns the tooltip; never write the native
+          // `title` attribute (it would surface a browser tooltip on top).
           if (button.getAttribute?.('aria-label') !== label)
             button.setAttribute?.('aria-label', label)
           const pressed = frozen ? 'true' : 'false'
           if (button.getAttribute?.('aria-pressed') !== pressed)
             button.setAttribute?.('aria-pressed', pressed)
-        }
-        const edit = hostEditButtonOf(row)
-        if (edit !== null) {
-          if (frozen) {
-            if (edit.disabled !== true) edit.disabled = true
-            edit.setAttribute?.('data-dshq-locked', '')
-          } else if (edit.hasAttribute?.('data-dshq-locked') === true) {
-            if (!actionsRef.current.removal?.busy() && edit.disabled !== false)
-              edit.disabled = false
-            edit.removeAttribute?.('data-dshq-locked')
-          }
         }
       }
 
@@ -1464,21 +1195,25 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           for (const dispose of off) dispose()
           listeners.delete(node)
           removeButtons.delete(node)
-          editItems.delete(node)
-          editEntries.delete(node)
-          editOriginal.delete(node)
+          editRestores.delete(node)
           previewOriginal.delete(node)
         }
         const queueNow = mutableRef.current === true ? queueRef.current : []
-        const removal = actionsRef.current.removal?.busy()
-        if (!removal) {
-          for (const button of removalDisabled)
+        // Any in-flight queue mutation owns the row controls: a withdrawal or
+        // removal must not race another row action (the composer draft is a
+        // single, wholesale-replaced slot).
+        const busy = withdrawing || !!actionsRef.current.removal?.busy()
+        if (!busy) {
+          for (const button of busyDisabled)
             if (button.isConnected !== false) button.disabled = false
-          removalDisabled.clear()
+          busyDisabled.clear()
         }
-        const menus = []
         for (const dock of docksOf(sessionId)) {
           const header = dock.querySelector?.('.v1kfCW_header[aria-controls][aria-expanded]')
+          // The dock is presented as one flat, always-expanded list: the Host's
+          // collapse affordance is disabled instead of mirrored. A collapsed
+          // Host dock is expanded in place, and the flat stylesheet keeps the
+          // list visible even while React re-renders a collapsed state.
           if (
             header?.getAttribute('aria-expanded') === 'false' &&
             !header.disabled &&
@@ -1490,6 +1225,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           if (!header || header.getAttribute('aria-expanded') === 'true') {
             if (header) expandingHeaders.delete(header)
             if (!dock.hasAttribute('data-dshq-flat')) dock.setAttribute('data-dshq-flat', '')
+            // The Host renders `hidden` on a collapsed list; the flat dock never
+            // collapses, so drop it for both layout and assistive technology.
+            const list = dock.querySelector?.('.v1kfCW_list')
+            if (list?.hasAttribute?.('hidden') === true) list.removeAttribute?.('hidden')
             decoratedDocks.add(dock)
           }
           const rows = hostRowsOf(dock)
@@ -1498,43 +1237,19 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             if (item === undefined) continue
             const row = rows[index]
             ensureRow(row, item)
-            syncHostEdit(row, item)
+            syncNativeEdit(row, item)
             syncPreviews(row)
             decorateFrozenRow(row, item)
             syncNativeActions(row)
-            if (removal)
+            if (busy)
               for (const button of row.querySelectorAll('button')) {
                 if (!button.disabled) {
-                  removalDisabled.add(button)
+                  busyDisabled.add(button)
                   button.disabled = true
                 }
               }
-            const container = row.querySelector('[data-dshq-menu]')
-            if (container)
-              menus.push({
-                row,
-                container,
-                id: String(item.id),
-                held: frozenIdsOf(sessionId).has(String(item.id)),
-                disabled: !!removal,
-                editDisabled: !!removal || (hostEditButtonOf(row)?.disabled ?? true),
-                withdrawDisabled:
-                  !!removal || (row.querySelector('[data-dshq-withdraw]')?.disabled ?? true),
-                freezeDisabled:
-                  !!removal || (row.querySelector('[data-dshq-freeze]')?.disabled ?? true),
-              })
           }
         }
-        setRowMenus((previous) =>
-          previous.length === menus.length &&
-          previous.every((entry, index) =>
-            Object.keys(entry).every((key) => entry[key] === menus[index][key]),
-          )
-            ? previous
-            : menus,
-        )
-        for (const node of nativeActionNodes)
-          if (node.isConnected === false) nativeActionNodes.delete(node)
         for (const dock of decoratedDocks)
           if (dock.isConnected === false) decoratedDocks.delete(dock)
       }
@@ -1598,7 +1313,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['disabled', 'hidden'],
+        attributeFilter: ['disabled', 'hidden', 'aria-label'],
       })
       const offRemoval = actions.removal?.subscribe(sync)
       const offRemovalSources = (actions.removalSources ?? [])
@@ -1616,9 +1331,9 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         observer.disconnect()
         offRemoval?.()
         for (const off of offRemovalSources) off()
-        for (const button of removalDisabled)
+        for (const button of busyDisabled)
           if (button.isConnected !== false) button.disabled = false
-        removalDisabled.clear()
+        busyDisabled.clear()
         removeButtons.clear()
         for (const dock of decoratedDocks) dock.removeAttribute('data-dshq-flat')
         decoratedDocks.clear()
@@ -1627,88 +1342,77 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
         for (const off of listeners.values()) for (const dispose of off) dispose()
         listeners.clear()
         for (const dock of docksOf(sessionId)) {
-          for (const row of hostRowsOf(dock)) row.removeAttribute?.('data-dshq-row')
+          for (const row of hostRowsOf(dock)) {
+            row.removeAttribute?.('data-dshq-row')
+            row.classList?.remove?.('dshqw-locked-row')
+          }
           for (const button of dock.querySelectorAll?.(
-            '[data-dshq-withdraw], [data-dshq-freeze], [data-dshq-handle], [data-dshq-menu]',
+            '[data-dshq-freeze], [data-dshq-handle]',
           ) ?? [])
             button.remove?.()
         }
-        for (const node of nativeActionNodes) {
-          node.removeAttribute('data-dshq-native-action')
-          node.removeAttribute('data-dshq-action-label')
-          for (const button of node.querySelectorAll('button[aria-label]'))
-            button.removeAttribute('data-dshq-action-label')
-        }
-        nativeActionNodes.clear()
-        setRowMenus([])
-        closeEditor()
-        for (const edit of [...editEntries]) {
-          if (edit.hasAttribute?.('data-dshq-edit') === true) {
-            edit.disabled = editOriginal.get(edit)?.disabled ?? true
-            const label = editOriginal.get(edit)?.label
-            if (label !== undefined && label !== null) edit.setAttribute('aria-label', label)
-          }
+        for (const [edit, original] of editRestores) {
+          if (edit.isConnected === false) continue
+          if (edit.disabled !== original.disabled) edit.disabled = original.disabled
+          if (original.title === null) edit.removeAttribute?.('title')
+          else if (edit.getAttribute?.('title') !== original.title)
+            edit.setAttribute?.('title', original.title)
           edit.removeAttribute?.('data-dshq-edit')
         }
+        editRestores.clear()
         for (const [image, cursor] of previewOriginal) {
           image.removeAttribute?.('data-dshq-preview')
           image.style.cursor = cursor
         }
         previewOriginal.clear()
-        editOriginal.clear()
-        editEntries.clear()
-        editItems.clear()
       }
     }, [sessionId, queueMutable])
 
-    if (editor === null && preview === null && rowMenus.length === 0) return null
-    return h(
-      React.Fragment,
-      null,
-      rowMenus.map(({ container, id, ...props }) =>
-        createPortal(h(QueueRowMenu, { ...props, t }), container, id),
-      ),
-      editor === null
-        ? null
-        : h(QueueEditor, {
-            key: String(editor.item.id),
-            item: editor.item,
-            actions,
-            t,
-            onClose: () => setEditor(null),
-          }),
-      preview === null
-        ? null
-        : h(
-            Modal,
-            {
-              className: 'dsh-motion-surface',
-              open: true,
-              title: t('editor.preview'),
-              closeLabel: t('editor.cancel'),
-              onClose: () => setPreview(null),
-            },
-            h('img', { className: 'dshqw-previewImage', src: preview, alt: '' }),
-          ),
-    )
+    if (preview === null) return null
+    return h(ImageLightbox, {
+      src: preview.src,
+      alt: preview.alt,
+      labels: { dialog: t('preview.title'), close: t('preview.close') },
+      onClose: () => setPreview(null),
+    })
   }
 
   /** Presentation only; colors and elevation come from the Host theme. */
   const CSS = `
-/* Keep business-action relays out of the row's visible action cluster. */
-.dshqw-withdraw, .dshqw-freeze { display: none; }
+/* The leading message icon doubles as the lock toggle. It looks like the
+   Host's icon buttons (28px circle, 16px icon, hover pill, focus ring) so the
+   row keeps one leading control while dragging stays on the separate grip. */
+.dshqw-lockToggle {
+  box-sizing: border-box;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  corner-shape: round;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+.dshqw-lockToggle > svg { width: 16px; height: 16px; }
+.dshqw-lockToggle:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshqw-lockToggle:disabled { cursor: default; opacity: .45; }
+.dshqw-lockToggle:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+/* The queue is one flat, always-expanded list: the Host dock header (count and
+   collapse chevron) is removed, and its collapsed list state is forced open so
+   the row actions stay reachable even if React re-renders a collapsed list. */
 [data-queue-dock][data-dshq-flat] .v1kfCW_header { display: none; }
+[data-queue-dock][data-dshq-flat] .v1kfCW_list[hidden] { display: block; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_panel { padding: 2px 0; border-radius: 16px 16px 0 0; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_panel::before { background: var(--dsw-specific-input-major); backdrop-filter: none; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_list { max-height: 180px; }
 [data-queue-dock][data-dshq-flat] .v1kfCW_row { border-radius: 0; box-shadow: none; }
-[data-dshq-native-action="edit"] { display: none !important; }
-[data-dshq-native-action="steer"] { order: 0; }
-[data-dshq-native-action="remove"] { order: 1; }
-.dshqw-menuMount { display: inline-flex; align-items: center; flex: none; }
-.dshqw-menuIcon { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; }
-.dshqw-menuIcon > svg { width: 16px; height: 16px; }
-.dshqw-more,
 .dshqw-handle {
   box-sizing: border-box;
   display: inline-flex;
@@ -1720,6 +1424,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   padding: 0;
   border: 0;
   border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -1730,18 +1435,6 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
   padding: 4px 8px;
 }
 [data-queue-dock] [data-dshq-row] [class*="actions"] { gap: 2px; }
-[data-dshq-native-action="steer"] button,
-button[data-dshq-native-action="steer"] { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: auto; padding: 0 7px; font: inherit; }
-[data-dshq-native-action="steer"] button > svg,
-button[data-dshq-native-action="steer"] > svg { display: none; }
-[data-dshq-native-action="steer"] button::before,
-button[data-dshq-native-action="steer"]::before {
-  content: ''; width: 14px; height: 14px; flex: none; background: currentColor;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3v2a3 3 0 0 0 3 3h7m-3-3 3 3-3 3' fill='none' stroke='black' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-[data-dshq-native-action="steer"] button::after,
-button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-label); white-space: nowrap; }
-[data-dshq-row]:has(textarea, input) .dshqw-menuMount { display: none; }
 [data-queue-dock] [data-dshq-row] [class*="preview"] { font-size: 14px; line-height: 22px; }
 [data-queue-dock] [data-dshq-row] [class*="thumb"] { width: 28px; height: 28px; border-radius: 6px; }
 .dshqw-handle { gap: 1px; cursor: grab; touch-action: none; }
@@ -1751,9 +1444,6 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 [data-dshq-row]:focus-within .dshqw-grip,
 .dshqw-drag-source .dshqw-grip,
 .dshqw-drag-ghost .dshqw-grip { opacity: 1; }
-.dshqw-lockGlyph { display: none; width: 16px; align-items: center; justify-content: center; }
-.dshqw-locked-row .dshqw-queueGlyph { display: none; }
-.dshqw-locked-row .dshqw-lockGlyph { display: inline-flex; color: var(--dsw-alias-label-secondary); }
 @media (hover: none) { .dshqw-grip { opacity: 1; } }
 [data-queue-dock] [data-dshq-row].dshqw-drag-source,
 .dshqw-drag-ghost,
@@ -1761,22 +1451,11 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
   cursor: grabbing;
   user-select: none;
 }
-[data-queue-dock] [data-dshq-row] textarea,
-[data-queue-dock] [data-dshq-row] input {
-  cursor: text;
-  user-select: text;
-}
-.dshqw-more:hover:not(:disabled),
-.dshqw-more[aria-expanded="true"] {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
 [data-queue-dock] .dshqw-handle:is(:hover,:active) { background: transparent; }
-.dshqw-more:disabled,
 .dshqw-handle:disabled {
   cursor: default;
   opacity: .45;
 }
-.dshqw-more:focus-visible,
 .dshqw-handle:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: -2px;
@@ -1797,16 +1476,8 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
 }
 .dshqw-drop-before { box-shadow: inset 0 2px 0 var(--dsw-alias-state-business-primary); }
 .dshqw-drop-after { box-shadow: inset 0 -2px 0 var(--dsw-alias-state-business-primary); }
-.dshqw-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); }
-.dshqw-editorText { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 7px 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; font: inherit; }
-.dshqw-editorChips { display: flex; flex-wrap: wrap; gap: 6px; }
-.dshqw-editorChip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px; border: .5px solid var(--dsw-alias-border-l2); border-radius: 8px; font-size: 12px; line-height: 18px; }
-.dshqw-editorChipRemove { border: 0; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; padding: 0 3px; font: inherit; }
-.dshqw-editorActions { display: flex; justify-content: flex-end; gap: 8px; }
-.dshqw-editorError { color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
 .dshqw-merge-target { outline: 2px dashed var(--dsw-alias-state-business-primary); outline-offset: -2px; border-radius: 8px; }
 .dshqw-drop-composer { outline: 2px dashed var(--dsw-alias-state-business-primary) !important; outline-offset: 2px; }
-.dshqw-previewImage { display: block; max-width: 100%; max-height: 70vh; margin: auto; object-fit: contain; border-radius: 8px; }
 .dshqw-freeze-on {
   opacity: 1;
   color: var(--dsw-alias-label-primary);
@@ -2078,15 +1749,33 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   }
                 },
                 /**
-                 * Replace one queue item's text and attachments through the Host route.
-                 * @param {string} itemId - queue item id.
-                 * @param {string} text - edited text.
-                 * @param {object[]} blocks - kept image/file blocks.
-                 * @param {object[]} files - new uploads as base64.
+                 * Merge the dragged queue message into the receiving one and
+                 * remove the source. The combined content is written through the
+                 * edit route so every image/file attachment block survives the
+                 * merge (the Host merge route only concatenates raw blocks and
+                 * loses attachment previews for queued items).
+                 * @param {object} target - receiving queue item.
+                 * @param {object} source - dragged queue item.
                  * @param {string} failure - failure notice.
-                 * @returns {Promise<boolean>} whether the Host applied the edit.
+                 * @returns {Promise<boolean>} whether both steps were applied.
                  */
-                updateItem: async (itemId, text, blocks, files, failure) => {
+                mergeInto: async (target, source, failure) => {
+                  const targetId = String(target?.id ?? '')
+                  const sourceId = String(source?.id ?? '')
+                  if (targetId === '' || sourceId === '' || targetId === sourceId) return false
+                  const text = [textOfContent(target.content), textOfContent(source.content)]
+                    .filter((value) => value !== '')
+                    .join('\n')
+                  const blocks = [...(target.content ?? []), ...(source.content ?? [])]
+                    .filter(
+                      (block) =>
+                        block !== null &&
+                        typeof block === 'object' &&
+                        (block.type === 'image' || block.type === 'file') &&
+                        block.attachment !== null &&
+                        typeof block.attachment === 'object',
+                    )
+                    .map((block) => ({ type: block.type, attachment: block.attachment }))
                   try {
                     const response = await fetch(UPDATE_PATH, {
                       method: 'POST',
@@ -2094,10 +1783,10 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                       body: JSON.stringify({
                         sessionId,
                         action: 'edit',
-                        itemId,
+                        itemId: targetId,
                         text,
                         blocks,
-                        files,
+                        files: [],
                       }),
                     })
                     const body = await response.json?.()
@@ -2105,28 +1794,16 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                       notify('error', failure)
                       return false
                     }
-                    return true
                   } catch {
                     notify('error', failure)
                     return false
                   }
-                },
-                /**
-                 * Append one queued message to another and remove the source.
-                 * @param {string} targetId - receiving queue item.
-                 * @param {string} sourceId - dragged queue item.
-                 * @param {string} failure - failure notice.
-                 * @returns {Promise<boolean>} whether the Host merged them.
-                 */
-                mergeInto: async (targetId, sourceId, failure) => {
+                  const binding = ctx.sessions.binding(sessionId)
+                  const session = binding?.session
+                  if (session === undefined || typeof session.updateQueue !== 'function') return false
                   try {
-                    const response = await fetch(UPDATE_PATH, {
-                      method: 'POST',
-                      headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify({ sessionId, action: 'merge', targetId, sourceId }),
-                    })
-                    const body = await response.json?.()
-                    if (response.ok !== true || body?.ok !== true) {
+                    const removed = await session.updateQueue(sourceId, { kind: 'remove' })
+                    if (removed?.ok !== true) {
                       notify('error', failure)
                       return false
                     }
@@ -2168,9 +1845,11 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   }
                   let previousDraft = ''
                   try {
-                    previousDraft =
-                      shell?.draftSnapshot ??
-                      (typeof shell?.snapshot?.draft === 'string' ? shell.snapshot.draft : '')
+                    // `snapshot.draft` is the published plain-text draft. The
+                    // shell's structured `draftSnapshot` document is not text,
+                    // so it must never be compared or re-published as a string.
+                    const draft = shell?.snapshot?.draft
+                    if (typeof draft === 'string') previousDraft = draft
                   } catch {
                     previousDraft = ''
                   }
@@ -2187,6 +1866,22 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                     if (Array.isArray(ids)) previousIds.push(...ids)
                   } catch {
                     /* no snapshot */
+                  }
+                  // Replacing a non-empty draft is destructive, so ask once. The
+                  // prompt is browser-only: detached or headless shells keep the
+                  // previous behaviour instead of blocking the withdrawal.
+                  if (
+                    (previousDraft.trim() !== '' || previousIds.length > 0) &&
+                    typeof window !== 'undefined' &&
+                    typeof window.confirm === 'function'
+                  ) {
+                    let replace = true
+                    try {
+                      replace = window.confirm(ctx.locale.bind(NS)('draftReplace.message')) === true
+                    } catch {
+                      replace = true
+                    }
+                    if (replace !== true) return false
                   }
                   const releaseAdded = () => {
                     for (const id of addedIds) {

@@ -4,6 +4,41 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.3.0] - 2026-10-21
+
+### Added
+
+- Inline composer status (`dsh-composer-status`): the host context-occupancy ring and the two session stat buttons move from the external dock row into the composer's own control row. All three keep only their icon — the ring sits directly before the model name and the stat buttons hug it from the left — while tooltips and click-open detail dialogs stay native. The external dock no longer adds vertical height, so the composer card stays on the window bottom; the icon pair collapses away first on narrow rows.
+
+### Validation
+
+- `checks/composer-status.mjs` covers the fit plan (wide, boundary, tool-collision and wrapped-row cases), dock surface splitting and the no-reparent/no-text-write contract; the isolated review fixture gains an opt-in status mode that supplies the host projections for visual verification.
+
+## [Unreleased]
+
+### Added
+
+- Attachment action menu (`dsh-attachment-actions`): right-click a draft, message, tool-result or trajectory attachment to copy the image, copy its address, save the original bytes, open the host lightbox, copy file names and sizes, or remove a composer draft. Desktop-dropped drafts also copy their host path, reveal in the file manager or open with the default application. The menu reuses the host `Menu` and `Toast` primitives and only reads the rendered DOM.
+
+### Changed
+
+- Queue rows keep one **Edit** action and no in-place editor: the Host edit control now withdraws the message back into the composer (attachments included through the existing cache/image restore paths) instead of opening its inline editor. The separate withdraw button and the row menu are removed.
+- The lock is a visible peer of the Host row actions: same 28px circle, hover pill, focus ring and 14px icon size, including the native `corner-shape: round` hover shape. Its artwork is redrawn on the native 16-unit grid with the regular one-pixel stroke, so closed/open locks match the primitive icon weight and style.
+- The queued row's leading message icon is now the lock toggle: it keeps the native message glyph while idle and swaps to the closed lock when held, so the icon is useful and the separate action-cluster lock button is gone. Dragging moves to the dedicated grip at its left, keeping click-to-lock and drag apart.
+- Queue attachment previews use the Host `ImageLightbox` primitive (the same surface as composer and transcript images) instead of a bespoke modal, and queue thumbnails/files answer right-click with the shared attachment menu (copy image/address, save image, view image, copy file name and size).
+- Merging queued messages now keeps every attachment: the drag-merge writes the combined text plus both messages' image/file blocks through the update route and only then removes the source, instead of relying on the text-only Host merge.
+- The three composer status controls collapse into one context button: its first-level menu lists the two stat rows and the context ring with their host icons and live info, and picking a row opens that Host detail panel as the second level.
+- The Host **steer** action keeps its native icon, tooltip, order and label; the custom 「引导」 mask glyph and text pill are removed, and only the remove control is still intercepted.
+- The queue handle's leading glyph is the Host's own message icon (`IconQueueOutlineRegular`) instead of a bespoke queue arrow, matching the native icon grid and stroke.
+- Queued messages are always expanded: the Host dock header (count + collapse chevron) is removed and a collapsed list state is forced open, so queued rows and their actions cannot be hidden behind a collapse toggle.
+- Withdrawing into a composer that already holds text or attachments now asks for confirmation before the draft is replaced, instead of silently dropping it.
+- Icon-only hover surfaces stay circular: the prompt-history clock, the two composer status pills, the context-ring control and the left-rail add button all use `border-radius: 999px` with `corner-shape: round` instead of rounded-square superellipses.
+
+### Fixed
+
+- The queued row's **Edit** action works again: the withdrawal reads the previous draft from the published `snapshot.draft` string instead of the shell's structured `draftSnapshot` document, which was not text and made the action throw before it could withdraw anything (queued messages with image attachments included).
+- Native browser tooltips no longer leak from plugin-owned controls: the queue handle/lock no longer write the native `title` attribute (the custom hover layer owns the tooltip), the Host edit control's refusal title is stripped, and the back/forward, effort-model, long-paste, quote-annotation and removed-session controls lost their redundant native titles.
+
 ## [1.2.0] - 2026-10-20
 
 ### Changed

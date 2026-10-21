@@ -121,7 +121,6 @@ __DSH_FEATURE('dsh-long-paste', function (require, env) {
     button.className = 'dshlp-show'
     button.setAttribute(marker, record.id)
     button.setAttribute('data-dshlp-session', record.sessionId)
-    button.title = t('action.show')
     button.textContent = t('action.show')
     button.addEventListener('click', (event) => {
       event.preventDefault?.()
