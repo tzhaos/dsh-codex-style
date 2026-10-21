@@ -95,6 +95,15 @@ html[data-dshlr-active] .Dc7zOa_heroWorkspaceRow :is(.Hqq-bq_workspace,._oGoKq_s
   box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
   min-height: 28px; height: 28px; font-size: 13px; line-height: 20px;
 }
+html[data-dshlr-active] .dlU_AG_trigger { box-sizing: border-box; align-items: center; gap: 4px; }
+html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 14px; height: 14px; line-height: 0; translate: 0 1px;
+}
+html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) > svg { display: block; width: 14px; height: 14px; }
+@container (width <= 460px) {
+  html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) { translate: none; }
+}
 html[data-dshlr-active] .dlU_AG_trigger:has(path[d="M8 4.39209V9.89209"]) :is(.dlU_AG_triggerLabel,.dlU_AG_triggerIcon),
 html[data-dshlr-active] button[role="menuitem"]:has(path[d="M8 4.39209V9.89209"]),
 html[data-dshlr-active] button[role="menuitem"]:has(path[d="M8 4.39209V9.89209"]) :is(span,svg) {

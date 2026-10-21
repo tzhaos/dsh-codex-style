@@ -28,10 +28,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     'panel.stop': '停止',
     'panel.forking': '正在创建临时会话…',
     'panel.failed': '临时会话创建失败',
+    'panel.sendFailed': '消息发送失败，请重试。',
+    'panel.sendUnknown': '发送结果尚未确认，请先检查对话。',
+    'panel.stopFailed': '停止失败，请重试。',
     'panel.empty': '还没有消息',
     'panel.expired': '临时会话已过期',
     'panel.close': '关闭',
     'panel.working': '运行中…',
+    'panel.cleanupPending': '临时会话尚未停止，将在连接恢复后重试清理。',
     'guide.title': '临时侧聊',
     'guide.description': '不打断主线，针对选中内容追问',
   }
@@ -45,10 +49,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     'panel.stop': 'Stop',
     'panel.forking': 'Creating temporary conversation…',
     'panel.failed': 'Could not create the temporary conversation',
+    'panel.sendFailed': 'Could not send the message. Try again.',
+    'panel.sendUnknown': 'Sending is unconfirmed. Check the conversation before retrying.',
+    'panel.stopFailed': 'Could not stop the conversation. Try again.',
     'panel.empty': 'No messages yet',
     'panel.expired': 'This temporary conversation expired',
     'panel.close': 'Close',
     'panel.working': 'Running…',
+    'panel.cleanupPending': 'The side chat has not stopped yet. Cleanup will retry when the connection recovers.',
     'guide.title': 'Side chat',
     'guide.description': 'Ask about a passage without interrupting the main thread',
   }
@@ -276,6 +284,75 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     }
   }
 
+  /** Persist before native close; cleanup is idempotent and independent of the visible session. */
+  function createCleanupQueue(ctx) {
+    let disposed = false, active = false, timer = null
+    const attempts = new Map()
+    const pending = () => {
+      const entries = []
+      try {
+        for (let index = 0; index < localStorage.length; index++) {
+          const key = localStorage.key(index)
+          if (!key?.startsWith(META_PREFIX)) continue
+          const tabId = key.slice(META_PREFIX.length), meta = loadMeta(tabId)
+          if (meta?.closing && typeof meta.childId === 'string') entries.push([tabId, meta])
+        }
+      } catch { /* storage can be blocked; enqueue still fails closed */ }
+      return entries
+    }
+    const drain = async () => {
+      if (disposed || active) return
+      active = true
+      try {
+        for (const [tabId, meta] of pending()) {
+          if (disposed) break
+          const count = attempts.get(tabId) ?? 0
+          if (count >= 3) continue
+          attempts.set(tabId, count + 1)
+          try {
+            await archiveTemporary(ctx, meta.childId)
+            const current = loadMeta(tabId)
+            if (current?.closing && current.childId === meta.childId) dropMeta(tabId)
+            attempts.delete(tabId)
+          } catch {
+            if (count === 0) {
+              try {
+                const scope = ctx.sessions.scope(meta.parentSessionId)
+                scope?.get('conversation')?.input?.for?.(scope)?.notify?.('error', tRef(ctx, 'panel.cleanupPending'))
+              } catch { /* metadata remains available for reconnect/reload */ }
+            }
+          }
+        }
+      } finally {
+        active = false
+        if (!disposed && pending().some(([id]) => (attempts.get(id) ?? 0) < 3)) {
+          clearTimeout(timer)
+          timer = setTimeout(() => { timer = null; void drain() }, 3000)
+        }
+      }
+    }
+    const retry = () => { attempts.clear(); void drain() }
+    return {
+      enqueue(tabId, meta) {
+        // A storage failure throws synchronously so the host retains the tab.
+        localStorage.setItem(META_PREFIX + tabId, JSON.stringify({ ...meta, closing: true }))
+        attempts.delete(tabId)
+        void drain()
+      },
+      start() {
+        window.addEventListener?.('focus', retry)
+        window.addEventListener?.('online', retry)
+        const off = ctx.get('connection')?.generation?.subscribe?.(retry)
+        void drain()
+        return () => {
+          disposed = true; clearTimeout(timer); off?.()
+          window.removeEventListener?.('focus', retry)
+          window.removeEventListener?.('online', retry)
+        }
+      },
+    }
+  }
+
   /** @returns {string} the on-screen main conversation id, or ''. */
   function currentSessionIdOf(ctx) {
     const value = ctx.get('uiSession')?.current?.value
@@ -339,7 +416,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
    * @param {object} ctx - root client context.
    * @returns {Function} React component.
    */
-  function createPanel(ctx) {
+  function createPanel(ctx, cleanup) {
     return function SideForkPanel({ useTabInfo }) {
       const info = typeof useTabInfo === 'function' ? useTabInfo() : null
       const tab = info?.tab
@@ -364,6 +441,12 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       const baselineRef = useRef(0)
       const inputRef = useRef(null)
       const logRef = useRef(null)
+      const following = useRef(true)
+      const flight = useRef(null)
+      useEffect(() => () => {
+        try { flight.current?.submission?.abandon?.() } catch { /* echo already retired */ }
+        flight.current = null
+      }, [tabId])
 
       // Fork once per tab. A tab restored after the app restarted has no
       // matching run marker: it is expired and must not create another child.
@@ -375,6 +458,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
         }
         const meta = loadMeta(tabId)
         if (meta !== null) {
+          if (meta.closing) { setExpired(true); return undefined }
           quoteSentRef.current = meta.quoteSent === true
           baselineRef.current = typeof meta.baselineSeq === 'number' ? meta.baselineSeq : 0
         }
@@ -422,8 +506,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             })
             rememberChild(child)
             if (cancelled) {
-              await archiveTemporary(ctx, child)
-              dropMeta(tabId)
+              cleanup.enqueue(tabId, { childId: child, parentSessionId: effective.parentSessionId, runId: RUN_ID })
               return
             }
             setChildId(child)
@@ -541,12 +624,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
 
       useEffect(() => {
         const log = logRef.current
-        if (log !== null && log !== undefined) log.scrollTop = log.scrollHeight
-      }, [messages.length, running])
+        if (log && following.current) log.scrollTop = log.scrollHeight
+      }, [messages, running])
 
       const submit = async () => {
         const text = draft.trim()
-        if (text === '' || sending || binding === null) return
+        if (text === '' || sending || flight.current || binding === null) return
+        const operation = { submission: null }
+        flight.current = operation
         setSending(true)
         setError('')
         const promptText = composePrompt(text, effective.quote ?? '', quoteSentRef.current)
@@ -556,19 +641,23 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             typeof session.beginSubmission === 'function'
               ? session.beginSubmission({ mode: 'queue', text: promptText, attachments: [] })
               : undefined
+          operation.submission = submission
           const result = await session.prompt(
             [{ type: 'text', text: promptText }],
             'queue',
             undefined,
             submission?.requestId,
           )
+          if (flight.current !== operation) return
           if (result?.ok !== true) {
             try {
               submission?.abandon?.()
             } catch {
               /* ignore */
             }
-            setError(tRef(ctx, 'panel.failed'))
+            const code = result?.error?.code
+            setError(tRef(ctx, !code || /^gateway\/(?:internal|cancelled|timeout|disconnected|unavailable)$/.test(code)
+              ? 'panel.sendUnknown' : 'panel.sendFailed'))
           } else {
             // A later draft belongs to the next message, even while this
             // admission request is still waiting for its acknowledgement.
@@ -579,9 +668,10 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             }
           }
         } catch (sendError) {
-          setError(String(sendError?.message ?? sendError))
+          try { operation.submission?.abandon?.() } catch { /* echo already retired */ }
+          if (flight.current === operation) setError(tRef(ctx, 'panel.sendUnknown'))
         } finally {
-          setSending(false)
+          if (flight.current === operation) { flight.current = null; setSending(false) }
         }
       }
 
@@ -634,7 +724,10 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
               ),
         ),
       )
-      const log = h('div', { ref: logRef, className: 'dshqf-log' }, empty, rows)
+      const log = h('div', { ref: logRef, className: 'dshqf-log', onScroll: (event) => {
+        const node = event.currentTarget
+        following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 24
+      } }, empty, rows)
       const errorBox = error !== '' ? h('div', { className: 'dshqf-errorText' }, error) : null
       const actions = h(
         'div',
@@ -646,8 +739,9 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
               {
                 type: 'button',
                 className: 'dshqf-secondary',
-                onClick: () => {
-                  void binding.session.cancel()
+                onClick: async () => {
+                  try { await binding.session.cancel() }
+                  catch { setError(tRef(ctx, 'panel.stopFailed')) }
                 },
               },
               tRef(ctx, 'panel.stop'),
@@ -745,7 +839,9 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       }
     }, 'quick-fork: styles')
 
-    const Panel = createPanel(ctx)
+    const cleanup = createCleanupQueue(ctx)
+    ctx.effect(() => cleanup.start(), 'quick-fork: durable close cleanup')
+    const Panel = createPanel(ctx, cleanup)
     const tabDefinition = tabDefinitionFor((key) => {
       try {
         return ctx.locale.bind(NS)(key)
@@ -793,11 +889,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
           sideCtx.sidebarRight.registerCloseHandler(KIND, (_sessionId, tab) => {
             const meta = loadMeta(tab.id)
             if (meta !== null && typeof meta.childId === 'string') {
-              void archiveTemporary(sideCtx, meta.childId)
-                .then(() => dropMeta(tab.id))
-                .catch((error) =>
-                  console.error('[codex-workbench] temporary conversation cleanup failed:', error),
-                )
+              cleanup.enqueue(tab.id, meta)
             } else dropMeta(tab.id)
           }),
         'quick-fork: close cleanup',
@@ -815,6 +907,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       composePrompt,
       quoteBlockOf,
       maxSeqOf,
+      createCleanupQueue,
     },
   }
 })

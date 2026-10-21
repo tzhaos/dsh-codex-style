@@ -251,7 +251,8 @@ export function createGitEngine() {
     ])
     const timer = setTimeout(() => deadline.abort(), 20000)
     let lock,
-      started = false
+      started = false,
+      switched = false
     try {
       const info = await context(ctx, sessionId, signal)
       const key = normalized(info.root)
@@ -290,6 +291,7 @@ export function createGitEngine() {
         [0],
         info.filterConfig,
       )
+      switched = true
       repository = await inspect(ctx, info, signal)
       if (repository.branch !== branch) throw new GitFailure('stale')
       return { ok: true, repository }
@@ -304,6 +306,7 @@ export function createGitEngine() {
         /would be overwritten|local changes|untracked working tree/i.test(error.stderr ?? '')
       )
         reason = 'dirty'
+      if (switched) reason = 'switch-unknown'
       return { ok: false, reason }
     } finally {
       clearTimeout(timer)

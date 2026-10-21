@@ -35,6 +35,7 @@ const parts = {
   attachment: 'ComposerAttachments',
   layout: 'AppFrame',
   'model-selection': 'ModelSelect',
+  'permission-presets': 'PermissionSelect',
   schedule: 'TaskManagerPage',
   'plugin-manager': 'PluginManagerPage, IDLE_INSTALL',
 }
@@ -49,7 +50,7 @@ for (const [name, exports] of Object.entries(parts)) {
       'return module.exports;',
       'exports.__review = {' +
         exports +
-        '}; exports.__reviewLocale = typeof zh === "undefined" ? {} : zh; return module.exports;',
+        '}; exports.__reviewLocale = typeof accessZh !== "undefined" ? accessZh : typeof zh === "undefined" ? {} : zh; return module.exports;',
     ),
   )
 }

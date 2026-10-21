@@ -59,6 +59,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     'merge.attachments': '含附件的排队消息无法合并',
     'button.empty': '这条排队消息没有可撤回的文本',
     'button.failed': '撤回失败，消息仍在队列中',
+    'withdraw.unknown': '撤回结果尚未确认，内容已保留在输入框。请检查队列后再发送。',
     'freeze.tooltip': '锁定，本轮结束不发送',
     'freeze.failed': '锁定失败，队列可能已变化',
     'frozen.thaw': '解锁',
@@ -105,6 +106,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     'merge.attachments': 'Messages with attachments cannot be merged',
     'button.empty': 'This queued message has no text to withdraw',
     'button.failed': 'Withdraw failed; the message is still queued',
+    'withdraw.unknown': 'Withdrawal is unconfirmed. Content is kept in the composer; check the queue before sending.',
     'freeze.tooltip': 'Lock: do not send it when the turn ends',
     'freeze.failed': 'Lock failed; the queue may have changed',
     'frozen.thaw': 'Unlock',
@@ -1123,7 +1125,9 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           const rows = hostRowsOf(dock).filter((entry) => entry !== row)
           if (!rows.includes(target)) return
           const rect = target.getBoundingClientRect()
-          if (pointerEvent.clientY > rect.bottom - 14) {
+          if (pointerEvent.clientY > rect.bottom - 14 &&
+              !frozenIdsOf(sessionId).has(String(current.id)) &&
+              !frozenIdsOf(sessionId).has(String(rowItems.get(target)?.id))) {
             if (mergeTarget !== target) {
               if (mergeTarget !== null) mergeTarget.classList.remove('dshqw-merge-target')
               mergeTarget = target
@@ -2305,6 +2309,13 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   try {
                     const result = await session.updateQueue(item.id, { kind: 'remove' })
                     if (result?.ok !== true) {
+                      const code = result?.error?.code
+                      if (!code || /^gateway\/(?:internal|cancelled|timeout|disconnected|unavailable)$/.test(code)) {
+                        for (const id of removedIds)
+                          if (!shell?.snapshot?.attachmentIds?.includes(id)) conversation?.releaseDraftAttachment?.(id)
+                        notify('info', ctx.locale.bind(NS)('withdraw.unknown'))
+                        return false
+                      }
                       rollback()
                       notify('error', failure)
                       return false
@@ -2313,11 +2324,15 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                     // feedback; an info notice would linger in the Host's notice
                     // surface and is unnecessary for a successful withdraw.
                     for (const id of removedIds) conversation?.releaseDraftAttachment?.(id)
-                    if (cachedRecords.length > 0) await forgetCachedRecords(cachedRecords)
+                    if (cachedRecords.length > 0) void forgetCachedRecords(cachedRecords).catch(() => {})
                     return true
                   } catch {
-                    rollback()
-                    notify('error', failure)
+                    for (const id of removedIds) {
+                      try {
+                        if (!shell?.snapshot?.attachmentIds?.includes(id)) conversation?.releaseDraftAttachment?.(id)
+                      } catch { /* the prepared draft remains authoritative */ }
+                    }
+                    notify('info', ctx.locale.bind(NS)('withdraw.unknown'))
                     return false
                   }
                 },

@@ -310,6 +310,31 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     const hostAnchorRef = useRef(null)
     const hostCenterTimerRef = useRef(null)
     const rootHideTimerRef = useRef(null)
+    const tipBackups = useRef(new Map())
+    const buttonBackups = useRef(new Map())
+    const restoreOwned = () => {
+      document.documentElement?.removeAttribute?.('data-dshhp-hover')
+      hostAnchorRef.current = null
+      for (const [button, previous] of buttonBackups.current) {
+        if (button.getAttribute?.('data-dshhp-hover') !== 'icon') continue
+        if (previous === null) button.removeAttribute?.('data-dshhp-hover')
+        else button.setAttribute?.('data-dshhp-hover', previous)
+      }
+      buttonBackups.current.clear()
+      for (const [tip, previous] of tipBackups.current) {
+        for (const name of ['side', 'align', 'dshhpReady']) {
+          if (previous[name] === undefined) delete tip.dataset[name]
+          else tip.dataset[name] = previous[name]
+        }
+        for (const [name, value] of previous.styles) {
+          if (value) tip.style.setProperty?.(name, value)
+          else tip.style.removeProperty?.(name)
+        }
+        for (const duplicate of tip.querySelectorAll?.('[data-dshhp-duplicate]') ?? [])
+          duplicate.removeAttribute?.('data-dshhp-duplicate')
+      }
+      tipBackups.current.clear()
+    }
 
     /**
      * Center a Host tooltip over its control, keeping it inside the viewport.
@@ -322,11 +347,18 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
       const rect = control.getBoundingClientRect?.()
       if (rect === undefined || rect === null) return false
       let moved = false
+      for (const tip of tipBackups.current.keys()) if (tip.isConnected === false) tipBackups.current.delete(tip)
       for (const tip of document.querySelectorAll('[role="tooltip"]')) {
         cleanForeignTooltip(tip)
         if (!isHostTooltipNode(tip)) continue
         if (tip.hasAttribute?.('data-pinned') === true) continue
         if (typeof tip.getClientRects === 'function' && tip.getClientRects().length === 0) continue
+        if (tip.dataset && tip.style && !tipBackups.current.has(tip)) {
+          tipBackups.current.set(tip, { side: tip.dataset.side, align: tip.dataset.align,
+            dshhpReady: tip.dataset.dshhpReady,
+            styles: ['max-width', 'left', 'top', '--dshhp-left', '--dshhp-top']
+              .map((name) => [name, tip.style.getPropertyValue?.(name) ?? '']) })
+        }
         if (tip.style)
           tip.style.maxWidth =
             Math.max(1, (window.visualViewport?.width ?? window.innerWidth) - 16) + 'px'
@@ -448,7 +480,11 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
       const background = style?.backgroundColor ?? ''
       const transparent =
         background === '' || background === 'transparent' || background.endsWith(', 0)')
-      if (transparent) button.setAttribute?.('data-dshhp-hover', 'icon')
+      if (transparent) {
+        for (const node of buttonBackups.current.keys()) if (node.isConnected === false) buttonBackups.current.delete(node)
+        if (!buttonBackups.current.has(button)) buttonBackups.current.set(button, button.getAttribute?.('data-dshhp-hover') ?? null)
+        button.setAttribute?.('data-dshhp-hover', 'icon')
+      }
     }
 
     const schedule = (button, label, keys) => {
@@ -627,6 +663,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         if (hostCenterTimerRef.current !== null) window.clearTimeout(hostCenterTimerRef.current)
         if (rootHideTimerRef.current !== null) window.clearTimeout(rootHideTimerRef.current)
         for (const button of titleBackupRef.current.keys()) restoreTitle(button)
+        restoreOwned()
       }
     }, [])
 
@@ -636,6 +673,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         if (hostCenterTimerRef.current !== null) window.clearTimeout(hostCenterTimerRef.current)
         if (rootHideTimerRef.current !== null) window.clearTimeout(rootHideTimerRef.current)
         for (const button of titleBackupRef.current.keys()) restoreTitle(button)
+        restoreOwned()
       },
       [],
     )

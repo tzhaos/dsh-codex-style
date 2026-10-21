@@ -340,16 +340,44 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
           setPanelPosition(null)
           return
         }
-        const rect = panelRef.current.getBoundingClientRect()
-        const viewport = typeof window.innerWidth === 'number' ? window.innerWidth : 0
-        const left = Math.min(
-          Math.max(8, hover.x - rect.width / 2),
-          Math.max(8, viewport - rect.width - 8),
-        )
-        const above = hover.y - rect.height - 8
-        const top = above >= 8 ? above : hover.y + hover.height + 8
-        setPanelPosition({ left, top })
-      }, [hover])
+        const update = () => {
+          if (!hover.anchor?.isConnected) { setHover(null); return }
+          const panel = panelRef.current
+          if (!panel) return
+          const viewport = window.visualViewport ?? { width: window.innerWidth, height: window.innerHeight }
+          const x = (viewport.offsetLeft ?? 0) + 8
+          const y = Math.max(viewport.offsetTop ?? 0,
+            parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dsh-frame-chrome-top')) || 0) + 8
+          const right = (viewport.offsetLeft ?? 0) + viewport.width - 8
+          const bottom = (viewport.offsetTop ?? 0) + viewport.height - 8
+          panel.style.maxWidth = Math.max(1, right - x) + 'px'
+          panel.style.maxHeight = Math.max(1, bottom - y) + 'px'
+          const anchor = hover.anchor.getBoundingClientRect()
+          const aboveRoom = Math.max(0, anchor.top - y - 8)
+          const belowRoom = Math.max(0, bottom - anchor.bottom - 8)
+          const above = panel.offsetHeight <= aboveRoom || aboveRoom >= belowRoom
+          panel.style.maxHeight = Math.max(1, above ? aboveRoom : belowRoom) + 'px'
+          const rect = panel.getBoundingClientRect()
+          const left = Math.max(x, Math.min(anchor.left + anchor.width / 2 - rect.width / 2, right - rect.width))
+          const top = Math.max(y, Math.min(above ? anchor.top - rect.height - 8 : anchor.bottom + 8, bottom - rect.height))
+          setPanelPosition((current) => current?.left === left && current?.top === top ? current : { left, top })
+        }
+        update()
+        const resize = new ResizeObserver(update)
+        resize.observe(panelRef.current)
+        resize.observe(hover.anchor)
+        window.addEventListener('resize', update)
+        window.addEventListener('scroll', update, true)
+        window.visualViewport?.addEventListener('resize', update)
+        window.visualViewport?.addEventListener('scroll', update)
+        return () => {
+          resize.disconnect()
+          window.removeEventListener('resize', update)
+          window.removeEventListener('scroll', update, true)
+          window.visualViewport?.removeEventListener('resize', update)
+          window.visualViewport?.removeEventListener('scroll', update)
+        }
+      }, [hover, items])
 
       const cancelHide = () => {
         if (hoverTimerRef.current === null) return
@@ -366,8 +394,7 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
       const showHover = (item, element) => {
         if (typeof element?.getBoundingClientRect !== 'function') return
         cancelHide()
-        const rect = element.getBoundingClientRect()
-        setHover({ id: item.id, x: rect.left + rect.width / 2, y: rect.top, height: rect.height })
+        setHover({ id: item.id, anchor: element })
       }
 
       const hoveredIndex = hover === null ? -1 : items.findIndex((item) => item.id === hover.id)
@@ -458,7 +485,7 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
 .dshqf-annotationLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dshqf-annotationRemove{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer}
 .dshqf-annotationRemove:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.dshqf-annotationPanel{position:fixed;z-index:130;box-sizing:border-box;width:max-content;min-width:200px;max-width:min(420px,calc(100vw - 16px));border:0;border-radius:10px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-soft);padding:10px 12px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.5}
+.dshqf-annotationPanel{position:fixed;z-index:130;box-sizing:border-box;width:max-content;min-width:min(200px,calc(100vw - 16px));max-width:min(420px,calc(100vw - 16px));overflow:auto;overscroll-behavior:contain;border:0;border-radius:10px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-soft);padding:10px 12px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.5}
 .dshqf-annotationPanelTitle{font-weight:600;margin-bottom:6px}
 .dshqf-annotationPanelText{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;color:var(--dsw-alias-label-secondary)}`
   function apply(ctx) {

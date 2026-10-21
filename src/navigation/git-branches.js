@@ -104,15 +104,18 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
       try {
         const result = await actions.list(controller.signal)
         if (!mounted.current || generation !== revision.current) return
-        setState({
+        setState((current) => ({
           cwd,
-          repository: result.ok ? result.repository : null,
+          repository: result.ok ? result.repository :
+            ['not-repository', 'no-directory'].includes(result.reason) || current.cwd !== cwd
+              ? null : current.repository,
           loading: false,
           error: result.ok ? null : result.reason,
-        })
+        }))
       } catch {
         if (mounted.current && generation === revision.current && !controller.signal.aborted)
-          setState({ repository: null, loading: false, error: 'error' })
+          setState((current) => ({ cwd, repository: current.cwd === cwd ? current.repository : null,
+            loading: false, error: 'error' }))
       }
     }, [actions, cwd])
     useEffect(() => {
@@ -139,7 +142,7 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
         running ||
         repository.dirty ||
         repository.writable === false ||
-        state.loading
+        state.loading || state.error
       )
         return
       const operation = { generation: ++revision.current }
@@ -160,12 +163,13 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
           if (current())
             setState((current) => ({
               ...current,
-              repository: fresh.ok ? fresh.repository : null,
-              error: result.reason,
+              repository: fresh.ok ? fresh.repository :
+                ['not-repository', 'no-directory'].includes(fresh.reason) ? null : current.repository,
+              error: fresh.ok && result.reason !== 'switch-unknown' ? result.reason : 'switch-unknown',
             }))
         }
       } catch {
-        if (current()) setState({ repository: null, loading: false, error: 'switch-unknown' })
+        if (current()) setState((value) => ({ ...value, loading: false, error: 'switch-unknown' }))
       } finally {
         if (pending.current === operation) pending.current = null
         if (current()) setSwitching(false)
@@ -177,7 +181,7 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
       branch.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
     )
     const disabled =
-      switching || state.loading || running || repository?.dirty || repository?.writable === false
+      switching || state.loading || !!state.error || running || repository?.dirty || repository?.writable === false
     const reason =
       state.error ??
       (running

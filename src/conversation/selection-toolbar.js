@@ -48,6 +48,7 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
           text: text.slice(0, 20000),
           x: rect.left + rect.width / 2,
           y: rect.top,
+          bottom: rect.bottom,
         })
       }
       document.addEventListener('selectionchange', update)
@@ -69,9 +70,16 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
         return
       }
       const rect = ref.current.getBoundingClientRect()
+      const viewport = window.visualViewport ?? { width: innerWidth, height: innerHeight }
+      const left = (viewport.offsetLeft ?? 0) + 8
+      const top = Math.max(viewport.offsetTop ?? 0,
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dsh-frame-chrome-top')) || 0) + 8
+      const right = (viewport.offsetLeft ?? 0) + viewport.width - 8
+      const bottom = (viewport.offsetTop ?? 0) + viewport.height - 8
       setPosition({
-        left: Math.max(8, Math.min(selection.x - rect.width / 2, innerWidth - rect.width - 8)),
-        top: Math.max(8, selection.y - rect.height - 8),
+        left: Math.max(left, Math.min(selection.x - rect.width / 2, right - rect.width)),
+        top: Math.max(top, Math.min(selection.y - rect.height - 8 >= top
+          ? selection.y - rect.height - 8 : selection.bottom + 8, bottom - rect.height)),
       })
     }, [selection, version])
     if (!selection) return null
@@ -110,7 +118,7 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
   }
   const CSS = `
 .dsh-selection-toolbar { position: fixed; z-index: 120; display: inline-flex; align-items: stretch; min-height: 30px; max-width: calc(100vw - 16px); border: 0; border-radius: 999px; corner-shape: round; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-elevation-soft); font-family: var(--dsw-font-family); overflow: hidden; }
-.dsh-selection-action { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 18px; padding: 5px 12px; white-space: nowrap; cursor: pointer; }
+.dsh-selection-action { appearance: none; min-width:0; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 18px; padding: 5px 12px; white-space: normal; overflow-wrap:anywhere; cursor: pointer; }
 .dsh-selection-action + .dsh-selection-action { border-left: .5px solid var(--dsw-alias-border-l2); }
 .dsh-selection-action:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsh-selection-action:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }

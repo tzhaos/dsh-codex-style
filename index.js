@@ -134,8 +134,10 @@ function installClaimPatch(inbox) {
  */
 function armAgents(ctx) {
   try {
-    const state = ctx.sessions?.list?.getSnapshot?.()
-    const ids = Array.isArray(state?.ids) ? state.ids : Object.keys(state?.byId ?? {})
+    const state = typeof ctx.sessions?.list === 'function'
+      ? ctx.sessions.list() : ctx.sessions?.list?.getSnapshot?.()
+    const ids = Array.isArray(state) ? state.map((session) => session.id)
+      : Array.isArray(state?.ids) ? state.ids : Object.keys(state?.byId ?? {})
     for (const sessionId of ids) {
       const agent = ctx.agents?.get?.(sessionId)
       if (agent?.inbox !== undefined) installClaimPatch(agent.inbox)
@@ -153,6 +155,25 @@ function armAgents(ctx) {
 function sendJson(res, status, body) {
   res.writeHead?.(status, { 'content-type': 'application/json; charset=utf-8' })
   res.end?.(JSON.stringify(body))
+}
+
+/** Match the public Connection fetch contract: authenticated owner and installation gate. */
+function registerQueueRoute(ctx, route) {
+  return ctx.webServer.register({
+    ...route,
+    async handler(req, res) {
+      const admission = ctx.connection.admit(req)
+      if ('rejection' in admission) {
+        sendJson(res, admission.rejection, { ok: false, error: 'unauthorized' })
+        return
+      }
+      if (admission.peer?.principal?.kind !== 'owner') {
+        sendJson(res, 403, { ok: false, error: 'forbidden' })
+        return
+      }
+      await ctx.waterfall('connection/request', req, res, () => route.handler(req, res))
+    },
+  })
 }
 
 /**
@@ -225,7 +246,8 @@ async function saveUpload(attachments, file) {
 export function apply(ctx) {
   registerActivityPreview(ctx)
   registerGit(ctx)
-  if (ctx?.webServer?.register === undefined || ctx?.agents?.get === undefined) return
+  if (ctx?.webServer?.register === undefined || ctx?.agents?.get === undefined ||
+      typeof ctx.connection?.admit !== 'function' || typeof ctx.waterfall !== 'function') return
   loadFrozen()
   ctx.effect(
     () => () => {
@@ -238,9 +260,12 @@ export function apply(ctx) {
     'queue-withdraw: claim patch lifetime',
   )
   armAgents(ctx)
+  ctx.on?.('agent/created', ({ agent }) => {
+    if (agent?.inbox) installClaimPatch(agent.inbox)
+  })
   ctx.effect(
     () =>
-      ctx.webServer.register({
+      registerQueueRoute(ctx, {
         kind: 'exact',
         path: REORDER_PATH,
         handler: async (req, res) => {
@@ -293,7 +318,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      ctx.webServer.register({
+      registerQueueRoute(ctx, {
         kind: 'exact',
         path: UPDATE_PATH,
         handler: async (req, res) => {
@@ -321,6 +346,11 @@ export function apply(ctx) {
           if (action === 'merge') {
             const targetId = String(body.targetId ?? '')
             const sourceId = String(body.sourceId ?? '')
+            const held = frozenSessions.get(sessionId)
+            if (held?.has(targetId) || held?.has(sourceId)) {
+              sendJson(res, 409, { ok: false, reason: 'message-frozen' })
+              return
+            }
             const target = current.find((message) => String(message.id) === targetId)
             const source = current.find((message) => String(message.id) === sourceId)
             if (target === undefined || source === undefined || targetId === sourceId) {
@@ -342,6 +372,10 @@ export function apply(ctx) {
             return
           }
           const itemId = String(body.itemId ?? '')
+          if (frozenSessions.get(sessionId)?.has(itemId)) {
+            sendJson(res, 409, { ok: false, reason: 'message-frozen' })
+            return
+          }
           const target = current.find((message) => String(message.id) === itemId)
           if (target === undefined) {
             sendJson(res, 409, { ok: false, reason: 'queue-changed' })
@@ -364,6 +398,10 @@ export function apply(ctx) {
             // Uploads yield to the agent loop. Re-read the live queue so an edit
             // cannot resurrect a claimed message or discard a concurrent enqueue.
             const live = [...agent.inbox.nextTurn]
+            if (frozenSessions.get(sessionId)?.has(itemId)) {
+              sendJson(res, 409, { ok: false, reason: 'message-frozen' })
+              return
+            }
             if (live.find((message) => String(message.id) === itemId) !== target) {
               sendJson(res, 409, { ok: false, reason: 'queue-changed' })
               return
@@ -382,7 +420,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      ctx.webServer.register({
+      registerQueueRoute(ctx, {
         kind: 'exact',
         path: FREEZE_PATH,
         handler: async (req, res) => {
@@ -436,7 +474,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      ctx.webServer.register({
+      registerQueueRoute(ctx, {
         kind: 'exact',
         path: THAW_PATH,
         handler: async (req, res) => {
@@ -471,7 +509,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      ctx.webServer.register({
+      registerQueueRoute(ctx, {
         kind: 'exact',
         path: FROZEN_PATH,
         handler: async (req, res) => {
@@ -495,6 +533,7 @@ export function apply(ctx) {
 }
 
 export const inject = [
+  'connection',
   'webServer',
   'agents',
   'sessions',

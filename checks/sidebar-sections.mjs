@@ -744,13 +744,12 @@ function dispatch(harness, element, handler, event) {
 
 /** Synthetic event with the extra facts some handlers read. */
 function syntheticEvent(overrides = {}) {
+  const currentTarget = { getBoundingClientRect: () => ({ left: 220, right: 250, top: 300, bottom: 314, width: 30, height: 14 }) }
   return {
     stopPropagation() {},
     preventDefault() {},
-    currentTarget: {
-      getBoundingClientRect: () => ({ left: 220, right: 250, top: 300, bottom: 314, width: 30, height: 14 }),
-    },
-    target: { value: '' },
+    currentTarget,
+    target: currentTarget,
     ...overrides,
   }
 }
@@ -1480,6 +1479,24 @@ await check('section headers collapse and expand, remembered browser-locally', (
     && element.props['aria-label'] === t('section.expand', { name: t('section.pinned') }))
   dispatch(harness, collapsedHeader, 'onClick', syntheticEvent())
   assert(findAll(harness.tree, isSessionRow).map(rowTitle).includes('Pinned talk'), 'pinned row restored')
+})
+
+await check('nested controls keep Enter and Space without activating their parent rows', () => {
+  const { harness, t, calls, browserWindow } = scenario()
+  const parents = [
+    findSessionRow(harness.tree, t, 'Alpha talk'),
+    findAll(harness.tree, (node) => node.props?.className === 'dshss-projectRow')[0],
+    findAll(harness.tree, (node) => node.props?.className === 'dshss-sectionHeader')[0],
+  ]
+  const count = calls.length
+  for (const parent of parents) for (const key of ['Enter', ' ']) {
+    let prevented = false
+    dispatch(harness, parent, 'onKeyDown', syntheticEvent({ key, childTarget: true,
+      target: {}, currentTarget: {}, preventDefault() { prevented = true } }))
+    assert(!prevented, 'parent swallowed the nested control key')
+  }
+  assertEqual(calls.length, count, 'nested controls opened a conversation')
+  assertEqual(browserWindow.localStorage.getItem('dsh.sidebarSections.collapsedSections'), null, 'nested controls collapsed a section')
 })
 
 await check('projects section "+" adds a workspace, recents compose uses the default workspace', async () => {

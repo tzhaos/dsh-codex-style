@@ -145,7 +145,7 @@ function scenario(options = {}) {
     throw new Error('unexpected require ' + id)
   })
   const ctx = {
-    effect(factory) { factory(); return () => {} },
+    effect(factory) { const cleanup = factory(); if (typeof cleanup === 'function') cleanups.push(cleanup); return () => {} },
     sessions,
     locale: {
       register(ns, dicts) {
@@ -294,8 +294,23 @@ await check('drop from another conversation is ignored', () => {
 
 await check('cleanup removes all four listeners', () => {
   const applied = scenario()
-  applied.cleanups[0]()
+  for (const cleanup of applied.cleanups.reverse()) cleanup()
   assert.equal(applied.listeners.size, 0)
+})
+
+await check('cleanup restores draggable rows and releases only its own path bridge', () => {
+  const applied = scenario({ desktopPath: 'C:\\repo\\file.txt' })
+  const sidebar = sidebarFixture('C:\\repo\\file.txt')
+  applied.listeners.get('mousedown')({ target: sidebar.row })
+  assert.equal(sidebar.row.draggable, true)
+  for (const cleanup of applied.cleanups.reverse()) cleanup()
+  assert.equal(sidebar.row.draggable, false)
+  assert.equal(applied.sandbox.__DSH_HOST_PATHS__, undefined)
+  const replaced = scenario({ desktopPath: 'C:\\repo\\file.txt' })
+  const foreign = { pathFor: () => 'another owner' }
+  replaced.sandbox.__DSH_HOST_PATHS__ = foreign
+  for (const cleanup of replaced.cleanups.reverse()) cleanup()
+  assert.equal(replaced.sandbox.__DSH_HOST_PATHS__, foreign)
 })
 
 await check('file references preserve legal closing parentheses and brackets', async () => {

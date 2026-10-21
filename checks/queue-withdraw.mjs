@@ -821,11 +821,22 @@ await check('withdraw refuses to change a draft during admission', async () => {
 })
 
 await check('withdraw restores the draft when the Host rejects removal', async () => {
-  const applied = scenario({ draft: 'existing', updateResult: { ok: false } })
+  const applied = scenario({ draft: 'existing', updateResult: { ok: false, error: { code: 'session/writer-held' } } })
   const ok = await applied.injected.actions.withdraw(queueItem('queued text'), 'empty', 'failed', 'attachment')
   assert.equal(ok, false)
   assert.equal(applied.draft.value, 'existing')
   equal(applied.notices, [{ level: 'error', text: 'failed' }])
+})
+
+await check('unconfirmed withdrawal keeps the only prepared copy and warns before resend', async () => {
+  for (const outcome of ['response', 'throw']) {
+    const applied = scenario({ draft: 'old draft', updateResult: { ok: false, error: { code: 'gateway/disconnected' } } })
+    if (outcome === 'throw') applied.session.updateQueue = async () => { throw new Error('lost acknowledgement') }
+    const ok = await applied.injected.actions.withdraw(queueItem('unique queued text'), 'empty', 'failed', 'attachment')
+    assert.equal(ok, false)
+    assert.equal(applied.draft.value, 'unique queued text', 'uncertain deletion erased the prepared copy')
+    assert(applied.notices.some((notice) => notice.level === 'info' && notice.text.includes('尚未确认')))
+  }
 })
 
 await check('a file attachment without a cache fails without touching the draft', async () => {
@@ -1004,7 +1015,7 @@ await check('failed withdraw does not erase text typed while queue removal was p
 // 4. Host reorder route
 // ---------------------------------------------------------------------------
 
-function hostScenario() {
+function hostScenario(admission = { peer: { principal: { kind: 'owner' } } }) {
   let route
   let updateRoute
   let freezeRoute
@@ -1024,6 +1035,8 @@ function hostScenario() {
   const agent = { inbox }
   const ctx = {
     effect(factory) { factory(); return () => {} },
+    connection: { admit: () => admission },
+    waterfall: async (_event, _req, _res, next) => next(),
     webServer: {
       register(definition) {
         const path = String(definition.path)
@@ -1071,6 +1084,29 @@ function hostScenario() {
   }
   return { route, updateRoute, freezeRoute, thawRoute, frozenRoute, invoke, invokeUpdate, invokeOn, messages, attachments: ctx.attachments }
 }
+
+await check('all queue routes require an authenticated owner before processing payloads', async () => {
+  for (const admission of [{ rejection: 401 }, { rejection: 403 }, { peer: { principal: { kind: 'api' } } }]) {
+    const host = hostScenario(admission)
+    for (const route of [host.route, host.updateRoute, host.freezeRoute, host.thawRoute, host.frozenRoute]) {
+      const result = await host.invokeOn(route, { sessionId: 'session-auth', order: ['item-2', 'item-1'] })
+      assert.equal(result.response.status, admission.rejection ?? 403)
+      assert.deepEqual(host.messages.map((message) => message.id), ['item-1', 'item-2'])
+    }
+  }
+})
+
+await check('frozen messages cannot be merged into an unfrozen sendable message', async () => {
+  const host = hostScenario()
+  await host.invokeOn(host.freezeRoute, { sessionId: 'session-held-merge', itemId: 'item-1' })
+  for (const [sourceId, targetId] of [['item-1', 'item-2'], ['item-2', 'item-1']]) {
+    const { response } = await host.invokeUpdate({ sessionId: 'session-held-merge', action: 'merge', sourceId, targetId })
+    assert.equal(response.status, 409)
+    assert.equal(response.payload.reason, 'message-frozen')
+    assert.equal(host.messages.length, 2)
+  }
+  await host.invokeOn(host.thawRoute, { sessionId: 'session-held-merge', itemId: 'item-1' })
+})
 
 await check('the Host route applies a complete next-turn order through inbox.splice', async () => {
   const host = hostScenario()
@@ -1224,11 +1260,18 @@ await check('the Host claim patch skips held ids at the turn boundary', async ()
     { id: 'free', content: [{ type: 'text', text: 'free' }] },
   ])
   const routes = {}
+  const events = {}
+  fs.writeFileSync(path.join(fixtureHome, 'queue-withdraw-frozen.json'), JSON.stringify({ sessions: {
+    'session-claim': ['held'], 'session-later': ['held-later'],
+  } }))
   const ctx = {
     effect: (factory) => factory(),
+    on: (name, handler) => { events[name] = handler },
+    connection: { admit: () => ({ peer: { principal: { kind: 'owner' } } }) },
+    waterfall: async (_event, _req, _res, next) => next(),
     webServer: { register: (definition) => { routes[definition.path] = definition; return () => {} } },
     agents: { get: (sessionId) => sessionId === 'session-claim' ? { inbox } : undefined },
-    sessions: { list: { getSnapshot: () => ({ ids: ['session-claim'] }) } },
+    sessions: { list: () => [{ id: 'session-claim' }] },
     attachments: {},
   }
   applyHostPlugin(ctx)
@@ -1240,7 +1283,6 @@ await check('the Host claim patch skips held ids at the turn boundary', async ()
     return response
   }
   // Boot arming patched the prototype through the session list.
-  await invoke('/dsh-queue-withdraw/freeze', { sessionId: 'session-claim', itemId: 'held' })
   const first = inbox.claim('next-turn', { id: 'turn-1' })
   equal(first.map((message) => message.id), ['free'], 'the held id is skipped')
   const second = inbox.claim('next-turn', { id: 'turn-2' })
@@ -1249,6 +1291,15 @@ await check('the Host claim patch skips held ids at the turn boundary', async ()
   await invoke('/dsh-queue-withdraw/thaw', { sessionId: 'session-claim', itemId: 'held' })
   const third = inbox.claim('next-turn', { id: 'turn-3' })
   equal(third.map((message) => message.id), ['held'], 'thawed ids are claimed again')
+  const later = Object.assign(Object.create({ claim() { throw new Error('new agent was not armed') } }), {
+    session: { id: 'session-later' }, nextStep: [],
+    nextTurn: [{ id: 'held-later' }, { id: 'free-later' }], dispatch: { emit() {} },
+    mutate(target, start, count, inserted) {
+      return target === 'next-step' ? [] : this.nextTurn.splice(start, count, ...inserted)
+    },
+  })
+  events['agent/created']({ agent: { inbox: later } })
+  equal(later.claim('next-turn', {}).map((message) => message.id), ['free-later'], 'new agents enforce restored holds before their first claim')
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

@@ -1676,6 +1676,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
         tabIndex: 0,
         onClick: onOpen,
         onKeyDown: (event) => {
+          if (event.defaultPrevented || event.target !== event.currentTarget) return
           if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
@@ -1806,6 +1807,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           tabIndex: 0,
           onClick: onToggle,
           onKeyDown: (event) => {
+            if (event.defaultPrevented || event.target !== event.currentTarget) return
             if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
             if (event.key !== 'Enter' && event.key !== ' ') return
             event.preventDefault()
@@ -2040,6 +2042,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
         'aria-label': t(collapsed ? 'section.expand' : 'section.collapse', { name: title }),
         onClick: onToggle,
         onKeyDown: (event) => {
+          if (event.defaultPrevented || event.target !== event.currentTarget) return
           if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()

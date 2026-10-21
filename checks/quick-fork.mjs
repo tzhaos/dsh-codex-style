@@ -37,11 +37,14 @@ function load(feature = 'dsh-quick-fork', seedStorage = {}) {
       createElement() { return { dataset: {}, appendChild() {}, remove() {} } }, head: { appendChild() {} },
     },
     localStorage: {
+      get length() { return storage.size },
+      key: (index) => [...storage.keys()][index] ?? null,
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, String(value)),
       removeItem: (key) => storage.delete(key),
     },
     crypto: { randomUUID: () => 'fixture-' + (++sequence) },
+    setTimeout, clearTimeout,
     console,
   }
   vm.runInNewContext(clientSource, sandbox, { filename: 'client.js' })
@@ -284,6 +287,26 @@ await check('factory exposes apply and the expected injected services', () => {
   assert(plugin.inject.includes('sessions'))
   assert(plugin.inject.includes('slots'))
   assert(plugin.inject.includes('locale'))
+})
+
+await check('close cleanup persists synchronously and recovers after a reload', async () => {
+  const seed = { 'dsh.quickFork.tab.closed': JSON.stringify({ childId: 'child', parentSessionId: 'parent', closing: true }) }
+  const first = load('dsh-quick-fork', seed)
+  const ctx = { get: (name) => name === 'workspaces' ? { archiveSession: async () => { throw new Error('offline') } } : undefined }
+  const queue = first.plugin.__test.createCleanupQueue(ctx)
+  const stop = queue.start()
+  for (let i = 0; i < 8; i++) await Promise.resolve()
+  stop()
+  assert.equal(JSON.parse(first.storage.get('dsh.quickFork.tab.closed')).closing, true)
+  const restored = load('dsh-quick-fork', Object.fromEntries(first.storage))
+  const archived = []
+  const recovered = restored.plugin.__test.createCleanupQueue({ get: (name) => name === 'workspaces'
+    ? { archiveSession: async (id, options) => { archived.push([id, options.stopActivity]) } } : undefined })
+  const dispose = recovered.start()
+  for (let i = 0; i < 8; i++) await Promise.resolve()
+  dispose()
+  assert.deepEqual(archived, [['child', true]])
+  assert.equal(restored.storage.has('dsh.quickFork.tab.closed'), false)
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

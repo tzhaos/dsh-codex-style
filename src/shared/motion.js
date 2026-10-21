@@ -81,7 +81,7 @@ __DSH_FEATURE('dsh-ui-motion', function () {
         if (textSize > 24000) throw new RangeError('surface text is too large')
         budget(target.textContent)
       }
-      for (const child of node.childNodes) {
+      for (const child of tag === 'input' || tag === 'textarea' ? [] : node.childNodes) {
         const next = copy(child)
         if (next) target.append(next)
       }

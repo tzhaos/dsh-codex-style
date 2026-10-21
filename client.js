@@ -354,6 +354,15 @@ html[data-dshlr-active] .Dc7zOa_heroWorkspaceRow :is(.Hqq-bq_workspace,._oGoKq_s
   box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
   min-height: 28px; height: 28px; font-size: 13px; line-height: 20px;
 }
+html[data-dshlr-active] .dlU_AG_trigger { box-sizing: border-box; align-items: center; gap: 4px; }
+html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 14px; height: 14px; line-height: 0; translate: 0 1px;
+}
+html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) > svg { display: block; width: 14px; height: 14px; }
+@container (width <= 460px) {
+  html[data-dshlr-active] .dlU_AG_trigger :is(.dlU_AG_triggerIcon,.dlU_AG_chevron) { translate: none; }
+}
 html[data-dshlr-active] .dlU_AG_trigger:has(path[d="M8 4.39209V9.89209"]) :is(.dlU_AG_triggerLabel,.dlU_AG_triggerIcon),
 html[data-dshlr-active] button[role="menuitem"]:has(path[d="M8 4.39209V9.89209"]),
 html[data-dshlr-active] button[role="menuitem"]:has(path[d="M8 4.39209V9.89209"]) :is(span,svg) {
@@ -3153,6 +3162,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
         tabIndex: 0,
         onClick: onOpen,
         onKeyDown: (event) => {
+          if (event.defaultPrevented || event.target !== event.currentTarget) return
           if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
@@ -3283,6 +3293,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           tabIndex: 0,
           onClick: onToggle,
           onKeyDown: (event) => {
+            if (event.defaultPrevented || event.target !== event.currentTarget) return
             if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
             if (event.key !== 'Enter' && event.key !== ' ') return
             event.preventDefault()
@@ -3517,6 +3528,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
         'aria-label': t(collapsed ? 'section.expand' : 'section.collapse', { name: title }),
         onClick: onToggle,
         onKeyDown: (event) => {
+          if (event.defaultPrevented || event.target !== event.currentTarget) return
           if (onContextMenuKey !== undefined && onContextMenuKey(event)) return
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
@@ -6987,15 +6999,18 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
       try {
         const result = await actions.list(controller.signal)
         if (!mounted.current || generation !== revision.current) return
-        setState({
+        setState((current) => ({
           cwd,
-          repository: result.ok ? result.repository : null,
+          repository: result.ok ? result.repository :
+            ['not-repository', 'no-directory'].includes(result.reason) || current.cwd !== cwd
+              ? null : current.repository,
           loading: false,
           error: result.ok ? null : result.reason,
-        })
+        }))
       } catch {
         if (mounted.current && generation === revision.current && !controller.signal.aborted)
-          setState({ repository: null, loading: false, error: 'error' })
+          setState((current) => ({ cwd, repository: current.cwd === cwd ? current.repository : null,
+            loading: false, error: 'error' }))
       }
     }, [actions, cwd])
     useEffect(() => {
@@ -7022,7 +7037,7 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
         running ||
         repository.dirty ||
         repository.writable === false ||
-        state.loading
+        state.loading || state.error
       )
         return
       const operation = { generation: ++revision.current }
@@ -7043,12 +7058,13 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
           if (current())
             setState((current) => ({
               ...current,
-              repository: fresh.ok ? fresh.repository : null,
-              error: result.reason,
+              repository: fresh.ok ? fresh.repository :
+                ['not-repository', 'no-directory'].includes(fresh.reason) ? null : current.repository,
+              error: fresh.ok && result.reason !== 'switch-unknown' ? result.reason : 'switch-unknown',
             }))
         }
       } catch {
-        if (current()) setState({ repository: null, loading: false, error: 'switch-unknown' })
+        if (current()) setState((value) => ({ ...value, loading: false, error: 'switch-unknown' }))
       } finally {
         if (pending.current === operation) pending.current = null
         if (current()) setSwitching(false)
@@ -7060,7 +7076,7 @@ __DSH_FEATURE('dsh-git-switch', function (require, env) {
       branch.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
     )
     const disabled =
-      switching || state.loading || running || repository?.dirty || repository?.writable === false
+      switching || state.loading || !!state.error || running || repository?.dirty || repository?.writable === false
     const reason =
       state.error ??
       (running
@@ -7290,6 +7306,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     'merge.attachments': '含附件的排队消息无法合并',
     'button.empty': '这条排队消息没有可撤回的文本',
     'button.failed': '撤回失败，消息仍在队列中',
+    'withdraw.unknown': '撤回结果尚未确认，内容已保留在输入框。请检查队列后再发送。',
     'freeze.tooltip': '锁定，本轮结束不发送',
     'freeze.failed': '锁定失败，队列可能已变化',
     'frozen.thaw': '解锁',
@@ -7336,6 +7353,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
     'merge.attachments': 'Messages with attachments cannot be merged',
     'button.empty': 'This queued message has no text to withdraw',
     'button.failed': 'Withdraw failed; the message is still queued',
+    'withdraw.unknown': 'Withdrawal is unconfirmed. Content is kept in the composer; check the queue before sending.',
     'freeze.tooltip': 'Lock: do not send it when the turn ends',
     'freeze.failed': 'Lock failed; the queue may have changed',
     'frozen.thaw': 'Unlock',
@@ -8354,7 +8372,9 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           const rows = hostRowsOf(dock).filter((entry) => entry !== row)
           if (!rows.includes(target)) return
           const rect = target.getBoundingClientRect()
-          if (pointerEvent.clientY > rect.bottom - 14) {
+          if (pointerEvent.clientY > rect.bottom - 14 &&
+              !frozenIdsOf(sessionId).has(String(current.id)) &&
+              !frozenIdsOf(sessionId).has(String(rowItems.get(target)?.id))) {
             if (mergeTarget !== target) {
               if (mergeTarget !== null) mergeTarget.classList.remove('dshqw-merge-target')
               mergeTarget = target
@@ -9536,6 +9556,13 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                   try {
                     const result = await session.updateQueue(item.id, { kind: 'remove' })
                     if (result?.ok !== true) {
+                      const code = result?.error?.code
+                      if (!code || /^gateway\/(?:internal|cancelled|timeout|disconnected|unavailable)$/.test(code)) {
+                        for (const id of removedIds)
+                          if (!shell?.snapshot?.attachmentIds?.includes(id)) conversation?.releaseDraftAttachment?.(id)
+                        notify('info', ctx.locale.bind(NS)('withdraw.unknown'))
+                        return false
+                      }
                       rollback()
                       notify('error', failure)
                       return false
@@ -9544,11 +9571,15 @@ button[data-dshq-native-action="steer"]::after { content: attr(data-dshq-action-
                     // feedback; an info notice would linger in the Host's notice
                     // surface and is unnecessary for a successful withdraw.
                     for (const id of removedIds) conversation?.releaseDraftAttachment?.(id)
-                    if (cachedRecords.length > 0) await forgetCachedRecords(cachedRecords)
+                    if (cachedRecords.length > 0) void forgetCachedRecords(cachedRecords).catch(() => {})
                     return true
                   } catch {
-                    rollback()
-                    notify('error', failure)
+                    for (const id of removedIds) {
+                      try {
+                        if (!shell?.snapshot?.attachmentIds?.includes(id)) conversation?.releaseDraftAttachment?.(id)
+                      } catch { /* the prepared draft remains authoritative */ }
+                    }
+                    notify('info', ctx.locale.bind(NS)('withdraw.unknown'))
                     return false
                   }
                 },
@@ -11489,7 +11520,8 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         return false
       if (globalThis.__DSH_HOST_PATHS__ !== null && globalThis.__DSH_HOST_PATHS__ !== undefined)
         return false
-      globalThis.__DSH_HOST_PATHS__ = {
+      const previous = Object.getOwnPropertyDescriptor(globalThis, '__DSH_HOST_PATHS__')
+      const bridge = {
         pathFor: (file) => {
           try {
             return desktop.getPathForFile(file) ?? ''
@@ -11498,7 +11530,12 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
           }
         },
       }
-      return true
+      globalThis.__DSH_HOST_PATHS__ = bridge
+      return () => {
+        if (globalThis.__DSH_HOST_PATHS__ !== bridge) return
+        if (previous) Object.defineProperty(globalThis, '__DSH_HOST_PATHS__', previous)
+        else delete globalThis.__DSH_HOST_PATHS__
+      }
     } catch {
       return false
     }
@@ -11523,6 +11560,7 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
    */
   function SidebarFileDropLayer({ sessionId, actions, t }) {
     useEffect(() => {
+      const touched = new Map()
       const onMouseDown = (event) => {
         const element = event.target
         if (!inSidebar(element)) return
@@ -11530,7 +11568,10 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         if (path === null) return
         const row =
           element.closest?.('[data-file-path], [data-path], [title], [aria-label]') ?? element
-        row.draggable = true
+        if (row.draggable !== true) {
+          touched.set(row, { attribute: row.getAttribute?.('draggable'), property: row.draggable })
+          row.draggable = true
+        }
       }
       const onDragStart = (event) => {
         if (!inSidebar(event.target)) return
@@ -11583,13 +11624,22 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         document.removeEventListener('dragstart', onDragStart, true)
         document.removeEventListener('dragover', onDragOver, true)
         document.removeEventListener('drop', onDrop, true)
+        for (const [row, previous] of touched) {
+          if (row.draggable !== true) continue
+          if (previous.attribute == null) row.removeAttribute?.('draggable')
+          else row.setAttribute?.('draggable', previous.attribute)
+          row.draggable = previous.property
+        }
       }
     }, [sessionId, actions, t])
     return null
   }
 
   function apply(ctx) {
-    installDesktopPathBridge()
+    ctx.effect(() => {
+      const restore = installDesktopPathBridge()
+      return typeof restore === 'function' ? restore : () => {}
+    }, 'sidebar-file-drop: desktop path bridge')
     ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'sidebar-file-drop: dictionaries')
     ctx.effect(() =>
       ctx.slots.inject('conversation.input.right', () =>
@@ -12020,16 +12070,44 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
           setPanelPosition(null)
           return
         }
-        const rect = panelRef.current.getBoundingClientRect()
-        const viewport = typeof window.innerWidth === 'number' ? window.innerWidth : 0
-        const left = Math.min(
-          Math.max(8, hover.x - rect.width / 2),
-          Math.max(8, viewport - rect.width - 8),
-        )
-        const above = hover.y - rect.height - 8
-        const top = above >= 8 ? above : hover.y + hover.height + 8
-        setPanelPosition({ left, top })
-      }, [hover])
+        const update = () => {
+          if (!hover.anchor?.isConnected) { setHover(null); return }
+          const panel = panelRef.current
+          if (!panel) return
+          const viewport = window.visualViewport ?? { width: window.innerWidth, height: window.innerHeight }
+          const x = (viewport.offsetLeft ?? 0) + 8
+          const y = Math.max(viewport.offsetTop ?? 0,
+            parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dsh-frame-chrome-top')) || 0) + 8
+          const right = (viewport.offsetLeft ?? 0) + viewport.width - 8
+          const bottom = (viewport.offsetTop ?? 0) + viewport.height - 8
+          panel.style.maxWidth = Math.max(1, right - x) + 'px'
+          panel.style.maxHeight = Math.max(1, bottom - y) + 'px'
+          const anchor = hover.anchor.getBoundingClientRect()
+          const aboveRoom = Math.max(0, anchor.top - y - 8)
+          const belowRoom = Math.max(0, bottom - anchor.bottom - 8)
+          const above = panel.offsetHeight <= aboveRoom || aboveRoom >= belowRoom
+          panel.style.maxHeight = Math.max(1, above ? aboveRoom : belowRoom) + 'px'
+          const rect = panel.getBoundingClientRect()
+          const left = Math.max(x, Math.min(anchor.left + anchor.width / 2 - rect.width / 2, right - rect.width))
+          const top = Math.max(y, Math.min(above ? anchor.top - rect.height - 8 : anchor.bottom + 8, bottom - rect.height))
+          setPanelPosition((current) => current?.left === left && current?.top === top ? current : { left, top })
+        }
+        update()
+        const resize = new ResizeObserver(update)
+        resize.observe(panelRef.current)
+        resize.observe(hover.anchor)
+        window.addEventListener('resize', update)
+        window.addEventListener('scroll', update, true)
+        window.visualViewport?.addEventListener('resize', update)
+        window.visualViewport?.addEventListener('scroll', update)
+        return () => {
+          resize.disconnect()
+          window.removeEventListener('resize', update)
+          window.removeEventListener('scroll', update, true)
+          window.visualViewport?.removeEventListener('resize', update)
+          window.visualViewport?.removeEventListener('scroll', update)
+        }
+      }, [hover, items])
 
       const cancelHide = () => {
         if (hoverTimerRef.current === null) return
@@ -12046,8 +12124,7 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
       const showHover = (item, element) => {
         if (typeof element?.getBoundingClientRect !== 'function') return
         cancelHide()
-        const rect = element.getBoundingClientRect()
-        setHover({ id: item.id, x: rect.left + rect.width / 2, y: rect.top, height: rect.height })
+        setHover({ id: item.id, anchor: element })
       }
 
       const hoveredIndex = hover === null ? -1 : items.findIndex((item) => item.id === hover.id)
@@ -12138,7 +12215,7 @@ __DSH_FEATURE('dsh-selection-quotes', function (require, env) {
 .dshqf-annotationLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dshqf-annotationRemove{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer}
 .dshqf-annotationRemove:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.dshqf-annotationPanel{position:fixed;z-index:130;box-sizing:border-box;width:max-content;min-width:200px;max-width:min(420px,calc(100vw - 16px));border:0;border-radius:10px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-soft);padding:10px 12px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.5}
+.dshqf-annotationPanel{position:fixed;z-index:130;box-sizing:border-box;width:max-content;min-width:min(200px,calc(100vw - 16px));max-width:min(420px,calc(100vw - 16px));overflow:auto;overscroll-behavior:contain;border:0;border-radius:10px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-soft);padding:10px 12px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.5}
 .dshqf-annotationPanelTitle{font-weight:600;margin-bottom:6px}
 .dshqf-annotationPanelText{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;color:var(--dsw-alias-label-secondary)}`
   function apply(ctx) {
@@ -13951,6 +14028,7 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
           text: text.slice(0, 20000),
           x: rect.left + rect.width / 2,
           y: rect.top,
+          bottom: rect.bottom,
         })
       }
       document.addEventListener('selectionchange', update)
@@ -13972,9 +14050,16 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
         return
       }
       const rect = ref.current.getBoundingClientRect()
+      const viewport = window.visualViewport ?? { width: innerWidth, height: innerHeight }
+      const left = (viewport.offsetLeft ?? 0) + 8
+      const top = Math.max(viewport.offsetTop ?? 0,
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dsh-frame-chrome-top')) || 0) + 8
+      const right = (viewport.offsetLeft ?? 0) + viewport.width - 8
+      const bottom = (viewport.offsetTop ?? 0) + viewport.height - 8
       setPosition({
-        left: Math.max(8, Math.min(selection.x - rect.width / 2, innerWidth - rect.width - 8)),
-        top: Math.max(8, selection.y - rect.height - 8),
+        left: Math.max(left, Math.min(selection.x - rect.width / 2, right - rect.width)),
+        top: Math.max(top, Math.min(selection.y - rect.height - 8 >= top
+          ? selection.y - rect.height - 8 : selection.bottom + 8, bottom - rect.height)),
       })
     }, [selection, version])
     if (!selection) return null
@@ -14013,7 +14098,7 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
   }
   const CSS = `
 .dsh-selection-toolbar { position: fixed; z-index: 120; display: inline-flex; align-items: stretch; min-height: 30px; max-width: calc(100vw - 16px); border: 0; border-radius: 999px; corner-shape: round; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-elevation-soft); font-family: var(--dsw-font-family); overflow: hidden; }
-.dsh-selection-action { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 18px; padding: 5px 12px; white-space: nowrap; cursor: pointer; }
+.dsh-selection-action { appearance: none; min-width:0; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 18px; padding: 5px 12px; white-space: normal; overflow-wrap:anywhere; cursor: pointer; }
 .dsh-selection-action + .dsh-selection-action { border-left: .5px solid var(--dsw-alias-border-l2); }
 .dsh-selection-action:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dsh-selection-action:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
@@ -14075,10 +14160,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     'panel.stop': '停止',
     'panel.forking': '正在创建临时会话…',
     'panel.failed': '临时会话创建失败',
+    'panel.sendFailed': '消息发送失败，请重试。',
+    'panel.sendUnknown': '发送结果尚未确认，请先检查对话。',
+    'panel.stopFailed': '停止失败，请重试。',
     'panel.empty': '还没有消息',
     'panel.expired': '临时会话已过期',
     'panel.close': '关闭',
     'panel.working': '运行中…',
+    'panel.cleanupPending': '临时会话尚未停止，将在连接恢复后重试清理。',
     'guide.title': '临时侧聊',
     'guide.description': '不打断主线，针对选中内容追问',
   }
@@ -14092,10 +14181,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     'panel.stop': 'Stop',
     'panel.forking': 'Creating temporary conversation…',
     'panel.failed': 'Could not create the temporary conversation',
+    'panel.sendFailed': 'Could not send the message. Try again.',
+    'panel.sendUnknown': 'Sending is unconfirmed. Check the conversation before retrying.',
+    'panel.stopFailed': 'Could not stop the conversation. Try again.',
     'panel.empty': 'No messages yet',
     'panel.expired': 'This temporary conversation expired',
     'panel.close': 'Close',
     'panel.working': 'Running…',
+    'panel.cleanupPending': 'The side chat has not stopped yet. Cleanup will retry when the connection recovers.',
     'guide.title': 'Side chat',
     'guide.description': 'Ask about a passage without interrupting the main thread',
   }
@@ -14323,6 +14416,75 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
     }
   }
 
+  /** Persist before native close; cleanup is idempotent and independent of the visible session. */
+  function createCleanupQueue(ctx) {
+    let disposed = false, active = false, timer = null
+    const attempts = new Map()
+    const pending = () => {
+      const entries = []
+      try {
+        for (let index = 0; index < localStorage.length; index++) {
+          const key = localStorage.key(index)
+          if (!key?.startsWith(META_PREFIX)) continue
+          const tabId = key.slice(META_PREFIX.length), meta = loadMeta(tabId)
+          if (meta?.closing && typeof meta.childId === 'string') entries.push([tabId, meta])
+        }
+      } catch { /* storage can be blocked; enqueue still fails closed */ }
+      return entries
+    }
+    const drain = async () => {
+      if (disposed || active) return
+      active = true
+      try {
+        for (const [tabId, meta] of pending()) {
+          if (disposed) break
+          const count = attempts.get(tabId) ?? 0
+          if (count >= 3) continue
+          attempts.set(tabId, count + 1)
+          try {
+            await archiveTemporary(ctx, meta.childId)
+            const current = loadMeta(tabId)
+            if (current?.closing && current.childId === meta.childId) dropMeta(tabId)
+            attempts.delete(tabId)
+          } catch {
+            if (count === 0) {
+              try {
+                const scope = ctx.sessions.scope(meta.parentSessionId)
+                scope?.get('conversation')?.input?.for?.(scope)?.notify?.('error', tRef(ctx, 'panel.cleanupPending'))
+              } catch { /* metadata remains available for reconnect/reload */ }
+            }
+          }
+        }
+      } finally {
+        active = false
+        if (!disposed && pending().some(([id]) => (attempts.get(id) ?? 0) < 3)) {
+          clearTimeout(timer)
+          timer = setTimeout(() => { timer = null; void drain() }, 3000)
+        }
+      }
+    }
+    const retry = () => { attempts.clear(); void drain() }
+    return {
+      enqueue(tabId, meta) {
+        // A storage failure throws synchronously so the host retains the tab.
+        localStorage.setItem(META_PREFIX + tabId, JSON.stringify({ ...meta, closing: true }))
+        attempts.delete(tabId)
+        void drain()
+      },
+      start() {
+        window.addEventListener?.('focus', retry)
+        window.addEventListener?.('online', retry)
+        const off = ctx.get('connection')?.generation?.subscribe?.(retry)
+        void drain()
+        return () => {
+          disposed = true; clearTimeout(timer); off?.()
+          window.removeEventListener?.('focus', retry)
+          window.removeEventListener?.('online', retry)
+        }
+      },
+    }
+  }
+
   /** @returns {string} the on-screen main conversation id, or ''. */
   function currentSessionIdOf(ctx) {
     const value = ctx.get('uiSession')?.current?.value
@@ -14386,7 +14548,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
    * @param {object} ctx - root client context.
    * @returns {Function} React component.
    */
-  function createPanel(ctx) {
+  function createPanel(ctx, cleanup) {
     return function SideForkPanel({ useTabInfo }) {
       const info = typeof useTabInfo === 'function' ? useTabInfo() : null
       const tab = info?.tab
@@ -14411,6 +14573,12 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       const baselineRef = useRef(0)
       const inputRef = useRef(null)
       const logRef = useRef(null)
+      const following = useRef(true)
+      const flight = useRef(null)
+      useEffect(() => () => {
+        try { flight.current?.submission?.abandon?.() } catch { /* echo already retired */ }
+        flight.current = null
+      }, [tabId])
 
       // Fork once per tab. A tab restored after the app restarted has no
       // matching run marker: it is expired and must not create another child.
@@ -14422,6 +14590,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
         }
         const meta = loadMeta(tabId)
         if (meta !== null) {
+          if (meta.closing) { setExpired(true); return undefined }
           quoteSentRef.current = meta.quoteSent === true
           baselineRef.current = typeof meta.baselineSeq === 'number' ? meta.baselineSeq : 0
         }
@@ -14469,8 +14638,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             })
             rememberChild(child)
             if (cancelled) {
-              await archiveTemporary(ctx, child)
-              dropMeta(tabId)
+              cleanup.enqueue(tabId, { childId: child, parentSessionId: effective.parentSessionId, runId: RUN_ID })
               return
             }
             setChildId(child)
@@ -14588,12 +14756,14 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
 
       useEffect(() => {
         const log = logRef.current
-        if (log !== null && log !== undefined) log.scrollTop = log.scrollHeight
-      }, [messages.length, running])
+        if (log && following.current) log.scrollTop = log.scrollHeight
+      }, [messages, running])
 
       const submit = async () => {
         const text = draft.trim()
-        if (text === '' || sending || binding === null) return
+        if (text === '' || sending || flight.current || binding === null) return
+        const operation = { submission: null }
+        flight.current = operation
         setSending(true)
         setError('')
         const promptText = composePrompt(text, effective.quote ?? '', quoteSentRef.current)
@@ -14603,19 +14773,23 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             typeof session.beginSubmission === 'function'
               ? session.beginSubmission({ mode: 'queue', text: promptText, attachments: [] })
               : undefined
+          operation.submission = submission
           const result = await session.prompt(
             [{ type: 'text', text: promptText }],
             'queue',
             undefined,
             submission?.requestId,
           )
+          if (flight.current !== operation) return
           if (result?.ok !== true) {
             try {
               submission?.abandon?.()
             } catch {
               /* ignore */
             }
-            setError(tRef(ctx, 'panel.failed'))
+            const code = result?.error?.code
+            setError(tRef(ctx, !code || /^gateway\/(?:internal|cancelled|timeout|disconnected|unavailable)$/.test(code)
+              ? 'panel.sendUnknown' : 'panel.sendFailed'))
           } else {
             // A later draft belongs to the next message, even while this
             // admission request is still waiting for its acknowledgement.
@@ -14626,9 +14800,10 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
             }
           }
         } catch (sendError) {
-          setError(String(sendError?.message ?? sendError))
+          try { operation.submission?.abandon?.() } catch { /* echo already retired */ }
+          if (flight.current === operation) setError(tRef(ctx, 'panel.sendUnknown'))
         } finally {
-          setSending(false)
+          if (flight.current === operation) { flight.current = null; setSending(false) }
         }
       }
 
@@ -14681,7 +14856,10 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
               ),
         ),
       )
-      const log = h('div', { ref: logRef, className: 'dshqf-log' }, empty, rows)
+      const log = h('div', { ref: logRef, className: 'dshqf-log', onScroll: (event) => {
+        const node = event.currentTarget
+        following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 24
+      } }, empty, rows)
       const errorBox = error !== '' ? h('div', { className: 'dshqf-errorText' }, error) : null
       const actions = h(
         'div',
@@ -14693,8 +14871,9 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
               {
                 type: 'button',
                 className: 'dshqf-secondary',
-                onClick: () => {
-                  void binding.session.cancel()
+                onClick: async () => {
+                  try { await binding.session.cancel() }
+                  catch { setError(tRef(ctx, 'panel.stopFailed')) }
                 },
               },
               tRef(ctx, 'panel.stop'),
@@ -14792,7 +14971,9 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       }
     }, 'quick-fork: styles')
 
-    const Panel = createPanel(ctx)
+    const cleanup = createCleanupQueue(ctx)
+    ctx.effect(() => cleanup.start(), 'quick-fork: durable close cleanup')
+    const Panel = createPanel(ctx, cleanup)
     const tabDefinition = tabDefinitionFor((key) => {
       try {
         return ctx.locale.bind(NS)(key)
@@ -14840,11 +15021,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
           sideCtx.sidebarRight.registerCloseHandler(KIND, (_sessionId, tab) => {
             const meta = loadMeta(tab.id)
             if (meta !== null && typeof meta.childId === 'string') {
-              void archiveTemporary(sideCtx, meta.childId)
-                .then(() => dropMeta(tab.id))
-                .catch((error) =>
-                  console.error('[codex-workbench] temporary conversation cleanup failed:', error),
-                )
+              cleanup.enqueue(tab.id, meta)
             } else dropMeta(tab.id)
           }),
         'quick-fork: close cleanup',
@@ -14862,6 +15039,7 @@ __DSH_FEATURE('dsh-quick-fork', function (require, env) {
       composePrompt,
       quoteBlockOf,
       maxSeqOf,
+      createCleanupQueue,
     },
   }
 })
@@ -15078,7 +15256,7 @@ __DSH_FEATURE('dsh-ui-motion', function () {
         if (textSize > 24000) throw new RangeError('surface text is too large')
         budget(target.textContent)
       }
-      for (const child of node.childNodes) {
+      for (const child of tag === 'input' || tag === 'textarea' ? [] : node.childNodes) {
         const next = copy(child)
         if (next) target.append(next)
       }
@@ -15603,6 +15781,31 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
     const hostAnchorRef = useRef(null)
     const hostCenterTimerRef = useRef(null)
     const rootHideTimerRef = useRef(null)
+    const tipBackups = useRef(new Map())
+    const buttonBackups = useRef(new Map())
+    const restoreOwned = () => {
+      document.documentElement?.removeAttribute?.('data-dshhp-hover')
+      hostAnchorRef.current = null
+      for (const [button, previous] of buttonBackups.current) {
+        if (button.getAttribute?.('data-dshhp-hover') !== 'icon') continue
+        if (previous === null) button.removeAttribute?.('data-dshhp-hover')
+        else button.setAttribute?.('data-dshhp-hover', previous)
+      }
+      buttonBackups.current.clear()
+      for (const [tip, previous] of tipBackups.current) {
+        for (const name of ['side', 'align', 'dshhpReady']) {
+          if (previous[name] === undefined) delete tip.dataset[name]
+          else tip.dataset[name] = previous[name]
+        }
+        for (const [name, value] of previous.styles) {
+          if (value) tip.style.setProperty?.(name, value)
+          else tip.style.removeProperty?.(name)
+        }
+        for (const duplicate of tip.querySelectorAll?.('[data-dshhp-duplicate]') ?? [])
+          duplicate.removeAttribute?.('data-dshhp-duplicate')
+      }
+      tipBackups.current.clear()
+    }
 
     /**
      * Center a Host tooltip over its control, keeping it inside the viewport.
@@ -15615,11 +15818,18 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
       const rect = control.getBoundingClientRect?.()
       if (rect === undefined || rect === null) return false
       let moved = false
+      for (const tip of tipBackups.current.keys()) if (tip.isConnected === false) tipBackups.current.delete(tip)
       for (const tip of document.querySelectorAll('[role="tooltip"]')) {
         cleanForeignTooltip(tip)
         if (!isHostTooltipNode(tip)) continue
         if (tip.hasAttribute?.('data-pinned') === true) continue
         if (typeof tip.getClientRects === 'function' && tip.getClientRects().length === 0) continue
+        if (tip.dataset && tip.style && !tipBackups.current.has(tip)) {
+          tipBackups.current.set(tip, { side: tip.dataset.side, align: tip.dataset.align,
+            dshhpReady: tip.dataset.dshhpReady,
+            styles: ['max-width', 'left', 'top', '--dshhp-left', '--dshhp-top']
+              .map((name) => [name, tip.style.getPropertyValue?.(name) ?? '']) })
+        }
         if (tip.style)
           tip.style.maxWidth =
             Math.max(1, (window.visualViewport?.width ?? window.innerWidth) - 16) + 'px'
@@ -15741,7 +15951,11 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
       const background = style?.backgroundColor ?? ''
       const transparent =
         background === '' || background === 'transparent' || background.endsWith(', 0)')
-      if (transparent) button.setAttribute?.('data-dshhp-hover', 'icon')
+      if (transparent) {
+        for (const node of buttonBackups.current.keys()) if (node.isConnected === false) buttonBackups.current.delete(node)
+        if (!buttonBackups.current.has(button)) buttonBackups.current.set(button, button.getAttribute?.('data-dshhp-hover') ?? null)
+        button.setAttribute?.('data-dshhp-hover', 'icon')
+      }
     }
 
     const schedule = (button, label, keys) => {
@@ -15920,6 +16134,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         if (hostCenterTimerRef.current !== null) window.clearTimeout(hostCenterTimerRef.current)
         if (rootHideTimerRef.current !== null) window.clearTimeout(rootHideTimerRef.current)
         for (const button of titleBackupRef.current.keys()) restoreTitle(button)
+        restoreOwned()
       }
     }, [])
 
@@ -15929,6 +16144,7 @@ __DSH_FEATURE('dsh-hover-polish', function (require, env) {
         if (hostCenterTimerRef.current !== null) window.clearTimeout(hostCenterTimerRef.current)
         if (rootHideTimerRef.current !== null) window.clearTimeout(rootHideTimerRef.current)
         for (const button of titleBackupRef.current.keys()) restoreTitle(button)
+        restoreOwned()
       },
       [],
     )

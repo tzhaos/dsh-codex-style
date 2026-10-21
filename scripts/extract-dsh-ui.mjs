@@ -27,6 +27,10 @@ try {
     'dsh-client-ui-sidebar',
     'dsh-client-ui-conversation',
     'dsh-client-ui-attachment',
+    'dsh-client-ui-permission-presets',
+    'dsh-client-ui-model-selection',
+    'dsh-client-ui-schedule',
+    'dsh-client-ui-plugin-manager',
     'dsh-client-ui-theme',
     'dsh-web-frontend',
   ])

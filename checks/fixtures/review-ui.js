@@ -2,7 +2,7 @@
 const modules = globalThis.__reviewModules
 const definitions = new Map()
 window.__ModuleLoader__ = { load: ({ id, factory }) => definitions.set(id, factory) }
-for (const name of ['layout', 'sidebar', 'conversation', 'attachment', 'model-selection', 'schedule', 'plugin-manager']) {
+for (const name of ['layout', 'sidebar', 'conversation', 'attachment', 'model-selection', 'permission-presets', 'schedule', 'plugin-manager']) {
   await import('./' + name + '.js')
   const id = '@deepseek-ai/dsh-client-ui-' + name
   modules[id] = definitions.get(id)((specifier) => {
@@ -93,6 +93,12 @@ const modelState = store({
   retainedEffort: undefined, failures: [], status: 'ready', pending: null, error: null,
 })
 const modelWrites = []
+const permissionCatalog = store({ value: { options: [
+  { value: 'read-only', name: '只读', description: '只读模式' },
+  { value: 'workspace-write', name: '工作区', description: '工作区权限' },
+  { value: 'danger-full-access', name: '完全权限', description: '完全权限' },
+] } })
+const permissionSelection = store({ currentValue: 'danger-full-access' })
 const modelDirectory = {
   store: modelState,
   generation: 0,
@@ -229,6 +235,7 @@ const services = {
   workspaces: {
     create: async ({ path }) => ({ workspaceId: 'fixture-added', path }),
     archiveSession: async (id) => {
+      if (control.archiveSession) await control.archiveSession(id)
       archived.push(id)
     },
     unarchiveSession: async (id) => {
@@ -442,6 +449,15 @@ function NativeLauncher() {
   })
 }
 function renderSlot(name, owner = {}, options = {}) {
+  if (name === 'conversation.input.permission') return h(
+    modules['@deepseek-ai/dsh-client-ui-permission-presets'].__review.PermissionSelect,
+    { ...owner, locked: false,
+      usePermissionCatalog: (selector) => useStore(permissionCatalog, selector),
+      useProjection: () => useStore(permissionSelection),
+      select: async (currentValue) => { permissionSelection.set({ currentValue }) },
+      t: (key, params = {}) => (modules['@deepseek-ai/dsh-client-ui-permission-presets'].__reviewLocale[key] ?? key)
+        .replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? '')) },
+  )
   if (name === 'conversation.input.model') return h(
     modules['@deepseek-ai/dsh-client-ui-model-selection'].__review.ModelSelect,
     { ...owner, available: true, directory: modelState,
@@ -576,6 +592,9 @@ function App() {
 root.render(h(App))
 window.__CODEX_WORKBENCH_UI_FIXTURE__ = true
 window.review = {
+  session,
+  bindingFor,
+  permissionCatalog, permissionSelection,
   workbench, panel,
   workspaceState: workspaces,
   shortcutConfig, shortcutCatalog, emitKeyboard, keyboardListeners,

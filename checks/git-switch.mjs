@@ -174,6 +174,22 @@ try {
     assert.equal((await engine.list(ctx, session.id, cancelled.signal)).reason, 'cancelled')
     assert.equal(switches, previous)
   })
+  await check('a failed verification after checkout reports an unknown outcome', async () => {
+    const before = (await engine.list(ctx, session.id)).repository
+    const original = ctx.subprocess.spawn
+    let completed = false
+    ctx.subprocess.spawn = (options) => {
+      if (completed && options.argv.includes('symbolic-ref')) throw new Error('verification disconnected')
+      const child = original(options)
+      if (options.argv.includes('switch')) void child.done.then(() => { completed = true })
+      return child
+    }
+    try {
+      const result = await engine.switch(ctx, session.id, 'main', before.token)
+      assert.equal(setup(['branch', '--show-current']).trim(), 'main')
+      assert.equal(result.reason, 'switch-unknown')
+    } finally { ctx.subprocess.spawn = original }
+  })
 } finally {
   await engine.dispose()
   const absolute = path.resolve(scratch)

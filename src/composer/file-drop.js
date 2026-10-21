@@ -131,7 +131,8 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         return false
       if (globalThis.__DSH_HOST_PATHS__ !== null && globalThis.__DSH_HOST_PATHS__ !== undefined)
         return false
-      globalThis.__DSH_HOST_PATHS__ = {
+      const previous = Object.getOwnPropertyDescriptor(globalThis, '__DSH_HOST_PATHS__')
+      const bridge = {
         pathFor: (file) => {
           try {
             return desktop.getPathForFile(file) ?? ''
@@ -140,7 +141,12 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
           }
         },
       }
-      return true
+      globalThis.__DSH_HOST_PATHS__ = bridge
+      return () => {
+        if (globalThis.__DSH_HOST_PATHS__ !== bridge) return
+        if (previous) Object.defineProperty(globalThis, '__DSH_HOST_PATHS__', previous)
+        else delete globalThis.__DSH_HOST_PATHS__
+      }
     } catch {
       return false
     }
@@ -165,6 +171,7 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
    */
   function SidebarFileDropLayer({ sessionId, actions, t }) {
     useEffect(() => {
+      const touched = new Map()
       const onMouseDown = (event) => {
         const element = event.target
         if (!inSidebar(element)) return
@@ -172,7 +179,10 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         if (path === null) return
         const row =
           element.closest?.('[data-file-path], [data-path], [title], [aria-label]') ?? element
-        row.draggable = true
+        if (row.draggable !== true) {
+          touched.set(row, { attribute: row.getAttribute?.('draggable'), property: row.draggable })
+          row.draggable = true
+        }
       }
       const onDragStart = (event) => {
         if (!inSidebar(event.target)) return
@@ -225,13 +235,22 @@ __DSH_FEATURE('dsh-sidebar-file-drop', function (require, env) {
         document.removeEventListener('dragstart', onDragStart, true)
         document.removeEventListener('dragover', onDragOver, true)
         document.removeEventListener('drop', onDrop, true)
+        for (const [row, previous] of touched) {
+          if (row.draggable !== true) continue
+          if (previous.attribute == null) row.removeAttribute?.('draggable')
+          else row.setAttribute?.('draggable', previous.attribute)
+          row.draggable = previous.property
+        }
       }
     }, [sessionId, actions, t])
     return null
   }
 
   function apply(ctx) {
-    installDesktopPathBridge()
+    ctx.effect(() => {
+      const restore = installDesktopPathBridge()
+      return typeof restore === 'function' ? restore : () => {}
+    }, 'sidebar-file-drop: desktop path bridge')
     ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'sidebar-file-drop: dictionaries')
     ctx.effect(() =>
       ctx.slots.inject('conversation.input.right', () =>
