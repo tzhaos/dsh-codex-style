@@ -483,6 +483,44 @@ html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_ne
         else root.setAttribute('data-dshlr-active', previous)
       }
     }, 'left-rail: host adapter')
+    // The window material tints with the Windows accent palette published by
+    // the Host half; a missing shell or route keeps the neutral theme surface.
+    ctx.effect(() => {
+      const request = globalThis.fetch
+      if (typeof request !== 'function') return
+      const root = document.documentElement
+      let active = true
+      const publish = (payload) => {
+        if (active !== true || payload === null || typeof payload !== 'object' || payload.ok !== true) return
+        if (typeof payload.accent === 'string') root.style.setProperty('--dshlr-system-accent', payload.accent)
+        if (typeof payload.accentLight === 'string') {
+          root.style.setProperty('--dshlr-system-accent-on-dark', payload.accentLight)
+        }
+      }
+      const refresh = () => {
+        if (active !== true) return
+        request('/dsh-codex-style/system-colors', { credentials: 'same-origin', cache: 'no-store' })
+          .then((response) => (response.ok === true ? response.json() : null))
+          .then(publish)
+          .catch(() => {})
+      }
+      const onFocus = () => refresh()
+      const onVisibility = () => {
+        if (document.visibilityState !== 'hidden') refresh()
+      }
+      refresh()
+      globalThis.addEventListener?.('focus', onFocus)
+      document.addEventListener('visibilitychange', onVisibility)
+      const timer = globalThis.setInterval?.(refresh, 8_000)
+      return () => {
+        active = false
+        if (timer !== undefined) globalThis.clearInterval?.(timer)
+        globalThis.removeEventListener?.('focus', onFocus)
+        document.removeEventListener('visibilitychange', onVisibility)
+        root.style.removeProperty('--dshlr-system-accent')
+        root.style.removeProperty('--dshlr-system-accent-on-dark')
+      }
+    }, 'left-rail: system color material')
     const actions = {
       activePanel: () => layout.panelInfo.getSnapshot().activePanelId ?? null,
       subscribe(listener) {

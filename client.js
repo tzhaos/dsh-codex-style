@@ -272,16 +272,24 @@ env.presentationCSS = `
   font-family: inherit;
 }
 :where(.dshcs-section, .dshqf-panel) :where(button, input, textarea, select) { box-sizing: border-box; }
-/* One viewport background joins the caption and rail. Fade before native window controls. */
+/* One viewport material joins the caption and rail. The Host publishes the
+   Windows accent palette, so the material is tinted with the live system
+   color; until it arrives the theme surface tone keeps the material neutral.
+   Fade before native window controls. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));
+  --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
   background-color: var(--dsw-specific-sidebar-fill);
   background-image:
     linear-gradient(90deg, transparent, var(--dsw-specific-sidebar-fill) var(--dshlr-material-span)),
-    radial-gradient(ellipse at left top, color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent), transparent 75%),
-    radial-gradient(ellipse at left bottom, color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent), transparent 75%);
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--dshlr-material-tint) 26%, var(--dsw-specific-sidebar-fill)),
+      color-mix(in srgb, var(--dshlr-material-tint) 12%, var(--dsw-specific-sidebar-fill)));
   background-attachment: fixed;
   background-repeat: no-repeat;
+}
+html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
+  --dshlr-material-tint: var(--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2));
 }
 html[data-dshlr-active][data-windows-titlebar] .BynINW_frame,
 html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::before,
@@ -1659,24 +1667,18 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       '将把“{name}”从工作区列表中移除。文件夹与会话记录会保留，其会话将显示在“未分组”下。',
     'dialog.delete.confirm': '删除',
     'dialog.delete.error': '删除失败：{message}',
-    'dialog.deleteSession.title': '删除会话',
+    'dialog.deleteSession.title': '从侧边栏移除',
     'dialog.deleteSession.body':
-      '把“{title}”从侧边栏移除。会话记录不会被删除，可以在插件设置中恢复。',
-    'dialog.deleteSession.confirm': '删除',
-    'menu.deleteSession': '删除会话（安全）',
-    'toast.currentSessionDelete': '当前打开的会话不能删除，请先切换到其他会话',
+      '把“{title}”从侧边栏移除。会话记录不会被删除，但移除后不会在侧边栏或设置中显示，也不能在此界面恢复。',
+    'dialog.deleteSession.confirm': '移除',
+    'menu.deleteSession': '从侧边栏移除',
+    'toast.currentSessionDelete': '当前打开的会话不能移除，请先切换到其他会话',
     'settings.tab': '侧边栏分区',
     'settings.title': '侧边栏分区',
-    'settings.intro': '控制侧边栏分区与安全删除的显示方式。这些设置只保存在浏览器本地。',
+    'settings.intro': '控制侧边栏分区的显示方式。这些设置只保存在浏览器本地。',
     'settings.archived.label': '显示归档分区',
     'settings.archived.desc':
       '关闭后归档会话仍保留，但侧边栏不再显示“归档”分区；可以随时重新开启。',
-    'settings.removed.title': '已移除的会话',
-    'settings.removed.desc':
-      '安全删除只从侧边栏移除会话，不修改磁盘上的会话记录。恢复后会话会重新出现在原来的分区。',
-    'settings.removed.empty': '没有已移除的会话',
-    'settings.removed.restore': '恢复',
-    'settings.removed.unknown': '会话 {id}',
     'dialog.renameSession.error': '重命名失败：{message}',
     'dialog.archiveError': '归档失败：{message}',
     'dialog.cancel': '取消',
@@ -1787,26 +1789,20 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       'Removes “{name}” from the workspace list. The folder and conversation history are kept; its conversations appear under “Ungrouped”.',
     'dialog.delete.confirm': 'Delete',
     'dialog.delete.error': 'Delete failed: {message}',
-    'dialog.deleteSession.title': 'Delete conversation',
+    'dialog.deleteSession.title': 'Remove from sidebar',
     'dialog.deleteSession.body':
-      'Removes “{title}” from the sidebar. The conversation record is not deleted and can be restored from the plugin settings.',
-    'dialog.deleteSession.confirm': 'Delete',
-    'menu.deleteSession': 'Delete conversation (safe)',
+      'Removes “{title}” from the sidebar. The conversation record is kept, but the conversation no longer appears in the sidebar or in Settings and cannot be restored from this UI.',
+    'dialog.deleteSession.confirm': 'Remove',
+    'menu.deleteSession': 'Remove from sidebar',
     'toast.currentSessionDelete':
-      'The open conversation cannot be deleted; switch to another conversation first',
+      'The open conversation cannot be removed; switch to another conversation first',
     'settings.tab': 'Sidebar sections',
     'settings.title': 'Sidebar sections',
     'settings.intro':
-      'Control how the sidebar sections and safe deletion behave. These settings are stored in this browser only.',
+      'Control how the sidebar sections are shown. These settings are stored in this browser only.',
     'settings.archived.label': 'Show Archived section',
     'settings.archived.desc':
       'When off, archived conversations are kept but the Archived section is hidden; turn it back on at any time.',
-    'settings.removed.title': 'Removed conversations',
-    'settings.removed.desc':
-      'Safe delete only removes a conversation from the sidebar; the conversation record on disk is unchanged. Restoring it puts it back in its original section.',
-    'settings.removed.empty': 'No removed conversations',
-    'settings.removed.restore': 'Restore',
-    'settings.removed.unknown': 'Conversation {id}',
     'dialog.renameSession.error': 'Rename failed: {message}',
     'dialog.archiveError': 'Archive failed: {message}',
     'dialog.cancel': 'Cancel',
@@ -2927,12 +2923,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
 .dshss-settingsText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dshss-settingsLabel { font-size: 14px; line-height: 22px; color: var(--dsw-alias-label-primary); }
 .dshss-settingsDesc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
-.dshss-settingsSectionTitle { margin: 0; font-size: 15px; font-weight: 600; line-height: 22px; color: var(--dsw-alias-label-primary); }
-.dshss-settingsEmpty { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
-.dshss-settingsRemoved { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.dshss-settingsRemovedRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); }
-.dshss-settingsRemovedTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
-.dshss-settingsRemoveIcon { color: var(--dsw-alias-label-tertiary); flex: none; display: inline-flex; }
 
 /* Dialog body content rendered inside the host Modal. */
 .dshss-dialogContent { display: flex; flex-direction: column; gap: 16px; }
@@ -5162,15 +5152,14 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   }
 
   /**
-   * Plugin settings tab: Archived visibility and recovery of safely removed
-   * conversations. The settings store is browser-local and shared with the
-   * sidebar through Cordis injection.
-   * @param {object} props - settings store, actions and locale seat.
+   * Plugin settings tab: Archived-section visibility only. Safely removed
+   * conversations stay hidden in this browser and the settings page keeps no
+   * list of their titles; removal is one-way by design.
+   * @param {object} props - settings store and locale seat.
    * @returns {object} the settings page.
    */
   function SettingsPanel({ settings, actions, t }) {
     const managed = useStoreValue(settings)
-    const removed = [...managed.removed].sort((left, right) => right.removedAt - left.removedAt)
     return h(
       'div',
       { className: 'dshss-settings' },
@@ -5192,46 +5181,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           },
         }),
       ),
-      h(
-        'div',
-        { className: 'dshss-settingsText' },
-        h('h3', { className: 'dshss-settingsSectionTitle' }, t('settings.removed.title')),
-        h('p', { className: 'dshss-settingsDesc' }, t('settings.removed.desc')),
-      ),
-      removed.length === 0
-        ? h('p', { className: 'dshss-settingsEmpty' }, t('settings.removed.empty'))
-        : h(
-            'ul',
-            { className: 'dshss-settingsRemoved' },
-            removed.map((entry) =>
-              h(
-                'li',
-                { key: entry.id, className: 'dshss-settingsRemovedRow' },
-                h(
-                  'span',
-                  { className: 'dshss-settingsRemoveIcon' },
-                  h(IconTrashOutlineRegular, { size: 14 }),
-                ),
-                h(
-                  'span',
-                  { className: 'dshss-settingsRemovedTitle' },
-                  entry.title === entry.id
-                    ? t('settings.removed.unknown', { id: entry.id })
-                    : entry.title,
-                ),
-                h(
-                  Button,
-                  {
-                    variant: 'ghost',
-                    onClick: () => {
-                      actions.restoreSession(entry.id)
-                    },
-                  },
-                  t('settings.removed.restore'),
-                ),
-              ),
-            ),
-          ),
     )
   }
 
@@ -5347,12 +5296,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           ...current.removed,
         ],
       })
-    }
-    const restoreSession = (sessionId) => {
-      const current = settingsStore.getSnapshot()
-      const removed = current.removed.filter((entry) => entry.id !== sessionId)
-      if (removed.length === current.removed.length) return
-      commitSettings({ ...current, removed })
     }
 
     // Dialog requests cross the sidebar and overlay registrations as one
@@ -5528,7 +5471,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       render: () =>
         h(SettingsPanel, {
           settings: settingsStore,
-          actions: { setShowArchived, restoreSession },
+          actions: { setShowArchived },
           t,
         }),
     })
@@ -6041,6 +5984,44 @@ html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_ne
         else root.setAttribute('data-dshlr-active', previous)
       }
     }, 'left-rail: host adapter')
+    // The window material tints with the Windows accent palette published by
+    // the Host half; a missing shell or route keeps the neutral theme surface.
+    ctx.effect(() => {
+      const request = globalThis.fetch
+      if (typeof request !== 'function') return
+      const root = document.documentElement
+      let active = true
+      const publish = (payload) => {
+        if (active !== true || payload === null || typeof payload !== 'object' || payload.ok !== true) return
+        if (typeof payload.accent === 'string') root.style.setProperty('--dshlr-system-accent', payload.accent)
+        if (typeof payload.accentLight === 'string') {
+          root.style.setProperty('--dshlr-system-accent-on-dark', payload.accentLight)
+        }
+      }
+      const refresh = () => {
+        if (active !== true) return
+        request('/dsh-codex-style/system-colors', { credentials: 'same-origin', cache: 'no-store' })
+          .then((response) => (response.ok === true ? response.json() : null))
+          .then(publish)
+          .catch(() => {})
+      }
+      const onFocus = () => refresh()
+      const onVisibility = () => {
+        if (document.visibilityState !== 'hidden') refresh()
+      }
+      refresh()
+      globalThis.addEventListener?.('focus', onFocus)
+      document.addEventListener('visibilitychange', onVisibility)
+      const timer = globalThis.setInterval?.(refresh, 8_000)
+      return () => {
+        active = false
+        if (timer !== undefined) globalThis.clearInterval?.(timer)
+        globalThis.removeEventListener?.('focus', onFocus)
+        document.removeEventListener('visibilitychange', onVisibility)
+        root.style.removeProperty('--dshlr-system-accent')
+        root.style.removeProperty('--dshlr-system-accent-on-dark')
+      }
+    }, 'left-rail: system color material')
     const actions = {
       activePanel: () => layout.panelInfo.getSnapshot().activePanelId ?? null,
       subscribe(listener) {
@@ -8746,6 +8727,40 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 [data-queue-dock] .dshqw-locked-row [class*="attachments"] {
   opacity: .55;
 }
+/* Attachment previews: the Host hairline (border-l1 / darkmode-thin) is nearly
+   invisible on the input, queue and transcript surfaces, so every preview gets
+   a readable stroke; hovering adds a soft blue ring. Only color and shadow
+   change, so a preview never moves or resizes under the pointer. */
+.Mrat-G_thumbnail,
+.srf2qa_thumbnail,
+.GjTS2W_card,
+.Nhu-QW_frame,
+[data-queue-dock] .v1kfCW_thumb,
+[data-queue-dock] .v1kfCW_file {
+  border-color: var(--dsw-alias-border-l3);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.Mrat-G_thumbnail:hover,
+.Mrat-G_thumbnail:focus-visible,
+.srf2qa_thumbnail:hover,
+.srf2qa_thumbnail:focus-visible,
+.GjTS2W_card:hover,
+.GjTS2W_card:focus-within,
+.Nhu-QW_frame:hover,
+.Nhu-QW_frame:focus-visible,
+[data-queue-dock] .v1kfCW_thumb:hover,
+[data-queue-dock] .v1kfCW_file:hover {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .Mrat-G_thumbnail,
+  .srf2qa_thumbnail,
+  .GjTS2W_card,
+  .Nhu-QW_frame,
+  [data-queue-dock] .v1kfCW_thumb,
+  [data-queue-dock] .v1kfCW_file { transition: none; }
+}
 `
 
   /**
@@ -9381,7 +9396,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   const React = require('react')
   const { createPortal } = require('react-dom')
   const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-  const { Tooltip, MenuSurface, IconClockOutlineRegular, IconSearchOutlineRegular, IconTrashOutlineRegular } =
+  const { Tooltip, MenuSurface, IconClockOutlineRegular, IconSearchOutlineRegular } =
     primitives
   const { useEffect, useMemo, useRef, useState } = React
   const h = React.createElement
@@ -9405,18 +9420,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
     'settings.tab': '输入历史',
     'settings.title': '输入历史',
     'settings.intro':
-      '管理由本插件记录的历史输入。删除或清空只影响插件在浏览器本地的记录，不会修改会话消息。',
-    'settings.empty': '还没有可管理的历史输入',
-    'settings.count': '{count} 条记录',
-    'settings.session': '会话',
-    'settings.unknownSession': '未知会话',
-    'settings.expand': '展开',
-    'settings.collapse': '收起',
-    'settings.delete': '删除',
-    'settings.clear': '清空全部历史',
-    'settings.clearConfirm': '确认清空全部历史输入？此操作会隐藏现有会话历史，不能撤销。',
-    'settings.confirmClear': '确认清空',
-    'settings.cancel': '取消',
+      '输入历史只由本插件记录在浏览器本地，可在输入框的历史面板中搜索或按 ↑ 取回；此处不再列出或管理具体记录。',
   }
 
   const en = {
@@ -9435,19 +9439,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
     'settings.tab': 'Prompt history',
     'settings.title': 'Prompt history',
     'settings.intro':
-      'Manage the prompt history recorded by this plugin. Deleting or clearing only affects browser-local records; conversation messages are not modified.',
-    'settings.empty': 'No prompt history to manage yet',
-    'settings.count': '{count} records',
-    'settings.session': 'Conversation',
-    'settings.unknownSession': 'Unknown conversation',
-    'settings.expand': 'Expand',
-    'settings.collapse': 'Collapse',
-    'settings.delete': 'Delete',
-    'settings.clear': 'Clear all history',
-    'settings.clearConfirm':
-      'Clear all prompt history? This hides existing conversation history and cannot be undone.',
-    'settings.confirmClear': 'Clear all',
-    'settings.cancel': 'Cancel',
+      'Prompt history is recorded by this plugin in browser-local storage only. Search or recall it from the composer history panel (↑ recalls the previous prompt); individual records are no longer listed or managed here.',
   }
 
   /**
@@ -9662,22 +9654,6 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
         for (const listener of listeners) listener()
       },
     }
-  }
-
-  /**
-   * Subscribe a component to a snapshot store.
-   * @param {object} store - managed store.
-   * @returns {object} current managed state.
-   */
-  function useStoreValue(store) {
-    const [value, setValue] = useState(store.getSnapshot())
-    useEffect(() => {
-      setValue(store.getSnapshot())
-      return store.subscribe(() => {
-        setValue(store.getSnapshot())
-      })
-    }, [store])
-    return value
   }
 
   /**
@@ -9943,7 +9919,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
             else openPanel()
           },
         },
-        h(IconClockOutlineRegular, { size: 14 }),
+        h(IconClockOutlineRegular, { size: 16 }),
       ),
     )
 
@@ -10074,139 +10050,17 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   }
 
   /**
-   * Settings tab: inspect managed prompt records, delete one, or clear all.
-   * @param {object} props - managed store, actions and translator.
+   * Settings tab seat. The plugin deliberately keeps no record list here: the
+   * composer palette owns recall, and Settings must not surface recorded
+   * prompts. This page only explains what the feature records.
+   * @param {object} props - translator.
    * @returns {object} settings surface.
    */
-  function SettingsPanel({ settings, actions, t, embedded = false }) {
-    const managed = useStoreValue(settings)
-    const [expanded, setExpanded] = useState(null)
-    const [confirmClear, setConfirmClear] = useState(false)
-    useEffect(() => {
-      actions.refresh?.()
-    }, [])
-    const records = managed.records
+  function SettingsPanel({ t }) {
     return h(
       'section',
       { className: 'dshch-settings' },
-      embedded ? null : h('h2', { className: 'dshch-settings-title' }, t('settings.title')),
       h('p', { className: 'dshch-settings-intro' }, t('settings.intro')),
-      h(
-        'div',
-        { className: 'dshch-settings-summary' },
-        t('settings.count', { count: records.length }),
-      ),
-      records.length === 0
-        ? h('div', { className: 'dshch-settings-empty' }, t('settings.empty'))
-        : h(
-            'div',
-            { className: 'dshch-settings-list' },
-            records.map((record) => {
-              const open = expanded === record.key
-              return h(
-                'div',
-                { key: record.key, className: 'dshch-settings-item' },
-                h(
-                  'div',
-                  { className: 'dshch-settings-head' },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dshch-settings-toggle',
-                      'aria-expanded': open,
-                      onClick: () => {
-                        setExpanded(open ? null : record.key)
-                      },
-                    },
-                    h(
-                      'span',
-                      { className: 'dshch-settings-session' },
-                      record.title === '' ? t('settings.unknownSession') : record.title,
-                    ),
-                    record.time > 0
-                      ? h(
-                          'span',
-                          { className: 'dshch-settings-time' },
-                          new Date(record.time).toLocaleString(),
-                        )
-                      : null,
-                    h(
-                      'span',
-                      { className: 'dshch-settings-action' },
-                      open ? t('settings.collapse') : t('settings.expand'),
-                    ),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dshch-settings-delete',
-                      onClick: () => {
-                        actions.deleteRecord(record.key)
-                      },
-                    },
-                    h(IconTrashOutlineRegular, { size: 14 }),
-                    t('settings.delete'),
-                  ),
-                ),
-                h(
-                  'div',
-                  {
-                    className: open
-                      ? 'dshch-settings-text dshch-settings-open'
-                      : 'dshch-settings-text',
-                  },
-                  record.text,
-                ),
-              )
-            }),
-          ),
-      h(
-        'div',
-        { className: 'dshch-settings-footer' },
-        confirmClear
-          ? h(
-              React.Fragment,
-              null,
-              h('span', { className: 'dshch-settings-confirmText' }, t('settings.clearConfirm')),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshch-settings-confirm',
-                  onClick: () => {
-                    actions.clearAll()
-                    setConfirmClear(false)
-                  },
-                },
-                t('settings.confirmClear'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshch-settings-cancel',
-                  onClick: () => {
-                    setConfirmClear(false)
-                  },
-                },
-                t('settings.cancel'),
-              ),
-            )
-          : h(
-              'button',
-              {
-                type: 'button',
-                className: 'dshch-settings-clear',
-                disabled: records.length === 0,
-                onClick: () => {
-                  setConfirmClear(true)
-                },
-              },
-              t('settings.clear'),
-            ),
-      ),
     )
   }
 
@@ -10373,166 +10227,12 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   min-width: 0;
   padding: 2px 0 20px;
 }
-.dshch-settings-title {
-  margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-}
 .dshch-settings-intro {
   margin: 0;
   max-width: 720px;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
-}
-.dshch-settings-summary {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-}
-.dshch-settings-empty {
-  padding: 24px 12px;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-tertiary);
-  text-align: center;
-  font-size: 13px;
-}
-.dshch-settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.dshch-settings-item {
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-1);
-}
-.dshch-settings-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-}
-.dshch-settings-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  padding: 2px 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.dshch-settings-toggle:hover .dshch-settings-session {
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-session {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dshch-settings-time {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-}
-.dshch-settings-action {
-  flex: none;
-  margin-left: auto;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-}
-.dshch-settings-delete {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 7px;
-  border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-}
-.dshch-settings-delete:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  padding: 0 10px 10px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-  word-break: break-word;
-}
-.dshch-settings-text.dshch-settings-open {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
-}
-.dshch-settings-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-}
-.dshch-settings-clear,
-.dshch-settings-confirm,
-.dshch-settings-cancel {
-  padding: 5px 9px;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-}
-.dshch-settings-clear:hover,
-.dshch-settings-confirm:hover,
-.dshch-settings-cancel:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-confirm {
-  border-color: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-state-error-primary);
-}
-.dshch-settings-clear:disabled {
-  cursor: default;
-  opacity: .5;
-}
-.dshch-settings-confirmText {
-  flex: 1 1 100%;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
 }
 `
 
@@ -10597,36 +10297,6 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
         hidden: managed.hidden.filter((key) => !key.startsWith(sessionId + ':')),
       })
     }
-    /** Rebuild the settings record cache from currently retained Sessions. */
-    const refreshRecords = () => {
-      let managed = managedStore.getSnapshot()
-      const state = ctx.sessions.list?.getSnapshot?.()
-      const ids = Array.isArray(state?.ids) ? state.ids : Object.keys(state?.byId ?? {})
-      for (const id of ids) {
-        let binding
-        try {
-          binding = ctx.sessions.binding(id)
-        } catch {
-          binding = undefined
-        }
-        if (binding === undefined) continue
-        const visible = visiblePrompts(readPrompts(binding, id), managed)
-        managed = mergeRecords(managed, id, titleOf(id), visible) ?? managed
-      }
-      if (managed !== managedStore.getSnapshot()) commitManaged(managed)
-    }
-    const deleteRecord = (key) => {
-      const managed = managedStore.getSnapshot()
-      if (!managed.records.some((record) => record.key === key)) return
-      commitManaged({
-        ...managed,
-        hidden: [...new Set([...managed.hidden, key])].slice(-HIDDEN_LIMIT),
-        records: managed.records.filter((record) => record.key !== key),
-      })
-    }
-    const clearAll = () => {
-      commitManaged({ ...EMPTY_MANAGED, clearedAt: Date.now() })
-    }
 
     ctx.slots.inject('conversation.input.left', () =>
       ctx.slots.register(
@@ -10683,20 +10353,11 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
 
     // Merged settings shell: this page becomes the prompt-history tab in
     // Settings -> Codex Style instead of a standalone Built-in plugins tab.
+    // The page only explains the feature; recorded prompts stay out of Settings.
     env.registerSettingsPage({
       id: 'dsh-composer-history',
       title: () => t('settings.title'),
-      render: () =>
-        h(SettingsPanel, {
-          embedded: true,
-          settings: managedStore,
-          actions: {
-            refresh: refreshRecords,
-            deleteRecord,
-            clearAll,
-          },
-          t,
-        }),
+      render: () => h(SettingsPanel, { t }),
     })
   }
 
@@ -12561,13 +12222,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     label: '推理强度',
     choose: '选择强度',
     chooseHint: '尚未选择强度，拖动滑块选择一个强度。',
-    none: '关闭',
-    minimal: '极低',
-    low: '低',
-    medium: '中',
-    high: '高',
-    xhigh: '极高',
-    max: '最大',
     model: '选择模型',
     failed: '强度设置失败，请重试。',
     unknown: '切换结果尚未确认，当前显示已同步的强度。请检查连接后重试。',
@@ -12578,13 +12232,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     label: 'Reasoning effort',
     choose: 'Choose effort',
     chooseHint: 'No effort selected yet. Choose a level on the slider.',
-    none: 'None',
-    minimal: 'Minimal',
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
-    xhigh: 'Extra high',
-    max: 'Max',
     model: 'Choose model',
     failed: 'Could not change reasoning effort. Try again.',
     unknown: 'The selection is unconfirmed. Showing the synchronized effort. Check the connection before retrying.',
@@ -12592,11 +12239,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     loading: 'Updating…',
   }
 
-  // Translate standard display names only; provider-specific IDs remain opaque.
-  function effortLabel(level, t) {
-    const key = level.id
-    return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
-      ? t(key) : level.name
+  /**
+   * Show the provider catalog's effort name verbatim. Reasoning-effort values
+   * are API vocabulary: they stay in the original English in every UI
+   * language, and a provider-specific label is never replaced by a generic
+   * translated one. The surrounding control copy stays localized.
+   * @param {{id?: string, name: string}} level - one advertised effort level.
+   * @returns {string} the level name exactly as the catalog advertises it.
+   */
+  function effortLabel(level) {
+    return level.name
   }
 
   function describe(state) {
@@ -12812,7 +12464,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
     const view = describe(state)
-    view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level, t) }))
+    view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level) }))
     const metricsKey = JSON.stringify([view.model, view.levels.map((level) => level.name)])
     const latest = useRef(null)
     latest.current = { view, open, generation, directory, nativeT }
@@ -13432,6 +13084,15 @@ __DSH_FEATURE('dsh-composer-status', function () {
   const PILLS_ATTR = 'data-dshcs-pills'
   const ACTIVITY_ATTR = 'data-dshcs-activity'
   const POPUP_ATTR = 'data-dshcs-popup'
+  /**
+   * Host "Performance & usage" preference (`ui-chat` setting). Compact renders
+   * only plain-text speed/cache readings, so this feature's icon-only pills
+   * would carry no information; the marker hides them instead.
+   */
+  const PERFORMANCE_ATTR = 'data-dshcs-performance'
+
+  /** Host settings namespace that owns the performance-and-usage preference. */
+  const CHAT_SETTINGS_NAMESPACE = 'ui-chat'
 
   /** Gap between the three status buttons in the control row. */
   const GAP = 4
@@ -13439,6 +13100,12 @@ __DSH_FEATURE('dsh-composer-status', function () {
   const RING_GAP = 4
   /** Viewport margin kept by the centered detail panels. */
   const PANEL_MARGIN = 12
+  /**
+   * Vertical placement deadband. Reaching the conversation tail settles the
+   * sticky composer by about a pixel, and re-centering these icons for that
+   * pixel reads as a shake; real row/card layout changes are far larger.
+   */
+  const VERTICAL_DEADBAND = 2
 
   const CSS = `
     [${ROOT_ATTR}]{position:relative;}
@@ -13448,11 +13115,17 @@ __DSH_FEATURE('dsh-composer-status', function () {
     [${DOCK_ATTR}]>*{pointer-events:auto;flex:none;}
     [${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;pointer-events:auto;}
     [${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}
-    [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:2px 4px;border-radius:999px;corner-shape:round;}
+    /* Compact mode only carries plain-text readings in the Host pills, which
+       this icon-only row hides; drop the two stat buttons rather than leave
+       two meaningless glyphs. Detailed mode keeps them. */
+    html[${PERFORMANCE_ATTR}=compact] [${DOCK_ATTR}] [data-composer-stat]{display:none;}
+    /* One 28px hover circle for every composer status icon: the Host ring and
+       the two stat pills share the history trigger's surface size. */
+    [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:6px;border-radius:999px;corner-shape:round;}
     [${DOCK_ATTR}] [data-composer-stat] svg{width:16px;height:16px;}
     [${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]{position:relative;flex:none;pointer-events:auto;margin-right:var(--dshcs-ring-right,0px);}
-    [${DOCK_ATTR}]>[${RING_ATTR}]>button{padding:2px;gap:0;border-radius:999px;corner-shape:round;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]>button{padding:6px;gap:0;border-radius:999px;corner-shape:round;}
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>svg{width:16px;height:16px;}
     [data-dshcs-popup]{left:var(--dshcs-popup-left) !important;}
@@ -13461,6 +13134,20 @@ __DSH_FEATURE('dsh-composer-status', function () {
   /** @param {number} value - raw px. @returns {number} rounded px. */
   function px(value) {
     return Math.round(value * 100) / 100
+  }
+
+  /**
+   * Keep the previous applied px value when the new measurement only moved by
+   * less than the deadband. Sub-pixel/one-pixel seat settling would otherwise
+   * visibly re-center the three icons on every tail transition.
+   * @param {number|undefined} previous - last applied value.
+   * @param {number} next - freshly measured value.
+   * @param {number} deadband - ignore differences smaller than this.
+   * @returns {number} value to apply.
+   */
+  function keepPlacement(previous, next, deadband) {
+    if (previous === undefined || deadband <= 0) return next
+    return Math.abs(previous - next) < deadband ? previous : next
   }
 
   /**
@@ -13763,12 +13450,13 @@ __DSH_FEATURE('dsh-composer-status', function () {
      * @param {object} state - per-dock applied values.
      * @param {string} name - property name.
      * @param {number} value - px value.
+     * @param {number} [deadband] - keep the previous value for smaller moves.
      */
-    function write(dock, state, name, value) {
-      const text = value + 'px'
-      if (state[name] === text) return
-      dock.style.setProperty(name, text)
-      state[name] = text
+    function write(dock, state, name, value, deadband = 0) {
+      const next = keepPlacement(state[name], value, deadband)
+      if (state[name] === next) return
+      dock.style.setProperty(name, next + 'px')
+      state[name] = next
     }
 
 
@@ -13820,9 +13508,9 @@ __DSH_FEATURE('dsh-composer-status', function () {
         dock.removeAttribute(PILLS_ATTR)
       }
       write(dock, state, '--dshcs-left', plan.left)
-      write(dock, state, '--dshcs-top', plan.top)
+      write(dock, state, '--dshcs-top', plan.top, VERTICAL_DEADBAND)
       write(dock, state, '--dshcs-width', plan.width)
-      write(dock, state, '--dshcs-height', plan.height)
+      write(dock, state, '--dshcs-height', plan.height, VERTICAL_DEADBAND)
       write(dock, state, '--dshcs-ring-right', plan.ringRight)
       return [
         parts.root,
@@ -13926,6 +13614,31 @@ __DSH_FEATURE('dsh-composer-status', function () {
     }
   }
 
+  /**
+   * Bind the two stat buttons to the Host "Performance & usage" preference.
+   * Compact mode renders only plain-text readings in the Host pills, which this
+   * icon-only row hides, so the buttons are dropped instead of showing glyphs
+   * without content. The Host settings form is optional: when it is missing the
+   * pills keep their default (detailed) visibility.
+   * @param {object|undefined} form - Host `ui-chat` config form.
+   * @param {object} root - document element that carries the marker.
+   * @returns {Function} cleanup that drops the marker.
+   */
+  function bindPerformanceUsage(form, root) {
+    if (form?.subscribe === undefined) return () => {}
+    const read = () => {
+      const mode = form.getSnapshot?.()?.value?.performanceUsage
+      if (mode === 'compact') root.setAttribute(PERFORMANCE_ATTR, 'compact')
+      else root.removeAttribute(PERFORMANCE_ATTR)
+    }
+    read()
+    const unsubscribe = form.subscribe(read)
+    return () => {
+      unsubscribe?.()
+      root.removeAttribute(PERFORMANCE_ATTR)
+    }
+  }
+
   function apply(ctx) {
     ctx.effect(() => {
       const style = document.createElement('style')
@@ -13935,11 +13648,37 @@ __DSH_FEATURE('dsh-composer-status', function () {
       return () => style.remove()
     }, 'composer-status: styles')
     ctx.effect(() => install(), 'composer-status: inline dock')
+    // Follow the Host preference that decides how much performance/usage detail
+    // the composer carries; without the settings service the pills default to
+    // detailed visibility.
+    ctx.effect(() => {
+      let form
+      try {
+        form =
+          typeof ctx.get === 'function'
+            ? ctx.get('configForms')?.get?.(CHAT_SETTINGS_NAMESPACE)
+            : undefined
+      } catch {
+        form = undefined
+      }
+      return bindPerformanceUsage(form, document.documentElement)
+    }, 'composer-status: performance usage')
   }
 
   return {
     apply,
-    __test: { planStatusLayout, centeredPanelLeft, splitDock, isPopupPanel, RING_GAP, GAP },
+    __test: {
+      planStatusLayout,
+      centeredPanelLeft,
+      splitDock,
+      isPopupPanel,
+      keepPlacement,
+      bindPerformanceUsage,
+      VERTICAL_DEADBAND,
+      PERFORMANCE_ATTR,
+      RING_GAP,
+      GAP,
+    },
   }
 })
 

@@ -23,7 +23,7 @@ vm.runInNewContext(source, {
   document: { querySelectorAll: () => [], createElement: () => ({ dataset: {}, style: {} }) },
   window: { addEventListener() {}, removeEventListener() {} },
 })
-const { planStatusLayout, splitDock, centeredPanelLeft, GAP, RING_GAP } = build().__test
+const { planStatusLayout, splitDock, centeredPanelLeft, keepPlacement, bindPerformanceUsage, VERTICAL_DEADBAND, PERFORMANCE_ATTR, GAP, RING_GAP } = build().__test
 
 let checks = 0
 const check = (name, run) => {
@@ -121,13 +121,43 @@ check('dock children split into stat pills and the dialog-ring surface', () => {
   assert.equal(splitDock({ children: [activity], querySelectorAll: () => [activity] }).ring, null)
 })
 
+check('the stat buttons follow the Host performance-and-usage preference', () => {
+  const attributes = new Map()
+  const root = {
+    setAttribute: (name, value) => attributes.set(name, value),
+    removeAttribute: (name) => attributes.delete(name),
+  }
+  const listeners = new Set()
+  let value = { performanceUsage: 'compact' }
+  const form = {
+    getSnapshot: () => ({ value }),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+  const dispose = bindPerformanceUsage(form, root)
+  assert.equal(attributes.get(PERFORMANCE_ATTR), 'compact', 'compact hides the stat buttons')
+  value = { performanceUsage: 'detailed' }
+  for (const listener of listeners) listener()
+  assert.equal(attributes.has(PERFORMANCE_ATTR), false, 'detailed restores the stat buttons')
+  value = { performanceUsage: 'compact' }
+  for (const listener of listeners) listener()
+  assert.equal(attributes.get(PERFORMANCE_ATTR), 'compact', 'the marker follows live changes')
+  dispose()
+  assert.equal(attributes.has(PERFORMANCE_ATTR), false, 'the marker is removed on unload')
+  assert.equal(listeners.size, 0, 'the settings subscription is released')
+  assert.equal(typeof bindPerformanceUsage(undefined, root), 'function', 'a missing Host form degrades to no-op')
+  assert.equal(attributes.has(PERFORMANCE_ATTR), false, 'no preference means the default detailed visibility')
+})
+
 check('the feature never re-parents host nodes and restores everything it writes', () => {
   assert(!source.includes('insertBefore('), 'host nodes are never moved')
   assert(!source.includes('appendChild('), 'host nodes are never moved')
   assert(!source.includes('replaceWith('), 'host nodes are never replaced')
   const textWrites = source.match(/[A-Za-z_$][\w$]*\.textContent\s*=/g) ?? []
   assert.deepEqual(textWrites, ['style.textContent ='], 'host text stays host-owned')
-  for (const marker of ['data-dshcs-root', 'data-dshcs-dock', 'data-dshcs-ring', 'data-dshcs-pills'])
+  for (const marker of ['data-dshcs-root', 'data-dshcs-dock', 'data-dshcs-ring', 'data-dshcs-pills', 'data-dshcs-performance'])
     assert(source.includes(marker), 'marker is written: ' + marker)
   assert(source.includes('removeAttribute(DOCK_ATTR)'), 'dock markers are removed on unload')
   assert(source.includes('style.removeProperty'), 'CSS custom properties are removed on unload')
@@ -165,17 +195,35 @@ check('the detail panel centers on the clicked status button, clamped to the vie
 check('the three status controls stay separate icon buttons in the composer row', () => {
   assert(source.includes('[${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;pointer-events:auto;}'), 'stat pills keep their row slot')
   assert(source.includes('[${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}'), 'pills only hide when the fit plan drops them')
+  assert(source.includes('html[${PERFORMANCE_ATTR}=compact] [${DOCK_ATTR}] [data-composer-stat]{display:none;}'), 'compact mode drops the stat buttons')
   assert(source.includes('[${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}'), 'the ring keeps only its icon')
   assert(source.includes('[${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;'), 'stat pills keep only their icon')
+  assert(source.includes('[class$="_pill"]{justify-content:center;gap:0;padding:6px;border-radius:999px'), 'stat pills share the 28px hover circle')
+  assert(source.includes('>button{padding:6px;gap:0;border-radius:999px'), 'the ring shares the same 28px hover circle')
   assert(!source.includes('dshcs-menu'), 'no merged menu surface')
   assert(!source.includes('require('), 'no extra framework dependency')
 })
 
-check('the feature is a single lazy capability with no host service dependency', () => {
+check('one-pixel seat settling never re-centers the icon row', () => {
+  // Reaching the tail settles the sticky composer by about a pixel; keeping the
+  // previous vertical placement avoids the shake, while real layout moves pass.
+  assert.equal(keepPlacement(undefined, 40, VERTICAL_DEADBAND), 40, 'first placement applies')
+  assert.equal(keepPlacement(40, 40.4, VERTICAL_DEADBAND), 40, 'sub-pixel settling is ignored')
+  assert.equal(keepPlacement(40, 39, VERTICAL_DEADBAND), 40, 'one-pixel settling is ignored')
+  assert.equal(keepPlacement(40, 41.9, VERTICAL_DEADBAND), 40, 'below the deadband is ignored')
+  assert.equal(keepPlacement(40, 42, VERTICAL_DEADBAND), 42, 'a real layout move applies')
+  assert.equal(keepPlacement(40, 20, VERTICAL_DEADBAND), 20, 'large moves apply')
+  assert.equal(keepPlacement(40, 39, 0), 39, 'no deadband keeps exact placement')
+  assert.equal(VERTICAL_DEADBAND, 2)
+})
+
+check('the feature is one lazy capability whose Host preference stays optional', () => {
   assert(source.includes("__DSH_FEATURE('dsh-composer-status'"), 'feature id is stable')
   assert(source.includes('function apply(ctx)'), 'applies through the client context')
   assert(source.includes("'composer-status: styles'") && source.includes("'composer-status: inline dock'"))
-  assert(!source.includes('ctx.inject('), 'no host service is required')
+  assert(source.includes("ctx.get('configForms')?.get?.(CHAT_SETTINGS_NAMESPACE)"), 'performance preference comes from the Host chat settings')
+  assert(source.includes("CHAT_SETTINGS_NAMESPACE = 'ui-chat'"), 'the Host settings namespace is explicit')
+  assert(!source.includes('ctx.inject('), 'no host service is required by inject')
 })
 
 console.log(checks + ' composer status checks passed')

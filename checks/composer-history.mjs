@@ -143,6 +143,14 @@ await check('stylesheet uses theme tokens and no literal colors', () => {
   assert(css.includes('.dshch-panel'), 'panel styles')
 })
 
+await check('the trigger keeps the shared 28px surface with a 16px clock glyph', () => {
+  const source = featureSource('dsh-composer-history')
+  assert(source.includes("className: 'dshch-trigger'"), 'trigger keeps the shared control class')
+  assert(source.includes('width: 28px'), 'trigger keeps the 28px surface')
+  assert(source.includes('height: 28px'), 'trigger keeps the 28px surface')
+  assert(source.includes('h(IconClockOutlineRegular, { size: 16 })'), 'clock glyph matches the composer icon scale')
+})
+
 await check('locale files carry title and description', () => {
   for (const language of ['en', 'zh']) {
     const meta = JSON.parse(read('locale/' + language + '.json')).meta
@@ -742,41 +750,26 @@ await check('history panel can clear the current conversation history', () => {
   equal(actions.readHistory(), [])
 })
 
-await check('settings tab lists, deletes and clears recorded history', () => {
+await check('settings page keeps recorded prompts out of Settings', () => {
   const applied = scenario()
   triggerNode(applied.harness).props.onClick()
   applied.harness.rerender()
-  const { settingsHarness } = mountSettings(applied)
-  assert(textOf(settingsHarness.tree).includes('最后一条提示词'), 'newest record listed')
-  const deleteButton = findOne(settingsHarness.tree, (element) => isButton(element) && element.props.className === 'dshch-settings-delete')
-  deleteButton.props.onClick()
-  settingsHarness.rerender()
-  assert(!textOf(settingsHarness.tree).includes('最后一条提示词'), 'deleted record removed')
-  const clear = findOne(settingsHarness.tree, (element) => isButton(element) && element.props.className === 'dshch-settings-clear')
-  clear.props.onClick()
-  settingsHarness.rerender()
-  const confirm = findOne(settingsHarness.tree, (element) => isButton(element) && element.props.className === 'dshch-settings-confirm')
-  confirm.props.onClick()
-  settingsHarness.rerender()
-  assert(textOf(settingsHarness.tree).includes('还没有可管理的历史输入'), 'empty state after clear all')
-  const stored = JSON.parse(applied.browserWindow.localStorage.getItem('dsh.composerHistory.managedSettings'))
-  assert(stored.clearedAt > 0, 'global cutoff persisted')
-  assert.deepEqual(stored.records, [], 'record cache cleared')
-  const actions = applied.registration.options.inject('session-a').actions
-  equal(actions.readHistory(), [])
-})
-
-await check('settings tab previews full record text and supports expand', () => {
-  const applied = scenario()
-  triggerNode(applied.harness).props.onClick()
-  applied.harness.rerender()
-  const { settingsHarness } = mountSettings(applied)
-  const toggle = findOne(settingsHarness.tree, (element) => isButton(element) && element.props.className === 'dshch-settings-toggle')
-  assert.equal(toggle.props['aria-expanded'], false, 'collapsed by default')
-  toggle.props.onClick()
-  settingsHarness.rerender()
-  const expanded = findOne(settingsHarness.tree, (element) => element.props?.className?.includes('dshch-settings-open'))
-  assert(textOf(expanded).includes('最后一条提示词'), 'expanded full text')
+  const { settingsHarness, settingsT } = mountSettings(applied)
+  const text = textOf(settingsHarness.tree)
+  assert(text.includes(settingsT('settings.intro')), 'page explains the feature')
+  assert(!text.includes('最后一条提示词'), 'recorded prompt is not listed')
+  assert(!text.includes('还没有可管理的历史输入'), 'no record-list empty state')
+  assert.equal(
+    findAll(settingsHarness.tree, (element) => element.props?.className === 'dshch-settings-item').length,
+    0,
+    'no record rows',
+  )
+  const management = findAll(
+    settingsHarness.tree,
+    (element) =>
+      isButton(element) && /dshch-settings-(?:delete|clear|toggle|confirm)/.test(element.props.className ?? ''),
+  )
+  assert.equal(management.length, 0, 'no record management controls')
 })
 
 await check('palette without prompts renders an empty state', () => {

@@ -25,9 +25,9 @@ const fixture = () => ({
           reasoning: {
             defaultEffort: 'budget:42',
             efforts: [
-              { id: 'off', name: '关闭' },
-              { id: 'budget:42', name: '标准' },
-              { id: 'adaptive', name: '自适应' },
+              { id: 'off', name: 'Off' },
+              { id: 'budget:42', name: 'Standard' },
+              { id: 'adaptive', name: 'Adaptive' },
             ],
           },
         },
@@ -42,80 +42,77 @@ const check = (name, run) => {
   console.log('ok ' + name)
 }
 const json = (value) => JSON.parse(JSON.stringify(value))
-check('standard effort names follow the UI language without confusing default with max', () => {
-  const ids = [undefined, 'default', 'low', 'medium', 'high', 'max']
-  assert.deepEqual(ids.map((id) => effortLabel({ id, name: 'provider label' }, (key) => zh[key])),
-    ['默认', '默认', '低', '中', '高', '最大'])
-  assert.deepEqual(ids.map((id) => effortLabel({ id, name: 'provider label' }, (key) => en[key])),
-    ['Default', 'Default', 'Low', 'Medium', 'High', 'Max'])
+check('effort names keep the provider catalog spelling and are never translated', () => {
+  const levels = [
+    { id: undefined, name: 'Default' },
+    { id: 'low', name: 'Low' },
+    { id: 'medium', name: 'Medium' },
+    { id: 'high', name: 'High' },
+    { id: 'xhigh', name: 'Extra high' },
+    { id: 'max', name: 'Max' },
+  ]
+  assert.deepEqual(levels.map((level) => effortLabel(level)),
+    ['Default', 'Low', 'Medium', 'High', 'Extra high', 'Max'])
+  for (const dictionary of [zh, en]) for (const key of ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    assert.equal(key in dictionary, false, 'effort-name translations were removed from ' + key)
 })
-check('localizing effort display preserves provider-specific labels and selection IDs', () => {
+check('provider effort names are shown verbatim and selection IDs stay intact', () => {
   const state = fixture(), before = JSON.stringify(state)
-  const view = describe(state, zh.default)
-  assert.deepEqual(json(view.levels.map((level) => effortLabel(level, (key) => zh[key]))), ['关闭', '标准', '自适应'])
-  assert.equal(selectionFor(state, view.key, 2).reasoningEffort, 'adaptive')
+  const view = describe(state)
+  assert.deepEqual(json(view.levels.map((level) => effortLabel(level))), ['Standard', 'Adaptive'])
+  assert.equal(selectionFor(state, view.key, 1).reasoningEffort, 'adaptive')
   assert.equal(JSON.stringify(state), before)
 })
 check('provider order, IDs and names are preserved', () => {
   const state = fixture(),
-    view = describe(state, '默认')
-  assert.deepEqual(json(view.levels), state.groups[0].models[0].reasoning.efforts)
-  assert.equal(view.index, 1)
-  assert.deepEqual(json(selectionFor(state, view.key, 2)), {
+    view = describe(state)
+  assert.deepEqual(json(view.levels), state.groups[0].models[0].reasoning.efforts.slice(1))
+  assert.equal(view.index, 0)
+  assert.deepEqual(json(selectionFor(state, view.key, 1)), {
     provider: 'p',
     model: 'm',
     reasoningEffort: 'adaptive',
   })
 })
-check('provider default is a distinct first step only when no model default is advertised', () => {
+check('an unset selection resolves to the default, then High, then the strongest level', () => {
   const state = fixture()
   delete state.groups[0].models[0].reasoning.defaultEffort
   delete state.current.reasoningEffort
-  const view = describe(state, '默认')
-  assert.equal(view.levels.length, 4)
-  assert.equal(view.levels[0].id, undefined)
-  assert.equal(view.index, 0)
-  assert.equal(selectionFor(state, view.key, 0), null)
-  state.current.reasoningEffort = 'adaptive'
-  assert.deepEqual(json(selectionFor(state, describe(state, '').key, 0)), {
-    provider: 'p',
-    model: 'm',
-  })
+  // No High level in this catalog: the strongest advertised level is used.
+  assert.equal(describe(state).effective, 'adaptive')
+  state.groups[0].models[0].reasoning.efforts = [
+    { id: 'low', name: 'Low' },
+    { id: 'medium', name: 'Medium' },
+    { id: 'high', name: 'High' },
+  ]
+  assert.equal(describe(state).effective, 'high')
+  state.groups[0].models[0].reasoning.defaultEffort = 'low'
+  assert.equal(describe(state).effective, 'low')
 })
-check('reset omits effort without changing provider or model', () => {
+check('a retired effort falls back to the advertised default without fabricating a level', () => {
   const state = fixture()
-  state.current.reasoningEffort = 'adaptive'
-  assert.deepEqual(json(selectionFor(state, describe(state, '').key, 2, true)), {
-    provider: 'p',
-    model: 'm',
-  })
-  state.current.reasoningEffort = undefined
-  assert.equal(describe(state, '').index, 1)
-  assert.equal(selectionFor(state, describe(state, '').key, 1, true), null)
+  state.current.reasoningEffort = 'retired'
+  const view = describe(state)
+  assert.equal(view.effective, 'budget:42')
+  assert.equal(view.index, 0)
+  assert.equal(selectionFor(state, view.key, -1), null)
 })
 check('unavailable model or absent reasoning has no slider', () => {
   const state = fixture()
   state.current.model = 'missing'
-  assert.equal(describe(state, '').levels.length, 0)
+  assert.equal(describe(state).levels.length, 0)
   state.current = null
-  assert.equal(describe(state, '').levels.length, 0)
+  assert.equal(describe(state).levels.length, 0)
   state.current = { provider: 'p', model: 'm' }
   delete state.groups[0].models[0].reasoning
-  assert.equal(describe(state, '').levels.length, 0)
-})
-check('retired effort remains unknown and can be reset without fabricating a level', () => {
-  const state = fixture()
-  state.current.reasoningEffort = 'retired'
-  const view = describe(state, '')
-  assert.equal(view.index, -1)
-  assert.deepEqual(json(selectionFor(state, view.key, -1, true)), { provider: 'p', model: 'm' })
+  assert.equal(describe(state).levels.length, 0)
 })
 check('busy, stale, unchanged and out-of-range selections never submit', () => {
   const original = fixture(),
-    key = describe(original, '').key
-  assert.equal(selectionFor({ ...original, status: 'selecting' }, key, 2), null)
-  assert.equal(selectionFor({ ...original, pending: {} }, key, 2), null)
-  assert.equal(selectionFor(original, key, 1), null)
+    key = describe(original).key
+  assert.equal(selectionFor({ ...original, status: 'selecting' }, key, 1), null)
+  assert.equal(selectionFor({ ...original, pending: {} }, key, 1), null)
+  assert.equal(selectionFor(original, key, 0), null)
   for (const index of [-1, 99, NaN]) assert.equal(selectionFor(original, key, index), null)
   for (const change of [
     (s) => {
@@ -133,31 +130,31 @@ check('busy, stale, unchanged and out-of-range selections never submit', () => {
   ]) {
     const state = fixture()
     change(state)
-    assert.equal(selectionFor(state, key, 2), null)
+    assert.equal(selectionFor(state, key, 1), null)
   }
 })
 check('background catalog refresh keeps retained choices usable like the native picker', () => {
-  const state = { ...fixture(), status: 'loading' }, view = describe(state, '')
+  const state = { ...fixture(), status: 'loading' }, view = describe(state)
   assert.equal(view.busy, false)
-  assert.deepEqual(json(selectionFor(state, view.key, 2)), {
+  assert.deepEqual(json(selectionFor(state, view.key, 1)), {
     provider: 'p', model: 'm', reasoningEffort: 'adaptive',
   })
   state.groups = []
-  assert.equal(describe(state, '').busy, true)
-  assert.equal(selectionFor(state, view.key, 2), null)
+  assert.equal(describe(state).busy, true)
+  assert.equal(selectionFor(state, view.key, 1), null)
 })
 check('one-level and arbitrary-sized catalogs retain their real capability counts', () => {
   const state = fixture(),
     reasoning = state.groups[0].models[0].reasoning
-  reasoning.efforts = [{ id: 'only', name: '唯一档位' }]
+  reasoning.efforts = [{ id: 'only', name: 'Only' }]
   reasoning.defaultEffort = 'only'
   state.current.reasoningEffort = 'only'
-  assert.equal(describe(state, '').levels.length, 1)
+  assert.equal(describe(state).levels.length, 1)
   reasoning.efforts = Array.from({ length: 9 }, (_, i) => ({
     id: 'custom-' + i,
-    name: '档位 ' + i,
+    name: 'Level ' + i,
   }))
-  assert.equal(describe(state, '').levels.length, 9)
+  assert.equal(describe(state).levels.length, 9)
 })
 check('popover flips and stays within the visible viewport', () => {
   const centered = place({ left: 380, right: 500, top: 700, bottom: 728 }, 260, 100, { width: 1000, height: 800 })

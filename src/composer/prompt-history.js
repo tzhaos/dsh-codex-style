@@ -9,7 +9,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   const React = require('react')
   const { createPortal } = require('react-dom')
   const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-  const { Tooltip, MenuSurface, IconClockOutlineRegular, IconSearchOutlineRegular, IconTrashOutlineRegular } =
+  const { Tooltip, MenuSurface, IconClockOutlineRegular, IconSearchOutlineRegular } =
     primitives
   const { useEffect, useMemo, useRef, useState } = React
   const h = React.createElement
@@ -33,18 +33,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
     'settings.tab': '输入历史',
     'settings.title': '输入历史',
     'settings.intro':
-      '管理由本插件记录的历史输入。删除或清空只影响插件在浏览器本地的记录，不会修改会话消息。',
-    'settings.empty': '还没有可管理的历史输入',
-    'settings.count': '{count} 条记录',
-    'settings.session': '会话',
-    'settings.unknownSession': '未知会话',
-    'settings.expand': '展开',
-    'settings.collapse': '收起',
-    'settings.delete': '删除',
-    'settings.clear': '清空全部历史',
-    'settings.clearConfirm': '确认清空全部历史输入？此操作会隐藏现有会话历史，不能撤销。',
-    'settings.confirmClear': '确认清空',
-    'settings.cancel': '取消',
+      '输入历史只由本插件记录在浏览器本地，可在输入框的历史面板中搜索或按 ↑ 取回；此处不再列出或管理具体记录。',
   }
 
   const en = {
@@ -63,19 +52,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
     'settings.tab': 'Prompt history',
     'settings.title': 'Prompt history',
     'settings.intro':
-      'Manage the prompt history recorded by this plugin. Deleting or clearing only affects browser-local records; conversation messages are not modified.',
-    'settings.empty': 'No prompt history to manage yet',
-    'settings.count': '{count} records',
-    'settings.session': 'Conversation',
-    'settings.unknownSession': 'Unknown conversation',
-    'settings.expand': 'Expand',
-    'settings.collapse': 'Collapse',
-    'settings.delete': 'Delete',
-    'settings.clear': 'Clear all history',
-    'settings.clearConfirm':
-      'Clear all prompt history? This hides existing conversation history and cannot be undone.',
-    'settings.confirmClear': 'Clear all',
-    'settings.cancel': 'Cancel',
+      'Prompt history is recorded by this plugin in browser-local storage only. Search or recall it from the composer history panel (↑ recalls the previous prompt); individual records are no longer listed or managed here.',
   }
 
   /**
@@ -290,22 +267,6 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
         for (const listener of listeners) listener()
       },
     }
-  }
-
-  /**
-   * Subscribe a component to a snapshot store.
-   * @param {object} store - managed store.
-   * @returns {object} current managed state.
-   */
-  function useStoreValue(store) {
-    const [value, setValue] = useState(store.getSnapshot())
-    useEffect(() => {
-      setValue(store.getSnapshot())
-      return store.subscribe(() => {
-        setValue(store.getSnapshot())
-      })
-    }, [store])
-    return value
   }
 
   /**
@@ -571,7 +532,7 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
             else openPanel()
           },
         },
-        h(IconClockOutlineRegular, { size: 14 }),
+        h(IconClockOutlineRegular, { size: 16 }),
       ),
     )
 
@@ -702,139 +663,17 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   }
 
   /**
-   * Settings tab: inspect managed prompt records, delete one, or clear all.
-   * @param {object} props - managed store, actions and translator.
+   * Settings tab seat. The plugin deliberately keeps no record list here: the
+   * composer palette owns recall, and Settings must not surface recorded
+   * prompts. This page only explains what the feature records.
+   * @param {object} props - translator.
    * @returns {object} settings surface.
    */
-  function SettingsPanel({ settings, actions, t, embedded = false }) {
-    const managed = useStoreValue(settings)
-    const [expanded, setExpanded] = useState(null)
-    const [confirmClear, setConfirmClear] = useState(false)
-    useEffect(() => {
-      actions.refresh?.()
-    }, [])
-    const records = managed.records
+  function SettingsPanel({ t }) {
     return h(
       'section',
       { className: 'dshch-settings' },
-      embedded ? null : h('h2', { className: 'dshch-settings-title' }, t('settings.title')),
       h('p', { className: 'dshch-settings-intro' }, t('settings.intro')),
-      h(
-        'div',
-        { className: 'dshch-settings-summary' },
-        t('settings.count', { count: records.length }),
-      ),
-      records.length === 0
-        ? h('div', { className: 'dshch-settings-empty' }, t('settings.empty'))
-        : h(
-            'div',
-            { className: 'dshch-settings-list' },
-            records.map((record) => {
-              const open = expanded === record.key
-              return h(
-                'div',
-                { key: record.key, className: 'dshch-settings-item' },
-                h(
-                  'div',
-                  { className: 'dshch-settings-head' },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dshch-settings-toggle',
-                      'aria-expanded': open,
-                      onClick: () => {
-                        setExpanded(open ? null : record.key)
-                      },
-                    },
-                    h(
-                      'span',
-                      { className: 'dshch-settings-session' },
-                      record.title === '' ? t('settings.unknownSession') : record.title,
-                    ),
-                    record.time > 0
-                      ? h(
-                          'span',
-                          { className: 'dshch-settings-time' },
-                          new Date(record.time).toLocaleString(),
-                        )
-                      : null,
-                    h(
-                      'span',
-                      { className: 'dshch-settings-action' },
-                      open ? t('settings.collapse') : t('settings.expand'),
-                    ),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dshch-settings-delete',
-                      onClick: () => {
-                        actions.deleteRecord(record.key)
-                      },
-                    },
-                    h(IconTrashOutlineRegular, { size: 14 }),
-                    t('settings.delete'),
-                  ),
-                ),
-                h(
-                  'div',
-                  {
-                    className: open
-                      ? 'dshch-settings-text dshch-settings-open'
-                      : 'dshch-settings-text',
-                  },
-                  record.text,
-                ),
-              )
-            }),
-          ),
-      h(
-        'div',
-        { className: 'dshch-settings-footer' },
-        confirmClear
-          ? h(
-              React.Fragment,
-              null,
-              h('span', { className: 'dshch-settings-confirmText' }, t('settings.clearConfirm')),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshch-settings-confirm',
-                  onClick: () => {
-                    actions.clearAll()
-                    setConfirmClear(false)
-                  },
-                },
-                t('settings.confirmClear'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dshch-settings-cancel',
-                  onClick: () => {
-                    setConfirmClear(false)
-                  },
-                },
-                t('settings.cancel'),
-              ),
-            )
-          : h(
-              'button',
-              {
-                type: 'button',
-                className: 'dshch-settings-clear',
-                disabled: records.length === 0,
-                onClick: () => {
-                  setConfirmClear(true)
-                },
-              },
-              t('settings.clear'),
-            ),
-      ),
     )
   }
 
@@ -1001,166 +840,12 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
   min-width: 0;
   padding: 2px 0 20px;
 }
-.dshch-settings-title {
-  margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-}
 .dshch-settings-intro {
   margin: 0;
   max-width: 720px;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
-}
-.dshch-settings-summary {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-}
-.dshch-settings-empty {
-  padding: 24px 12px;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-tertiary);
-  text-align: center;
-  font-size: 13px;
-}
-.dshch-settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.dshch-settings-item {
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-1);
-}
-.dshch-settings-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-}
-.dshch-settings-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  padding: 2px 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.dshch-settings-toggle:hover .dshch-settings-session {
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-session {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dshch-settings-time {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-}
-.dshch-settings-action {
-  flex: none;
-  margin-left: auto;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-}
-.dshch-settings-delete {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 7px;
-  border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-}
-.dshch-settings-delete:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  padding: 0 10px 10px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-  word-break: break-word;
-}
-.dshch-settings-text.dshch-settings-open {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
-}
-.dshch-settings-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-}
-.dshch-settings-clear,
-.dshch-settings-confirm,
-.dshch-settings-cancel {
-  padding: 5px 9px;
-  border: .5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: pointer;
-}
-.dshch-settings-clear:hover,
-.dshch-settings-confirm:hover,
-.dshch-settings-cancel:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-.dshch-settings-confirm {
-  border-color: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-state-error-primary);
-}
-.dshch-settings-clear:disabled {
-  cursor: default;
-  opacity: .5;
-}
-.dshch-settings-confirmText {
-  flex: 1 1 100%;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
 }
 `
 
@@ -1225,36 +910,6 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
         hidden: managed.hidden.filter((key) => !key.startsWith(sessionId + ':')),
       })
     }
-    /** Rebuild the settings record cache from currently retained Sessions. */
-    const refreshRecords = () => {
-      let managed = managedStore.getSnapshot()
-      const state = ctx.sessions.list?.getSnapshot?.()
-      const ids = Array.isArray(state?.ids) ? state.ids : Object.keys(state?.byId ?? {})
-      for (const id of ids) {
-        let binding
-        try {
-          binding = ctx.sessions.binding(id)
-        } catch {
-          binding = undefined
-        }
-        if (binding === undefined) continue
-        const visible = visiblePrompts(readPrompts(binding, id), managed)
-        managed = mergeRecords(managed, id, titleOf(id), visible) ?? managed
-      }
-      if (managed !== managedStore.getSnapshot()) commitManaged(managed)
-    }
-    const deleteRecord = (key) => {
-      const managed = managedStore.getSnapshot()
-      if (!managed.records.some((record) => record.key === key)) return
-      commitManaged({
-        ...managed,
-        hidden: [...new Set([...managed.hidden, key])].slice(-HIDDEN_LIMIT),
-        records: managed.records.filter((record) => record.key !== key),
-      })
-    }
-    const clearAll = () => {
-      commitManaged({ ...EMPTY_MANAGED, clearedAt: Date.now() })
-    }
 
     ctx.slots.inject('conversation.input.left', () =>
       ctx.slots.register(
@@ -1311,20 +966,11 @@ __DSH_FEATURE('dsh-composer-history', function (require, env) {
 
     // Merged settings shell: this page becomes the prompt-history tab in
     // Settings -> Codex Style instead of a standalone Built-in plugins tab.
+    // The page only explains the feature; recorded prompts stay out of Settings.
     env.registerSettingsPage({
       id: 'dsh-composer-history',
       title: () => t('settings.title'),
-      render: () =>
-        h(SettingsPanel, {
-          embedded: true,
-          settings: managedStore,
-          actions: {
-            refresh: refreshRecords,
-            deleteRecord,
-            clearAll,
-          },
-          t,
-        }),
+      render: () => h(SettingsPanel, { t }),
     })
   }
 

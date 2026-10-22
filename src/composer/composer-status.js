@@ -26,6 +26,15 @@ __DSH_FEATURE('dsh-composer-status', function () {
   const PILLS_ATTR = 'data-dshcs-pills'
   const ACTIVITY_ATTR = 'data-dshcs-activity'
   const POPUP_ATTR = 'data-dshcs-popup'
+  /**
+   * Host "Performance & usage" preference (`ui-chat` setting). Compact renders
+   * only plain-text speed/cache readings, so this feature's icon-only pills
+   * would carry no information; the marker hides them instead.
+   */
+  const PERFORMANCE_ATTR = 'data-dshcs-performance'
+
+  /** Host settings namespace that owns the performance-and-usage preference. */
+  const CHAT_SETTINGS_NAMESPACE = 'ui-chat'
 
   /** Gap between the three status buttons in the control row. */
   const GAP = 4
@@ -33,6 +42,12 @@ __DSH_FEATURE('dsh-composer-status', function () {
   const RING_GAP = 4
   /** Viewport margin kept by the centered detail panels. */
   const PANEL_MARGIN = 12
+  /**
+   * Vertical placement deadband. Reaching the conversation tail settles the
+   * sticky composer by about a pixel, and re-centering these icons for that
+   * pixel reads as a shake; real row/card layout changes are far larger.
+   */
+  const VERTICAL_DEADBAND = 2
 
   const CSS = `
     [${ROOT_ATTR}]{position:relative;}
@@ -42,11 +57,17 @@ __DSH_FEATURE('dsh-composer-status', function () {
     [${DOCK_ATTR}]>*{pointer-events:auto;flex:none;}
     [${DOCK_ATTR}] [data-composer-stat]{margin:0;flex:none;pointer-events:auto;}
     [${DOCK_ATTR}][${PILLS_ATTR}=hidden] [data-composer-stat]{display:none;}
-    [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:2px 4px;border-radius:999px;corner-shape:round;}
+    /* Compact mode only carries plain-text readings in the Host pills, which
+       this icon-only row hides; drop the two stat buttons rather than leave
+       two meaningless glyphs. Detailed mode keeps them. */
+    html[${PERFORMANCE_ATTR}=compact] [${DOCK_ATTR}] [data-composer-stat]{display:none;}
+    /* One 28px hover circle for every composer status icon: the Host ring and
+       the two stat pills share the history trigger's surface size. */
+    [${DOCK_ATTR}] [data-composer-stat] [class$="_pill"]{justify-content:center;gap:0;padding:6px;border-radius:999px;corner-shape:round;}
     [${DOCK_ATTR}] [data-composer-stat] svg{width:16px;height:16px;}
     [${DOCK_ATTR}] [data-composer-stat] [class$="_label"]{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]{position:relative;flex:none;pointer-events:auto;margin-right:var(--dshcs-ring-right,0px);}
-    [${DOCK_ATTR}]>[${RING_ATTR}]>button{padding:2px;gap:0;border-radius:999px;corner-shape:round;}
+    [${DOCK_ATTR}]>[${RING_ATTR}]>button{padding:6px;gap:0;border-radius:999px;corner-shape:round;}
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>span{display:none;}
     [${DOCK_ATTR}]>[${RING_ATTR}]>button>svg{width:16px;height:16px;}
     [data-dshcs-popup]{left:var(--dshcs-popup-left) !important;}
@@ -55,6 +76,20 @@ __DSH_FEATURE('dsh-composer-status', function () {
   /** @param {number} value - raw px. @returns {number} rounded px. */
   function px(value) {
     return Math.round(value * 100) / 100
+  }
+
+  /**
+   * Keep the previous applied px value when the new measurement only moved by
+   * less than the deadband. Sub-pixel/one-pixel seat settling would otherwise
+   * visibly re-center the three icons on every tail transition.
+   * @param {number|undefined} previous - last applied value.
+   * @param {number} next - freshly measured value.
+   * @param {number} deadband - ignore differences smaller than this.
+   * @returns {number} value to apply.
+   */
+  function keepPlacement(previous, next, deadband) {
+    if (previous === undefined || deadband <= 0) return next
+    return Math.abs(previous - next) < deadband ? previous : next
   }
 
   /**
@@ -357,12 +392,13 @@ __DSH_FEATURE('dsh-composer-status', function () {
      * @param {object} state - per-dock applied values.
      * @param {string} name - property name.
      * @param {number} value - px value.
+     * @param {number} [deadband] - keep the previous value for smaller moves.
      */
-    function write(dock, state, name, value) {
-      const text = value + 'px'
-      if (state[name] === text) return
-      dock.style.setProperty(name, text)
-      state[name] = text
+    function write(dock, state, name, value, deadband = 0) {
+      const next = keepPlacement(state[name], value, deadband)
+      if (state[name] === next) return
+      dock.style.setProperty(name, next + 'px')
+      state[name] = next
     }
 
 
@@ -414,9 +450,9 @@ __DSH_FEATURE('dsh-composer-status', function () {
         dock.removeAttribute(PILLS_ATTR)
       }
       write(dock, state, '--dshcs-left', plan.left)
-      write(dock, state, '--dshcs-top', plan.top)
+      write(dock, state, '--dshcs-top', plan.top, VERTICAL_DEADBAND)
       write(dock, state, '--dshcs-width', plan.width)
-      write(dock, state, '--dshcs-height', plan.height)
+      write(dock, state, '--dshcs-height', plan.height, VERTICAL_DEADBAND)
       write(dock, state, '--dshcs-ring-right', plan.ringRight)
       return [
         parts.root,
@@ -520,6 +556,31 @@ __DSH_FEATURE('dsh-composer-status', function () {
     }
   }
 
+  /**
+   * Bind the two stat buttons to the Host "Performance & usage" preference.
+   * Compact mode renders only plain-text readings in the Host pills, which this
+   * icon-only row hides, so the buttons are dropped instead of showing glyphs
+   * without content. The Host settings form is optional: when it is missing the
+   * pills keep their default (detailed) visibility.
+   * @param {object|undefined} form - Host `ui-chat` config form.
+   * @param {object} root - document element that carries the marker.
+   * @returns {Function} cleanup that drops the marker.
+   */
+  function bindPerformanceUsage(form, root) {
+    if (form?.subscribe === undefined) return () => {}
+    const read = () => {
+      const mode = form.getSnapshot?.()?.value?.performanceUsage
+      if (mode === 'compact') root.setAttribute(PERFORMANCE_ATTR, 'compact')
+      else root.removeAttribute(PERFORMANCE_ATTR)
+    }
+    read()
+    const unsubscribe = form.subscribe(read)
+    return () => {
+      unsubscribe?.()
+      root.removeAttribute(PERFORMANCE_ATTR)
+    }
+  }
+
   function apply(ctx) {
     ctx.effect(() => {
       const style = document.createElement('style')
@@ -529,10 +590,36 @@ __DSH_FEATURE('dsh-composer-status', function () {
       return () => style.remove()
     }, 'composer-status: styles')
     ctx.effect(() => install(), 'composer-status: inline dock')
+    // Follow the Host preference that decides how much performance/usage detail
+    // the composer carries; without the settings service the pills default to
+    // detailed visibility.
+    ctx.effect(() => {
+      let form
+      try {
+        form =
+          typeof ctx.get === 'function'
+            ? ctx.get('configForms')?.get?.(CHAT_SETTINGS_NAMESPACE)
+            : undefined
+      } catch {
+        form = undefined
+      }
+      return bindPerformanceUsage(form, document.documentElement)
+    }, 'composer-status: performance usage')
   }
 
   return {
     apply,
-    __test: { planStatusLayout, centeredPanelLeft, splitDock, isPopupPanel, RING_GAP, GAP },
+    __test: {
+      planStatusLayout,
+      centeredPanelLeft,
+      splitDock,
+      isPopupPanel,
+      keepPlacement,
+      bindPerformanceUsage,
+      VERTICAL_DEADBAND,
+      PERFORMANCE_ATTR,
+      RING_GAP,
+      GAP,
+    },
   }
 })

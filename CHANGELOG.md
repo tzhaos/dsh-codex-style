@@ -22,6 +22,10 @@ their per-release history remains in those repositories.
 
 ### Changed
 
+- The window material follows the Windows 11 accent color: the Host half publishes the shell's `AccentPalette` (light, base and dark shades, with the DWM `AccentColor` value as fallback) over a read-only route, and the caption/left-rail gradient tints with it — base accent on light surfaces, `AccentLight1` on dark ones — refreshing when the window regains focus and every eight seconds (the Host caches the palette for two seconds so a color change lands on the next poll). The previous fixed brand-blue and amber glows are gone; when the palette cannot be read the material keeps the neutral theme surface.
+- Attachment previews in the composer, the queue and the transcript get a readable hairline and a soft blue hover ring. The Host hairline (`border-l1` / `darkmode-thin`) nearly disappears on the input surface, so white and transparent previews looked borderless; the stroke now uses `border-l3`, and hovering or focusing a preview tints its border with the business accent and adds a 2px accent ring. Only color and shadow change, so nothing shifts or resizes under the pointer, and reduced-motion users get no transition.
+- The two composer stat buttons follow the Host **Performance & usage** preference (`ui-chat` → `performanceUsage`): compact mode only carries plain-text speed and cache-hit readings, which this icon-only row hides, so the buttons are dropped instead of leaving two glyphs without content. Detailed mode keeps them, and a missing Host form falls back to visible.
+- Reasoning-effort levels show the model catalog's original English names in every UI language again: the slider no longer replaces the provider's own `Low` / `Medium` / `High` / `Extra high` / `Max` spelling with translated labels, on the composer trigger, the panel heading or the accessibility value. The surrounding control copy stays localized, and the translation keys for the effort names are gone from both dictionaries.
 - Queue rows keep one **Edit** action and no in-place editor: the Host edit control now withdraws the message back into the composer (attachments included through the existing cache/image restore paths) instead of opening its inline editor. The separate withdraw button and the row menu are removed.
 - The lock is a visible peer of the Host row actions: same 28px circle, hover pill, focus ring and 14px icon size, including the native `corner-shape: round` hover shape. Its artwork is redrawn on the native 16-unit grid with the regular one-pixel stroke, so closed/open locks match the primitive icon weight and style.
 - The queued row's leading message icon is now the lock toggle: it keeps the native message glyph while idle and swaps to the closed lock when held, so the icon is useful and the separate action-cluster lock button is gone. Dragging moves to the dedicated grip at its left, keeping click-to-lock and drag apart.
@@ -36,11 +40,16 @@ their per-release history remains in those repositories.
 
 ### Fixed
 
+- Composer icon controls share one hover surface: the prompt-history trigger, the context ring and the two session stat pills all hover as a 28px circle (the ring and the pills previously hovered at 20px), and the history clock glyph grows from 14px to the 16px composer icon scale. Only padding and the icon size change, so every control keeps its own action and dialog.
 - The queued row's **Edit** action works again: the withdrawal reads the previous draft from the published `snapshot.draft` string instead of the shell's structured `draftSnapshot` document, which was not text and made the action throw before it could withdraw anything (queued messages with image attachments included).
 - Native browser tooltips no longer leak from plugin-owned controls: the queue handle/lock no longer write the native `title` attribute (the custom hover layer owns the tooltip), the Host edit control's refusal title is stripped, and the back/forward, effort-model, long-paste, quote-annotation and removed-session controls lost their redundant native titles.
 - The composer status detail panels open centered on the status button that was clicked (clamped to the viewport) instead of centered on the whole composer card.
 - The queue row's two leading icons sit together: the grip column is 16px wide and the message/lock toggle pulls 8px against it, closing the 24px glyph gap to 10px.
 - Clicking a control now dismisses its hover bubble for the rest of that pointer visit: the tooltip no longer reappears over the action or panel the click just opened, and it returns once the pointer leaves and re-enters the control.
+
+### Removed
+
+- Settings no longer list safely removed conversations or recorded prompt history. The **Sidebar sections** page keeps only the Archived-section switch, and the **Prompt history** page keeps only its explanation. Removed conversation titles and recorded prompts are never surfaced in Settings; safe delete stays one-way from the UI, while per-conversation history clearing remains in the composer's history palette.
 
 ## [1.2.0] - 2026-10-20
 

@@ -14,13 +14,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     label: '推理强度',
     choose: '选择强度',
     chooseHint: '尚未选择强度，拖动滑块选择一个强度。',
-    none: '关闭',
-    minimal: '极低',
-    low: '低',
-    medium: '中',
-    high: '高',
-    xhigh: '极高',
-    max: '最大',
     model: '选择模型',
     failed: '强度设置失败，请重试。',
     unknown: '切换结果尚未确认，当前显示已同步的强度。请检查连接后重试。',
@@ -31,13 +24,6 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     label: 'Reasoning effort',
     choose: 'Choose effort',
     chooseHint: 'No effort selected yet. Choose a level on the slider.',
-    none: 'None',
-    minimal: 'Minimal',
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
-    xhigh: 'Extra high',
-    max: 'Max',
     model: 'Choose model',
     failed: 'Could not change reasoning effort. Try again.',
     unknown: 'The selection is unconfirmed. Showing the synchronized effort. Check the connection before retrying.',
@@ -45,11 +31,16 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     loading: 'Updating…',
   }
 
-  // Translate standard display names only; provider-specific IDs remain opaque.
-  function effortLabel(level, t) {
-    const key = level.id
-    return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(key)
-      ? t(key) : level.name
+  /**
+   * Show the provider catalog's effort name verbatim. Reasoning-effort values
+   * are API vocabulary: they stay in the original English in every UI
+   * language, and a provider-specific label is never replaced by a generic
+   * translated one. The surrounding control copy stays localized.
+   * @param {{id?: string, name: string}} level - one advertised effort level.
+   * @returns {string} the level name exactly as the catalog advertises it.
+   */
+  function effortLabel(level) {
+    return level.name
   }
 
   function describe(state) {
@@ -265,7 +256,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     const state = useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot)
     const generation = useSyncExternalStore(connected.subscribe, connected.getSnapshot)
     const view = describe(state)
-    view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level, t) }))
+    view.levels = view.levels.map((level) => ({ ...level, name: effortLabel(level) }))
     const metricsKey = JSON.stringify([view.model, view.levels.map((level) => level.name)])
     const latest = useRef(null)
     latest.current = { view, open, generation, directory, nativeT }

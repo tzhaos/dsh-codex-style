@@ -68,13 +68,13 @@ async (page) => {
   await page.getByRole('slider',{name:'推理强度'}).press('End')
   await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,2000)))
   const pending=await page.locator('.dshe-level').textContent()
-  assert(pending==='极高','slow host lost immediate target')
+  assert(pending==='Extra high','slow host lost immediate target')
   await page.evaluate(()=>review.releaseEffort())
   await page.waitForFunction(()=>document.querySelector('.dshe-panel').getAttribute('aria-busy')==='false')
   const stability=await page.evaluate(()=>{
     review.recording=false
-    const first=review.samples.findIndex(row=>row.label==='极高'),rows=review.samples.slice(first)
-    return{oldValueFrames:rows.filter(row=>row.label!=='极高').length,opacity:Math.min(...rows.map(row=>Math.min(row.heading,row.track))),
+    const first=review.samples.findIndex(row=>row.label==='Extra high'),rows=review.samples.slice(first)
+    return{oldValueFrames:rows.filter(row=>row.label!=='Extra high').length,opacity:Math.min(...rows.map(row=>Math.min(row.heading,row.track))),
       mounts:rows.every(row=>row.same),newAnimations:rows.some(row=>row.animations>0),
       y:Math.max(...rows.map(row=>row.y))-Math.min(...rows.map(row=>row.y)),height:Math.max(...rows.map(row=>row.h))-Math.min(...rows.map(row=>row.h)),
       spinnerFrames:rows.filter(row=>row.spinnerVisible).length,arrowMovement:Math.max(...rows.map(row=>row.arrowX))-Math.min(...rows.map(row=>row.arrowX))}

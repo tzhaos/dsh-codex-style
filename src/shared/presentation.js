@@ -13,16 +13,24 @@ env.presentationCSS = `
   font-family: inherit;
 }
 :where(.dshcs-section, .dshqf-panel) :where(button, input, textarea, select) { box-sizing: border-box; }
-/* One viewport background joins the caption and rail. Fade before native window controls. */
+/* One viewport material joins the caption and rail. The Host publishes the
+   Windows accent palette, so the material is tinted with the live system
+   color; until it arrives the theme surface tone keeps the material neutral.
+   Fade before native window controls. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));
+  --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
   background-color: var(--dsw-specific-sidebar-fill);
   background-image:
     linear-gradient(90deg, transparent, var(--dsw-specific-sidebar-fill) var(--dshlr-material-span)),
-    radial-gradient(ellipse at left top, color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent), transparent 75%),
-    radial-gradient(ellipse at left bottom, color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent), transparent 75%);
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--dshlr-material-tint) 26%, var(--dsw-specific-sidebar-fill)),
+      color-mix(in srgb, var(--dshlr-material-tint) 12%, var(--dsw-specific-sidebar-fill)));
   background-attachment: fixed;
   background-repeat: no-repeat;
+}
+html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
+  --dshlr-material-tint: var(--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2));
 }
 html[data-dshlr-active][data-windows-titlebar] .BynINW_frame,
 html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::before,

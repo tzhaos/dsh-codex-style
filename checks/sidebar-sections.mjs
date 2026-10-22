@@ -1016,25 +1016,21 @@ await check('settings page toggles the Archived section and persists it', () => 
   assert(findSection(applied.harness.tree, applied.t, 'section.archived'), 'Archived section restored')
 })
 
-await check('safe delete removes an archived conversation and settings restores it', () => {
+await check('safe delete hides the conversation and Settings keeps no removed list', () => {
   const applied = scenario()
   const overlay = applied.registrations.find((entry) => entry.options.name === 'shell.overlay' && entry.options.id === 'sidebar-sections.dialog')
   overlay.options.inject().submitSessionDelete('s4', 'Archived talk')
   applied.harness.rerender()
-  const t = translator(applied.localeRegistrations[0].dicts.zh)
   assertEqual(findAll(applied.harness.tree, isSessionRow).filter((row) => row.props['data-session'] === 's4').length, 0,
     'removed row is hidden')
   const stored = JSON.parse(applied.browserWindow.localStorage.getItem('dsh.sidebarSections.managedSettings'))
   assertEqual(stored.removed.map((entry) => entry.id), ['s4'], 'removal persisted')
   const { harness: settingsHarness } = mountSettings(applied)
-  const restore = findOne(settingsHarness.tree, (element) => element.type === 'button' && textOf(element) === t('settings.removed.restore'))
-  restore.props.onClick()
-  settingsHarness.rerender()
-  applied.harness.rerender()
-  assertEqual(findAll(applied.harness.tree, isSessionRow).filter((row) => row.props['data-session'] === 's4').length, 1,
-    'restored row returns')
-  const after = JSON.parse(applied.browserWindow.localStorage.getItem('dsh.sidebarSections.managedSettings'))
-  assertEqual(after.removed, [], 'restore clears the tombstone')
+  const text = textOf(settingsHarness.tree)
+  assert(!text.includes('已移除的会话'), 'settings page carries no removed-conversations section')
+  assert(!text.includes('Archived talk'), 'removed conversation title never resurfaces in Settings')
+  const restore = findAll(settingsHarness.tree, (element) => element.type === 'button' && textOf(element) === '恢复')
+  assertEqual(restore.length, 0, 'no restore control is offered')
 })
 
 await check('safe delete dialog explains that the conversation record is kept', async () => {

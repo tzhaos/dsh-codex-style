@@ -173,24 +173,18 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       '将把“{name}”从工作区列表中移除。文件夹与会话记录会保留，其会话将显示在“未分组”下。',
     'dialog.delete.confirm': '删除',
     'dialog.delete.error': '删除失败：{message}',
-    'dialog.deleteSession.title': '删除会话',
+    'dialog.deleteSession.title': '从侧边栏移除',
     'dialog.deleteSession.body':
-      '把“{title}”从侧边栏移除。会话记录不会被删除，可以在插件设置中恢复。',
-    'dialog.deleteSession.confirm': '删除',
-    'menu.deleteSession': '删除会话（安全）',
-    'toast.currentSessionDelete': '当前打开的会话不能删除，请先切换到其他会话',
+      '把“{title}”从侧边栏移除。会话记录不会被删除，但移除后不会在侧边栏或设置中显示，也不能在此界面恢复。',
+    'dialog.deleteSession.confirm': '移除',
+    'menu.deleteSession': '从侧边栏移除',
+    'toast.currentSessionDelete': '当前打开的会话不能移除，请先切换到其他会话',
     'settings.tab': '侧边栏分区',
     'settings.title': '侧边栏分区',
-    'settings.intro': '控制侧边栏分区与安全删除的显示方式。这些设置只保存在浏览器本地。',
+    'settings.intro': '控制侧边栏分区的显示方式。这些设置只保存在浏览器本地。',
     'settings.archived.label': '显示归档分区',
     'settings.archived.desc':
       '关闭后归档会话仍保留，但侧边栏不再显示“归档”分区；可以随时重新开启。',
-    'settings.removed.title': '已移除的会话',
-    'settings.removed.desc':
-      '安全删除只从侧边栏移除会话，不修改磁盘上的会话记录。恢复后会话会重新出现在原来的分区。',
-    'settings.removed.empty': '没有已移除的会话',
-    'settings.removed.restore': '恢复',
-    'settings.removed.unknown': '会话 {id}',
     'dialog.renameSession.error': '重命名失败：{message}',
     'dialog.archiveError': '归档失败：{message}',
     'dialog.cancel': '取消',
@@ -301,26 +295,20 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       'Removes “{name}” from the workspace list. The folder and conversation history are kept; its conversations appear under “Ungrouped”.',
     'dialog.delete.confirm': 'Delete',
     'dialog.delete.error': 'Delete failed: {message}',
-    'dialog.deleteSession.title': 'Delete conversation',
+    'dialog.deleteSession.title': 'Remove from sidebar',
     'dialog.deleteSession.body':
-      'Removes “{title}” from the sidebar. The conversation record is not deleted and can be restored from the plugin settings.',
-    'dialog.deleteSession.confirm': 'Delete',
-    'menu.deleteSession': 'Delete conversation (safe)',
+      'Removes “{title}” from the sidebar. The conversation record is kept, but the conversation no longer appears in the sidebar or in Settings and cannot be restored from this UI.',
+    'dialog.deleteSession.confirm': 'Remove',
+    'menu.deleteSession': 'Remove from sidebar',
     'toast.currentSessionDelete':
-      'The open conversation cannot be deleted; switch to another conversation first',
+      'The open conversation cannot be removed; switch to another conversation first',
     'settings.tab': 'Sidebar sections',
     'settings.title': 'Sidebar sections',
     'settings.intro':
-      'Control how the sidebar sections and safe deletion behave. These settings are stored in this browser only.',
+      'Control how the sidebar sections are shown. These settings are stored in this browser only.',
     'settings.archived.label': 'Show Archived section',
     'settings.archived.desc':
       'When off, archived conversations are kept but the Archived section is hidden; turn it back on at any time.',
-    'settings.removed.title': 'Removed conversations',
-    'settings.removed.desc':
-      'Safe delete only removes a conversation from the sidebar; the conversation record on disk is unchanged. Restoring it puts it back in its original section.',
-    'settings.removed.empty': 'No removed conversations',
-    'settings.removed.restore': 'Restore',
-    'settings.removed.unknown': 'Conversation {id}',
     'dialog.renameSession.error': 'Rename failed: {message}',
     'dialog.archiveError': 'Archive failed: {message}',
     'dialog.cancel': 'Cancel',
@@ -1441,12 +1429,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
 .dshss-settingsText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dshss-settingsLabel { font-size: 14px; line-height: 22px; color: var(--dsw-alias-label-primary); }
 .dshss-settingsDesc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
-.dshss-settingsSectionTitle { margin: 0; font-size: 15px; font-weight: 600; line-height: 22px; color: var(--dsw-alias-label-primary); }
-.dshss-settingsEmpty { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
-.dshss-settingsRemoved { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.dshss-settingsRemovedRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); }
-.dshss-settingsRemovedTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
-.dshss-settingsRemoveIcon { color: var(--dsw-alias-label-tertiary); flex: none; display: inline-flex; }
 
 /* Dialog body content rendered inside the host Modal. */
 .dshss-dialogContent { display: flex; flex-direction: column; gap: 16px; }
@@ -3676,15 +3658,14 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
   }
 
   /**
-   * Plugin settings tab: Archived visibility and recovery of safely removed
-   * conversations. The settings store is browser-local and shared with the
-   * sidebar through Cordis injection.
-   * @param {object} props - settings store, actions and locale seat.
+   * Plugin settings tab: Archived-section visibility only. Safely removed
+   * conversations stay hidden in this browser and the settings page keeps no
+   * list of their titles; removal is one-way by design.
+   * @param {object} props - settings store and locale seat.
    * @returns {object} the settings page.
    */
   function SettingsPanel({ settings, actions, t }) {
     const managed = useStoreValue(settings)
-    const removed = [...managed.removed].sort((left, right) => right.removedAt - left.removedAt)
     return h(
       'div',
       { className: 'dshss-settings' },
@@ -3706,46 +3687,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           },
         }),
       ),
-      h(
-        'div',
-        { className: 'dshss-settingsText' },
-        h('h3', { className: 'dshss-settingsSectionTitle' }, t('settings.removed.title')),
-        h('p', { className: 'dshss-settingsDesc' }, t('settings.removed.desc')),
-      ),
-      removed.length === 0
-        ? h('p', { className: 'dshss-settingsEmpty' }, t('settings.removed.empty'))
-        : h(
-            'ul',
-            { className: 'dshss-settingsRemoved' },
-            removed.map((entry) =>
-              h(
-                'li',
-                { key: entry.id, className: 'dshss-settingsRemovedRow' },
-                h(
-                  'span',
-                  { className: 'dshss-settingsRemoveIcon' },
-                  h(IconTrashOutlineRegular, { size: 14 }),
-                ),
-                h(
-                  'span',
-                  { className: 'dshss-settingsRemovedTitle' },
-                  entry.title === entry.id
-                    ? t('settings.removed.unknown', { id: entry.id })
-                    : entry.title,
-                ),
-                h(
-                  Button,
-                  {
-                    variant: 'ghost',
-                    onClick: () => {
-                      actions.restoreSession(entry.id)
-                    },
-                  },
-                  t('settings.removed.restore'),
-                ),
-              ),
-            ),
-          ),
     )
   }
 
@@ -3861,12 +3802,6 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
           ...current.removed,
         ],
       })
-    }
-    const restoreSession = (sessionId) => {
-      const current = settingsStore.getSnapshot()
-      const removed = current.removed.filter((entry) => entry.id !== sessionId)
-      if (removed.length === current.removed.length) return
-      commitSettings({ ...current, removed })
     }
 
     // Dialog requests cross the sidebar and overlay registrations as one
@@ -4042,7 +3977,7 @@ __DSH_FEATURE('dsh-sidebar-sections', function (require, env) {
       render: () =>
         h(SettingsPanel, {
           settings: settingsStore,
-          actions: { setShowArchived, restoreSession },
+          actions: { setShowArchived },
           t,
         }),
     })

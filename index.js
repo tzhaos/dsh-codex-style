@@ -23,6 +23,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { registerGit } from './host/git.js'
 import { registerActivityPreview } from './host/activity-preview.js'
+import { readSystemColors, SYSTEM_COLORS_PATH } from './host/system-colors.js'
 
 const REORDER_PATH = '/dsh-queue-withdraw/reorder'
 const UPDATE_PATH = '/dsh-queue-withdraw/update'
@@ -158,7 +159,7 @@ function sendJson(res, status, body) {
 }
 
 /** Match the public Connection fetch contract: authenticated owner and installation gate. */
-function registerQueueRoute(ctx, route) {
+function registerAdmittedRoute(ctx, route) {
   return ctx.webServer.register({
     ...route,
     async handler(req, res) {
@@ -246,8 +247,25 @@ async function saveUpload(attachments, file) {
 export function apply(ctx) {
   registerActivityPreview(ctx)
   registerGit(ctx)
-  if (ctx?.webServer?.register === undefined || ctx?.agents?.get === undefined ||
+  if (ctx?.webServer?.register === undefined ||
       typeof ctx.connection?.admit !== 'function' || typeof ctx.waterfall !== 'function') return
+  // Read-only system palette for the window material; independent of any session.
+  ctx.effect(
+    () =>
+      registerAdmittedRoute(ctx, {
+        kind: 'exact',
+        path: SYSTEM_COLORS_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'GET') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          sendJson(res, 200, await readSystemColors(ctx))
+        },
+      }),
+    'system-colors: route',
+  )
+  if (ctx?.agents?.get === undefined) return
   loadFrozen()
   ctx.effect(
     () => () => {
@@ -265,7 +283,7 @@ export function apply(ctx) {
   })
   ctx.effect(
     () =>
-      registerQueueRoute(ctx, {
+      registerAdmittedRoute(ctx, {
         kind: 'exact',
         path: REORDER_PATH,
         handler: async (req, res) => {
@@ -318,7 +336,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      registerQueueRoute(ctx, {
+      registerAdmittedRoute(ctx, {
         kind: 'exact',
         path: UPDATE_PATH,
         handler: async (req, res) => {
@@ -420,7 +438,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      registerQueueRoute(ctx, {
+      registerAdmittedRoute(ctx, {
         kind: 'exact',
         path: FREEZE_PATH,
         handler: async (req, res) => {
@@ -474,7 +492,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      registerQueueRoute(ctx, {
+      registerAdmittedRoute(ctx, {
         kind: 'exact',
         path: THAW_PATH,
         handler: async (req, res) => {
@@ -509,7 +527,7 @@ export function apply(ctx) {
 
   ctx.effect(
     () =>
-      registerQueueRoute(ctx, {
+      registerAdmittedRoute(ctx, {
         kind: 'exact',
         path: FROZEN_PATH,
         handler: async (req, res) => {

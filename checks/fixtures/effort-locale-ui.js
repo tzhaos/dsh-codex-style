@@ -18,21 +18,29 @@ async (page) => {
       state.current = { provider: 'fixture', model: 'reasoner' }
       review.modelState.set(state)
     })
-    const native = page.locator('.wq12jW_triggerEffort')
-    const expected = language === 'zh' ? ['默认', '最大', '低', '中', '高'] : ['Default', 'Max', 'Low', 'Medium', 'High']
+    // The provider catalog spells effort levels in English; the control shows
+    // that spelling verbatim in every UI language and never translates it.
+    const expected = ['High', 'Low', 'Max', 'Low', 'Medium', 'High', 'Max']
     await page.waitForFunction((text) => document.querySelector('.wq12jW_triggerEffort')?.textContent === text, expected[0])
     await page.locator('.wq12jW_trigger').click()
     const slider = page.getByRole('slider', { name: language === 'zh' ? '推理强度' : 'Reasoning effort', exact: true })
     await slider.waitFor()
     const bounds = await page.locator('.wq12jW_trigger').boundingBox()
-    for (const [index, key] of ['Home', 'End', 'Home', 'ArrowRight', 'ArrowRight', 'ArrowRight'].entries()) {
+    const presses = [
+      ['Home', expected[1]],
+      ['End', expected[2]],
+      ['Home', expected[3]],
+      ['ArrowRight', expected[4]],
+      ['ArrowRight', expected[5]],
+      ['ArrowRight', expected[6]],
+    ]
+    for (const [key, label] of presses) {
       await slider.press(key)
-      const label = expected[[0, 1, 0, 2, 3, 4][index]]
-      await page.waitForFunction((label) => {
+      await page.waitForFunction((expectedLabel) => {
         const trigger = document.querySelector('.wq12jW_trigger')
         return document.querySelector('.dshe-panel')?.getAttribute('aria-busy') === 'false'
-          && trigger?.querySelector('.wq12jW_triggerEffort')?.textContent === label
-          && trigger.getAttribute('aria-label')?.endsWith(label)
+          && trigger?.querySelector('.wq12jW_triggerEffort')?.textContent === expectedLabel
+          && trigger.getAttribute('aria-label')?.endsWith(expectedLabel)
       }, label)
       assert(await page.locator('.dshe-level').textContent() === label, 'heading and native label disagree')
       assert(await slider.getAttribute('aria-valuetext') === label, 'slider accessibility name is mixed')
@@ -40,14 +48,14 @@ async (page) => {
       for (const coordinate of ['x', 'y', 'width', 'height'])
         assert(Math.abs(next[coordinate] - bounds[coordinate]) < .5, 'localized trigger shifted')
     }
-    assert(await page.evaluate(() => review.modelState.getSnapshot().current.reasoningEffort) === 'high', 'localization changed selection ID')
+    assert(await page.evaluate(() => review.modelState.getSnapshot().current.reasoningEffort) === 'max', 'localization changed selection ID')
     assert(await page.evaluate(() => review.modelState.getSnapshot().groups[0].models[0].reasoning.efforts.at(-1).name) === 'Max', 'provider catalog was mutated')
     await slider.press('Escape')
     await page.evaluate(() => {
       window.retainedEffortButton = document.querySelector('.wq12jW_trigger')
       review.dispose()
     })
-    assert(await page.evaluate(() => retainedEffortButton.querySelector('.wq12jW_triggerEffort').textContent) === 'High', 'unload did not restore native label')
+    assert(await page.evaluate(() => retainedEffortButton.querySelector('.wq12jW_triggerEffort').textContent) === 'Max', 'unload did not restore native label')
     results.push({ language, labels: expected, triggerWidth: bounds.width, movement: 0 })
   }
   assert(errors.length === 0, errors.join('; '))

@@ -19,6 +19,7 @@ const manifest = JSON.parse(read('package.json'))
 const clientSource = read('client.js')
 const settingsSource = read('src/settings.js')
 const indexSource = read('index.js')
+const systemColorsSource = read('host/system-colors.js')
 const patch = read('cordis.patch.yml')
 
 let checks = 0
@@ -171,6 +172,8 @@ await check('host half exports its services and keeps the queue routes', () => {
     '/dsh-queue-withdraw/thaw',
     '/dsh-queue-withdraw/frozen',
   ]) assert(indexSource.includes(route), 'route ' + route)
+  assert(systemColorsSource.includes("'/dsh-codex-style/system-colors'"), 'system color route')
+  assert(indexSource.includes('readSystemColors(ctx)'), 'system color route is served')
   assert(indexSource.includes('installClaimPatch'))
   assert(indexSource.includes('frozenFile()'))
   assert(!indexSource.includes('dsh-composer-plus'), 'composer-plus is not merged yet')
@@ -216,6 +219,43 @@ await check('the settings shell reports failed, quarantined and skipped features
     'SettingsPageBoundary',
   ]) assert(settingsSource.includes(marker), 'settings health marker ' + marker)
   assert(settingsSource.includes('env.subscribeStatus'), 'settings shell follows live health changes')
+})
+
+await check('shared presentation gives input attachments a themed stroke and hover ring', () => {
+  for (const selector of [
+    '.Mrat-G_thumbnail',
+    '.srf2qa_thumbnail',
+    '.GjTS2W_card',
+    '.Nhu-QW_frame',
+    '[data-queue-dock] .v1kfCW_thumb',
+    '[data-queue-dock] .v1kfCW_file',
+  ]) assert(clientSource.includes(selector), 'presentation styles attachment surface ' + selector)
+  assert(
+    clientSource.includes(
+      'border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, transparent)',
+    ),
+    'hover stroke uses the business accent token',
+  )
+  assert(
+    clientSource.includes(
+      'box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent)',
+    ),
+    'hover ring uses the business accent token',
+  )
+  assert(clientSource.includes('prefers-reduced-motion: reduce'), 'hover transition respects reduced motion')
+})
+
+await check('window material tints with the live system accent palette', () => {
+  for (const marker of [
+    '--dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2))',
+    '--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2)',
+    "request('/dsh-codex-style/system-colors'",
+    "'--dshlr-system-accent-on-dark'",
+  ]) assert(clientSource.includes(marker), 'system material marker ' + marker)
+  assert(
+    !clientSource.includes('--dsw-alias-state-warn-primary) 10%'),
+    'window material keeps no fixed brand tint',
+  )
 })
 
 // ---------------------------------------------------------------------------

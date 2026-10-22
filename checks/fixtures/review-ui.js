@@ -115,8 +115,8 @@ const modelState = store({
   current: { provider: 'fixture', model: 'reasoner', reasoningEffort: 'medium' },
   groups: [{ id: 'fixture', name: '测试模型', models: [
     { id: 'reasoner', name: 'Reasoner', reasoning: { defaultEffort: 'medium', efforts: [
-      { id: 'low', name: '低' }, { id: 'medium', name: '中' },
-      { id: 'high', name: '高' }, { id: 'max', name: '极高' },
+      { id: 'low', name: 'Low' }, { id: 'medium', name: 'Medium' },
+      { id: 'high', name: 'High' }, { id: 'max', name: 'Extra high' },
     ] } },
     { id: 'plain', name: 'Chat' },
   ] }],
