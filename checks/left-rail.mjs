@@ -9,6 +9,54 @@ async function check(name, body) {
   try { await body(); checks += 1; console.log('ok ' + name) }
   catch (error) { process.exitCode = 1; console.error('FAIL ' + name + '\n     ' + error.stack) }
 }
+/** Feature hooks from the unbundled source, used for the account/update helpers. */
+let buildFeature
+vm.runInNewContext(fs.readFileSync(new URL('../src/navigation/left-rail.js', import.meta.url), 'utf8'), {
+  __DSH_FEATURE: (_id, factory) => { buildFeature = factory },
+  document: { addEventListener() {}, removeEventListener() {}, visibilityState: 'visible' },
+})
+const featureHooks = (() => {
+  const React = {
+    Fragment: 'fragment', useId: () => 'fixture-icon',
+    createElement: () => null, useState: (value) => [value, () => {}], useEffect: () => {},
+  }
+  const primitives = { Tooltip: ({ children }) => children, Menu: () => null, IconChevronDownOutlineRegular: () => null }
+  const env = { createNavigationIcon: () => () => null, presentationCSS: '', navigationIconsCSS: '' }
+  return buildFeature(
+    (id) => id === 'react' ? React : id === 'react-dom' ? { createPortal: (node) => node } : primitives,
+    env,
+  ).__test
+})()
+const tick = () => new Promise((resolve) => setImmediate(resolve))
+function fakeRemoteAccount(options = {}) {
+  const calls = { state: 0, profile: 0, balance: 0, tasks: 0, signOut: [], profileMeta: null }
+  const state = options.state ?? {
+    status: 'credential-stored',
+    links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },
+  }
+  return {
+    calls,
+    account: {
+      async getState() { calls.state += 1; return { ok: true, value: state } },
+      async getProfile(meta) {
+        calls.profile += 1; calls.profileMeta = meta
+        return options.profile ?? { ok: true, value: { status: 'ready', value: { id: '1', name: 'Ncst Tian', contact: '24*****17@qq.com', avatarUrl: null } } }
+      },
+      async getBalance() {
+        calls.balance += 1
+        return options.balance ?? { ok: true, value: { status: 'ready', value: [{ currency: 'USD', balance: '0' }, { currency: 'CNY', balance: '-0.01' }], bonusWallets: [] } }
+      },
+      async hasRunningAccountTasks() { calls.tasks += 1; return { ok: true, value: options.running === true } },
+      async signOut(meta) { calls.signOut.push(meta); return { ok: true, value: { status: 'signed-out', links: { usageUrl: '', topUpUrl: '' } } } },
+    },
+  }
+}
+function accountContext(remoteAccount) {
+  return {
+    locale: { getSnapshot: () => ({ active: 'zh-CN' }) },
+    remote: { account: remoteAccount },
+  }
+}
 class Node {
   constructor(attributes = {}) {
     this.attributes = new Map(Object.entries(attributes)); this.children = []; this.listeners = new Map()
@@ -31,6 +79,7 @@ function fixture({ panels = ['plugins', 'schedules'], active = null, preferenceS
   const rows = ['插件', '自动化任务'].map((label) => new Node({ 'aria-label': label }))
   const root = new Node(); const disposers = []; const registrations = []
   const document = { documentElement: root, body: new Node(), head: new Node(), createElement: () => new Node(),
+    addEventListener() {}, removeEventListener() {}, visibilityState: 'visible',
     querySelector: (selector) => selector.includes('_logoRow') ? brand : selector.includes('_settingsArea') ? settings : null,
     querySelectorAll: () => rows }
   const selected = []; const subscribers = new Set(); let current = active; let definition; let dictionary
@@ -175,5 +224,110 @@ await check('disposal restores native attributes, listeners, visibility and geom
   assert.equal(app.settings.getAttribute('data-dshlr-button'), null)
   assert(app.rows.every((row) => row.getAttribute('data-dshlr-hidden') === null))
   assert.equal(app.root.getAttribute('data-dshlr-active'), null)
+})
+// ---------------------------------------------------------------------------
+// Account launcher and Desktop update button
+// ---------------------------------------------------------------------------
+await check('wallet text keeps the Platform formatting for both currencies', () => {
+  assert.equal(featureHooks.formatWallet('0', 'CNY'), '¥0.00')
+  assert.equal(featureHooks.formatWallet('12.345', 'CNY'), '¥12.34')
+  assert.equal(featureHooks.formatWallet('1234.5', 'USD'), '$1,234.50')
+  assert.equal(featureHooks.formatWallet('0.005', 'CNY'), '<¥0.01')
+  assert.equal(featureHooks.formatWallet('-0.005', 'CNY'), '-¥0.01')
+  assert.equal(featureHooks.formatWallet('-12.3', 'USD'), '-$12.30')
+  assert.equal(featureHooks.formatWallet(undefined, 'CNY'), '¥0')
+  assert.equal(
+    featureHooks.walletSummary([{ currency: 'USD', balance: '0' }, { currency: 'CNY', balance: '-0.01' }, { currency: 'CNY', balance: 5 }]),
+    '$0.00 · -¥0.01',
+  )
+  assert.equal(featureHooks.walletSummary(null), '')
+  assert.equal(featureHooks.walletSummary([]), '')
+})
+await check('avatar fallback initials derive from the profile name', () => {
+  assert.equal(featureHooks.accountInitials('Ncst Tian'), 'NT')
+  assert.equal(featureHooks.accountInitials('ncsttian'), 'NC')
+  assert.equal(featureHooks.accountInitials('  '), 'DS')
+  assert.equal(featureHooks.accountInitials(undefined), 'DS')
+})
+await check('the update button follows every Desktop update phase and hides when idle', () => {
+  const t = (key, params = {}) => key + JSON.stringify(params)
+  const view = (snapshot) => JSON.parse(JSON.stringify(featureHooks.updateView(snapshot, t)))
+  assert.deepEqual(view({ phase: 'idle' }), { visible: false })
+  assert.deepEqual(view(null), { visible: false })
+  const available = view({ phase: 'available', version: '1.4.0' })
+  assert.equal(available.visible, true)
+  assert.equal(available.kind, 'download')
+  assert(available.label.includes('"version":"1.4.0"'))
+  assert.equal(featureHooks.updateView({ phase: 'downloading', percent: 42 }, t).kind, 'progress')
+  assert.equal(featureHooks.updateView({ phase: 'verifying', percent: 100 }, t).kind, 'progress')
+  assert.equal(featureHooks.updateView({ phase: 'ready', version: '1.4.0' }, t).kind, 'install')
+  assert.equal(featureHooks.updateView({ phase: 'installing' }, t).kind, 'installing')
+  assert.equal(featureHooks.updateView({ phase: 'error' }, t).kind, 'error')
+})
+await check('signed-in account identity loads profile, wallet and usage links', async () => {
+  const remote = fakeRemoteAccount()
+  const controller = featureHooks.createAccountController(accountContext(remote.account))
+  const stop = controller.start()
+  await tick(); await tick()
+  const snapshot = controller.getSnapshot()
+  assert.equal(snapshot.signedIn, true)
+  assert.equal(snapshot.profile.name, 'Ncst Tian')
+  assert.equal(snapshot.profile.contact, '24*****17@qq.com')
+  assert.equal(snapshot.balance.value[0].currency, 'USD')
+  assert.equal(snapshot.links.usageUrl, 'https://platform.deepseek.com/usage')
+  assert.equal(remote.calls.profileMeta.locale, 'zh-CN')
+  assert.equal(typeof remote.calls.profileMeta.version, 'string')
+  assert.equal(typeof remote.calls.profileMeta.timezoneOffsetSeconds, 'number')
+  assert.equal(await controller.hasRunningTasks(), false)
+  stop()
+  controller.dispose()
+})
+await check('signed-out and unavailable accounts keep the native settings launcher', async () => {
+  const remote = fakeRemoteAccount({ state: { status: 'signed-out', links: { usageUrl: '', topUpUrl: '' } } })
+  const signedOut = featureHooks.createAccountController(accountContext(remote.account))
+  const stop = signedOut.start()
+  await tick(); await tick()
+  assert.equal(signedOut.getSnapshot().signedIn, false)
+  assert.equal(remote.calls.profile, 0, 'a signed-out account does not read the profile')
+  stop()
+  signedOut.dispose()
+  const unavailable = featureHooks.createAccountController({
+    locale: { getSnapshot: () => ({ active: 'zh-CN' }) },
+    get: () => undefined,
+  })
+  unavailable.start()
+  await tick()
+  assert.equal(unavailable.getSnapshot().phase, 'unavailable')
+  assert.equal(unavailable.getSnapshot().signedIn, false)
+  unavailable.dispose()
+})
+await check('sign out carries the client metadata and clears the identity', async () => {
+  const remote = fakeRemoteAccount({ running: true })
+  const controller = featureHooks.createAccountController(accountContext(remote.account))
+  controller.start()
+  await tick(); await tick()
+  assert.equal(await controller.hasRunningTasks(), true)
+  await controller.signOut()
+  assert.equal(remote.calls.signOut.length, 1)
+  assert.equal(remote.calls.signOut[0].locale, 'zh-CN')
+  assert.equal(controller.getSnapshot().signedIn, false)
+  assert.equal(controller.getSnapshot().profile, null)
+  controller.dispose()
+})
+await check('the account launcher and update button ship with the merged bundle', () => {
+  for (const marker of [
+    'dshlr-accountTrigger',
+    'dshlr-accountMenuNative',
+    'dshlr-accountValueRow',
+    'dshlr-updateButton',
+    'data-dshlr-account',
+    'dshlr-accountConfirmTitle',
+    'account.signOutTitle',
+  ]) assert(source.includes(marker), 'account marker ' + marker)
+  assert(source.includes('ctx.remote?.account'), 'account reads the remote service')
+  assert(source.includes('getBalance(client)'), 'account reads the wallet balance')
+  assert(source.includes('hasRunningAccountTasks()'), 'sign out checks running tasks')
+  assert(source.includes('globalThis.dshDesktop?.updates'), 'update button uses the Desktop updater')
+  assert(source.includes('api.status?.()'), 'update button reads the initial updater status')
 })
 console.log(`\n${process.exitCode ? 'some checks failed' : 'all checks passed (' + checks + ')'}`)

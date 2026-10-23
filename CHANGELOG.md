@@ -18,6 +18,7 @@ their per-release history remains in those repositories.
 
 ### Added
 
+- Account launcher and update install button (`dsh-left-rail`): when DSH is signed in to a DeepSeek account the bottom-left settings launcher becomes the account avatar, and clicking it opens a native DSH `Menu` with the topped-up and bonus wallet balance, Settings, Help and Sign out. The balance row only appears when the account Remote can answer, so third-party or API-key-only setups keep the plain settings launcher without inventing a number; sign out warns first when tasks are still running. On Desktop, a blue install circle sits above the avatar whenever the updater reports an available, downloading or ready version and opens DSH's official update flow. Everything reuses the shell `Menu`, `Modal` and `Button` primitives, so the menu keeps the native surface, shortcuts and keyboard behaviour.
 - Attachment action menu (`dsh-attachment-actions`): right-click a draft, message, tool-result or trajectory attachment to copy the image, copy its address, save the original bytes, open the host lightbox, copy file names and sizes, or remove a composer draft. Desktop-dropped drafts also copy their host path, reveal in the file manager or open with the default application. The menu reuses the host `Menu` and `Toast` primitives and only reads the rendered DOM.
 
 ### Changed
