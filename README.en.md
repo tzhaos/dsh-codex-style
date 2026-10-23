@@ -12,7 +12,7 @@ Settings → **Codex Workbench** groups capabilities by task, with independent s
 | Group | Capabilities |
 |---|---|
 | Sessions and navigation | Session list, navigation rail, back and forward |
-| Composer | Queued messages (edit withdraws to the composer, lock toggle, drag reorder/merge with attachments), prompt history, long paste, file references, selection quotes, inline status |
+| Composer | Queued messages (edit withdraws to the composer, lock toggle, drag reorder/merge with attachments), prompt history, long paste as a temporary txt file reference, file references, selection quotes, inline status |
 | Content actions | File context menu, attachment context menu, selection toolbar |
 | Side panels | Temporary side chat, middle-click tab close |
 | Interaction | Hover feedback |

@@ -3,8 +3,8 @@
  *
  * Run with `node checks/long-paste.mjs`. The suite loads the shipped browser
  * bundle with only this feature built (the bundle's test filter), drives the
- * document-level paste listener against DOM-shaped fakes and reads the merged
- * manifest contract.
+ * document-level paste listener against DOM-shaped fakes with a stub Host
+ * pasteboard route, and reads the merged manifest contract.
  */
 
 import assert from 'node:assert/strict'
@@ -17,6 +17,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
 const manifest = JSON.parse(read('package.json'))
 const clientSource = read('client.js')
+const featureSource = read('src/composer/long-paste.js')
+const hostIndex = read('index.js')
+const hostPasteboard = read('host/pasteboard.js')
 
 let checks = 0
 
@@ -32,9 +35,17 @@ async function check(name, body) {
   }
 }
 
+const tick = () => new Promise((resolve) => setImmediate(resolve))
+
 function translator(dictionary) {
   return (key) => dictionary[key] ?? key
 }
+
+// Pure helpers from the feature source (mention quoting and chip building).
+let buildFeature
+vm.runInNewContext(featureSource, { __DSH_FEATURE: (_id, factory) => { buildFeature = factory } })
+const helpers = buildFeature(() => ({}), {}).__test
+const NO_SPACE_PATH = 'C:\\temp\\pasted-text.txt'
 
 /** Fake target tree: editor → conversation owner. */
 function makeTarget({ sessionId = 'session-a', editable = true, queueDock = false } = {}) {
@@ -56,106 +67,81 @@ function makeTarget({ sessionId = 'session-a', editable = true, queueDock = fals
 function scenario(options = {}) {
   const listeners = new Map()
   const cleanups = []
-  const drafts = []
   const added = []
   const notices = []
+  const draftWrites = []
+  const fetchCalls = []
   const document = {
     body: {},
     head: { appendChild() {} },
     addEventListener(type, handler) { listeners.set(type, handler) },
     removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type) },
-    createElement: () => ({ dataset: {}, textContent: '', remove() {}, addEventListener() {}, setAttribute() {}, insertAdjacentElement() {} }),
-    querySelectorAll: () => [],
-    querySelector: () => null,
+    createElement: () => ({ dataset: {}, remove() {}, addEventListener() {}, setAttribute() {} }),
   }
-  const draft = { value: '' }
-  const removed = []
-  const released = []
   const shell = {
-    removeAttachment(id) { if (this.snapshot.phase === 'submitting') return false; removed.push(id); return true },
-    actions: {
-      addAttachments(ids) { if (options.rejectAttachments) return false; added.push(...ids); return true },
-      setDraft(text) { draft.value = text },
-      removeAttachment(id) { removed.push(id) },
+    addFiles(references, ids) {
+      if (options.refuseFiles === true) return false
+      added.push({ references, ids })
+      return true
     },
+    actions: options.noSetDraft === true ? {} : { setDraft(text) { draftWrites.push(text) } },
     notify(level, text) { notices.push({ level, text }) },
-    snapshot: { get draft() { return draft.value }, phase: options.phase ?? 'plain' },
+    snapshot: { phase: options.phase ?? 'plain', draft: options.draft ?? '' },
   }
-  const conversation = {
-    input: { for: () => shell },
-    releaseDraftAttachment(id) { released.push(id) },
-    createDrafts(sessionId, files) {
-      if (options.failDrafts === true) throw new Error('draft rejected')
-      drafts.push({ sessionId, files })
-      return files.map((file, index) => ({ kind: 'file', id: 'draft-' + (index + 1), file }))
-    },
-  }
+  const conversation = { input: { for: () => shell } }
   const scope = { get: (name) => name === 'conversation' ? conversation : undefined }
   const sessions = { scope: () => scope }
   const registrations = []
+  const response = options.response ?? {
+    ok: true,
+    path: options.path ?? 'C:\\Users\\Tester\\.dsh\\dsh-codex-style\\pasteboard\\Pasted text (2,000 chars) 1.txt',
+    name: options.name ?? 'Pasted text (2,000 chars) 1.txt',
+  }
+  const fetchImpl = options.fetch ?? (async (url, init) => {
+    fetchCalls.push({ url, init })
+    return { ok: true, async json() { return response } }
+  })
   let loaded
-  const sandbox = {
+  vm.runInNewContext(clientSource, {
     __DSH_CODEX_STYLE_FEATURES__: ['dsh-long-paste'],
     window: { __ModuleLoader__: { load(definition) { loaded = definition } } },
     document,
-    MutationObserver: class {
-      observe() {}
-      disconnect() {}
-    },
-    setInterval: () => 1,
-    clearInterval() {},
-    File: class FakeFile {
-      constructor(parts, name, options) {
-        this.parts = parts
-        this.name = name
-        this.type = options?.type ?? ''
-        this.size = parts?.[0]?.length ?? 0
-      }
-    },
+    fetch: fetchImpl,
     console,
-  }
-  vm.runInNewContext(clientSource, sandbox, { filename: 'client.js' })
-  const plugin = loaded.factory((id) => {
-    if (id === 'react') {
-      return {
-        createElement: () => null,
-        useEffect(effect) {
-          const cleanup = effect()
-          if (typeof cleanup === 'function') cleanups.push(cleanup)
-        },
-      }
-    }
-    throw new Error('unexpected require ' + id)
   })
+  const plugin = loaded.factory(() => ({
+    createElement: () => null,
+    useEffect(effect) {
+      const cleanup = effect()
+      if (typeof cleanup === 'function') cleanups.push(cleanup)
+    },
+  }))
+  let locale
   const ctx = {
     effect(factory) { factory(); return () => {} },
     sessions,
     locale: {
-      register(ns, dicts) {
-        return { ns, dicts }
-      },
+      register(ns, dicts) { locale = { ns, dicts }; return () => {} },
+      bind() { return translator(locale.dicts.zh) },
     },
     slots: {
-      register(options, component) { registrations.push({ options, component }); return () => {} },
+      register(registrationOptions, component) {
+        registrations.push({ options: registrationOptions, component })
+        return () => {}
+      },
       inject(name, callback) { return callback() },
     },
-  }
-  // Capture dictionaries by overriding register before apply.
-  let locale
-  ctx.locale.register = (ns, dicts) => {
-    locale = { ns, dicts }
-    return () => {}
   }
   plugin.apply(ctx)
   const registration = registrations[0]
   const injected = registration.options.inject('session-a')
   const t = translator(locale.dicts.zh)
   registration.component({ ...injected, t })
-  return { listeners, cleanups, drafts, added, notices, t, injected, draft, removed, released }
+  return { listeners, cleanups, added, notices, draftWrites, fetchCalls, injected, t, shell }
 }
 
 function pasteEvent(target, text, { files = [] } = {}) {
-  const event = {
+  return {
     target,
     defaultPrevented: false,
     prevented: false,
@@ -169,7 +155,6 @@ function pasteEvent(target, text, { files = [] } = {}) {
     stopPropagation() { this.stopped = true },
     stopImmediatePropagation() { this.immediateStopped = true },
   }
-  return event
 }
 
 // Static contract
@@ -225,81 +210,138 @@ await check('icon is a valid accent SVG', () => {
   assert(icon.includes('#4D6BFE'))
 })
 
+await check('the Host half owns one temporary pasteboard route', () => {
+  assert(hostIndex.includes("from './host/pasteboard.js'"))
+  assert(hostIndex.includes('createPasteboard()'))
+  assert(hostIndex.includes('PASTEBOARD_PATH'))
+  assert(hostPasteboard.includes("'/dsh-codex-style/pasteboard'"))
+  assert(hostPasteboard.includes('clearPasteboard'))
+  assert(hostPasteboard.includes('prunePasteboard'))
+  assert(hostPasteboard.includes('MAX_FILES = 100'))
+  assert(hostPasteboard.includes('MAX_TEXT_BYTES'))
+})
+
 // Behaviour
-await check('long composer paste becomes a text-file attachment', async () => {
+await check('a long paste is saved by the Host and inserted as a file reference', async () => {
   const applied = scenario()
   const text = 'x'.repeat(2000)
   const event = pasteEvent(makeTarget(), text)
   applied.listeners.get('paste')(event)
-  await Promise.resolve()
+  await tick()
   assert.equal(event.prevented, true, 'default paste suppressed')
-  assert.equal(applied.drafts.length, 1, 'draft file created')
-  assert.equal(applied.drafts[0].files[0].type, 'text/plain')
-  assert(applied.drafts[0].files[0].name.includes('2,000'))
-  assert.deepEqual(applied.added, ['draft-1'])
+  assert.equal(event.immediateStopped, true, 'the editor never sees the paste')
+  assert.equal(applied.fetchCalls.length, 1, 'one pasteboard write')
+  assert.equal(applied.fetchCalls[0].url, '/dsh-codex-style/pasteboard')
+  assert.equal(applied.fetchCalls[0].init.method, 'POST')
+  assert.equal(JSON.parse(applied.fetchCalls[0].init.body).text, text)
+  assert.equal(applied.added.length, 1, 'one composer insertion')
+  assert.equal(applied.added[0].ids.length, 0, 'no uploaded attachment ids')
+  const reference = applied.added[0].references[0]
+  assert.equal(reference.source, 'reference')
+  assert.equal(reference.appearance, 'file')
+  assert.equal(reference.label, 'Pasted text (2,000 chars) 1.txt')
+  assert(reference.ref.startsWith('@"'), 'paths with spaces are quoted: ' + reference.ref)
+  assert.equal(reference.clipboardText, reference.ref)
 })
 
-await check('short paste keeps the normal inline editor behaviour', () => {
+await check('a path without spaces keeps the plain mention spelling', async () => {
+  const applied = scenario({ path: NO_SPACE_PATH, name: 'pasted-text.txt' })
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'y'.repeat(2000)))
+  await tick()
+  const reference = applied.added[0].references[0]
+  assert.equal(reference.ref, '@' + NO_SPACE_PATH)
+  assert.equal(reference.label, 'pasted-text.txt')
+})
+
+await check('a missing file name falls back to the final path segment', async () => {
+  const applied = scenario({ path: NO_SPACE_PATH, name: undefined, response: { ok: true, path: NO_SPACE_PATH } })
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'y'.repeat(2000)))
+  await tick()
+  assert.equal(applied.added[0].references[0].label, 'pasted-text.txt')
+})
+
+await check('short paste keeps the normal inline editor behaviour', async () => {
   const applied = scenario()
   const event = pasteEvent(makeTarget(), 'x'.repeat(1999))
   applied.listeners.get('paste')(event)
+  await tick()
   assert.equal(event.prevented, false)
-  assert.equal(applied.drafts.length, 0)
+  assert.equal(applied.fetchCalls.length, 0)
+  assert.equal(applied.added.length, 0)
 })
 
-await check('paste outside the composer is ignored', () => {
+await check('paste outside the composer is ignored', async () => {
   const applied = scenario()
-  const event = pasteEvent(makeTarget({ editable: false }), 'x'.repeat(3000))
-  applied.listeners.get('paste')(event)
-  assert.equal(event.prevented, false)
-  assert.equal(applied.drafts.length, 0)
+  applied.listeners.get('paste')(pasteEvent(makeTarget({ editable: false }), 'x'.repeat(3000)))
+  await tick()
+  assert.equal(applied.fetchCalls.length, 0)
 })
 
-await check('paste from another conversation is ignored', () => {
+await check('paste from another conversation is ignored', async () => {
   const applied = scenario()
-  const event = pasteEvent(makeTarget({ sessionId: 'session-b' }), 'x'.repeat(3000))
-  applied.listeners.get('paste')(event)
-  assert.equal(event.prevented, false)
-  assert.equal(applied.drafts.length, 0)
+  applied.listeners.get('paste')(pasteEvent(makeTarget({ sessionId: 'session-b' }), 'x'.repeat(3000)))
+  await tick()
+  assert.equal(applied.fetchCalls.length, 0)
 })
 
-await check('clipboard files keep the Host upload path', () => {
+await check('clipboard files keep the Host upload path', async () => {
   const applied = scenario()
-  const event = pasteEvent(makeTarget(), 'x'.repeat(3000), { files: [{}] })
-  applied.listeners.get('paste')(event)
-  assert.equal(event.prevented, false)
-  assert.equal(applied.drafts.length, 0)
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'x'.repeat(3000), { files: [{}] }))
+  await tick()
+  assert.equal(applied.fetchCalls.length, 0)
 })
 
-await check('long paste inside the queue editor is ignored', () => {
+await check('long paste inside the queue editor is ignored', async () => {
   const applied = scenario()
-  const event = pasteEvent(makeTarget({ queueDock: true }), 'x'.repeat(3000))
-  applied.listeners.get('paste')(event)
-  assert.equal(event.prevented, false)
-  assert.equal(applied.drafts.length, 0)
+  applied.listeners.get('paste')(pasteEvent(makeTarget({ queueDock: true }), 'x'.repeat(3000)))
+  await tick()
+  assert.equal(applied.fetchCalls.length, 0)
 })
 
-await check('failed attachment creation reports a localized error', async () => {
-  const applied = scenario({ failDrafts: true })
-  const event = pasteEvent(makeTarget(), 'x'.repeat(2000))
+await check('busy admission leaves the paste to the editor', async () => {
+  const applied = scenario({ phase: 'submitting' })
+  const event = pasteEvent(makeTarget(), 'x'.repeat(3000))
   applied.listeners.get('paste')(event)
-  await Promise.resolve()
-  assert.equal(event.prevented, true, 'default paste still suppressed')
-  assert.equal(applied.notices.length, 1, 'one error notice')
+  await tick()
+  assert.equal(event.prevented, false)
+  assert.equal(applied.fetchCalls.length, 0)
+})
+
+await check('a failed Host write puts the text back inline instead of losing it', async () => {
+  const applied = scenario({ fetch: async () => { throw new Error('offline') } })
+  const text = 'z'.repeat(2000)
+  const event = pasteEvent(makeTarget(), text)
+  applied.listeners.get('paste')(event)
+  await tick()
+  assert.equal(event.prevented, true)
+  assert.equal(applied.added.length, 0)
+  assert.deepEqual(applied.draftWrites, [text], 'the suppressed paste is restored')
+  assert.equal(applied.notices.length, 0)
+})
+
+await check('a rejected Host response also restores the text inline', async () => {
+  const applied = scenario({ response: { ok: false } })
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'w'.repeat(2000)))
+  await tick()
+  assert.equal(applied.draftWrites.length, 1)
+  assert.equal(applied.added.length, 0)
+})
+
+await check('a composer that refuses the reference restores the text inline', async () => {
+  const applied = scenario({ refuseFiles: true })
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'v'.repeat(2000)))
+  await tick()
+  assert.equal(applied.added.length, 0)
+  assert.equal(applied.draftWrites.length, 1)
+})
+
+await check('without an inline fallback a failed paste reports a localized error', async () => {
+  const applied = scenario({ fetch: async () => { throw new Error('offline') }, noSetDraft: true })
+  applied.listeners.get('paste')(pasteEvent(makeTarget(), 'u'.repeat(2000)))
+  await tick()
+  assert.equal(applied.notices.length, 1)
   assert.equal(applied.notices[0].level, 'error')
   assert.equal(applied.notices[0].text, applied.t('toast.failed'))
-})
-
-await check('showInText replaces the attachment with the full text', async () => {
-  const applied = scenario()
-  const text = 'x'.repeat(2000)
-  await applied.injected.actions.attach(text, applied.t('toast.failed'))
-  const name = applied.drafts[0].files[0].name
-  assert.equal(applied.injected.actions.showInText(name), true)
-  assert.equal(applied.draft.value, text)
-  assert.deepEqual(applied.removed, ['draft-1'])
-  assert.deepEqual(applied.released, ['draft-1'])
-  assert.equal(applied.injected.actions.showInText(name), false, 'record consumed once')
 })
 
 await check('cleanup removes the paste listener', () => {
@@ -308,19 +350,27 @@ await check('cleanup removes the paste listener', () => {
   assert.equal(applied.listeners.size, 0)
 })
 
-await check('busy admission preserves the attachment and draft when expanding', async () => {
-  const applied = scenario({ phase: 'submitting' })
-  await applied.injected.actions.attach('x'.repeat(2000), 'failed')
-  const name = applied.drafts[0].files[0].name
-  assert.equal(applied.injected.actions.showInText(name, 'expand', 'remove'), false)
-  assert.deepEqual(applied.released, [])
-  assert.equal(applied.draft.value, '')
+await check('the feature no longer creates browser draft uploads', () => {
+  assert(!featureSource.includes('createDrafts'), 'no draft upload path')
+  assert(!featureSource.includes('new File('), 'no browser File bridge')
+  assert(!featureSource.includes('dshlp-show'), 'no custom card decoration')
+  assert(featureSource.includes('PASTEBOARD_PATH'), 'Host pasteboard route is used')
+  assert(featureSource.includes('addFiles'), 'native composer insertion is used')
 })
 
-await check('rejected attachment admission releases the newly created draft', async () => {
-  const applied = scenario({ rejectAttachments: true })
-  assert.equal(await applied.injected.actions.attach('x'.repeat(2000), 'failed'), false)
-  assert.deepEqual(applied.released, ['draft-1'])
+await check('helpers quote mentions and build the reference chip', () => {
+  assert.equal(helpers.mentionOf(NO_SPACE_PATH), '@' + NO_SPACE_PATH)
+  assert.equal(helpers.mentionOf('C:\\A B\\x.txt'), '@"C:\\A B\\x.txt"')
+  assert.equal(helpers.labelOf('C:\\A B\\x.txt'), 'x.txt')
+  const built = helpers.referenceOf({ path: 'C:\\A B\\x.txt', name: 'x.txt' })
+  assert.equal(built.mention, '@"C:\\A B\\x.txt"')
+  assert.deepEqual({ ...built.reference }, {
+    source: 'reference',
+    ref: '@"C:\\A B\\x.txt"',
+    label: 'x.txt',
+    appearance: 'file',
+    clipboardText: '@"C:\\A B\\x.txt"',
+  })
 })
 
 console.log('\n' + (process.exitCode === 1 ? 'some checks failed' : 'all checks passed (' + checks + ')'))

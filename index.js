@@ -23,6 +23,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { registerGit } from './host/git.js'
 import { registerActivityPreview } from './host/activity-preview.js'
+import { createPasteboard, PASTEBOARD_PATH } from './host/pasteboard.js'
 import { createSystemColorsService, SYSTEM_COLORS_EVENTS_PATH, SYSTEM_COLORS_PATH } from './host/system-colors.js'
 
 const REORDER_PATH = '/dsh-queue-withdraw/reorder'
@@ -277,6 +278,35 @@ export function apply(ctx) {
         handler: (req, res) => systemColors.stream(req, res),
       }),
     'system-colors: event stream',
+  )
+  // Long pastes become real temporary text files so the composer can show them
+  // as native `@path` references. Constructing the service empties the folder
+  // once per Host start; every write prunes the oldest files past the cap.
+  const pasteboard = createPasteboard()
+  ctx.effect(
+    () =>
+      registerAdmittedRoute(ctx, {
+        kind: 'exact',
+        path: PASTEBOARD_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
+            return
+          }
+          const body = await readJson(req)
+          if (body === null || typeof body !== 'object' || typeof body.text !== 'string') {
+            sendJson(res, 400, { ok: false, reason: 'invalid-request' })
+            return
+          }
+          try {
+            const saved = pasteboard.write(body.text)
+            sendJson(res, 200, { ok: true, path: saved.path, name: saved.name })
+          } catch {
+            sendJson(res, 500, { ok: false, reason: 'write-failed' })
+          }
+        },
+      }),
+    'pasteboard: route',
   )
   if (ctx?.agents?.get === undefined) return
   loadFrozen()

@@ -121,8 +121,8 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-tab-middle-click.summary': '用鼠标中键关闭面板标签。',
     'feature.dsh-tab-middle-click.note': '仅作用于带关闭按钮的标签。',
     'feature.dsh-long-paste.title': '长文本粘贴',
-    'feature.dsh-long-paste.summary': '长文本粘贴自动转为附件，可展开回输入框。',
-    'feature.dsh-long-paste.note': '达到 2,000 个字符的粘贴会转为文本附件。',
+    'feature.dsh-long-paste.summary': '长文本粘贴保存为临时 txt，作为原生文件引用出现在输入框，点击即可在侧栏预览。',
+    'feature.dsh-long-paste.note': '临时文件放在 DSH 配置目录的插件文件夹；每次启动 DSH 清空，超过 100 个时清理最旧的。',
     'feature.dsh-sidebar-file-drop.title': '拖入文件引用',
     'feature.dsh-sidebar-file-drop.summary': '把文件从文件列表拖入输入框，插入文件引用。',
     'feature.dsh-sidebar-file-drop.note': '文件列表需要提供完整路径。',
@@ -219,9 +219,9 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-tab-middle-click.note': 'Only tabs with an existing close control can be closed.',
     'feature.dsh-long-paste.title': 'Long paste',
     'feature.dsh-long-paste.summary':
-      'Keep long pasted text as an attachment and expand it into the editor.',
+      'Save long pasted text as a temporary txt file and insert it as a native file reference that opens in the side preview.',
     'feature.dsh-long-paste.note':
-      'Plain-text pastes of 2,000 characters or more become text files.',
+      'The plugin folder inside the DSH config directory is emptied on every start and keeps only the newest 100 files.',
     'feature.dsh-sidebar-file-drop.title': 'File references',
     'feature.dsh-sidebar-file-drop.summary':
       'Drag a file from the file list into the composer as a reference.',
