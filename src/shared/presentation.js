@@ -16,7 +16,8 @@ env.presentationCSS = `
 /* One viewport material joins the caption and rail. The Host publishes the
    Windows accent palette, so the material is tinted with the live system
    color; until it arrives the theme surface tone keeps the material neutral.
-   Fade before native window controls. */
+   The tint stays a light wash so the material never reads darker than the
+   window surface next to it. Fade before native window controls. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));
   --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
@@ -24,8 +25,8 @@ html[data-dshlr-active][data-windows-titlebar] body {
   background-image:
     linear-gradient(90deg, transparent, var(--dsw-specific-sidebar-fill) var(--dshlr-material-span)),
     linear-gradient(180deg,
-      color-mix(in srgb, var(--dshlr-material-tint) 26%, var(--dsw-specific-sidebar-fill)),
-      color-mix(in srgb, var(--dshlr-material-tint) 12%, var(--dsw-specific-sidebar-fill)));
+      color-mix(in srgb, var(--dshlr-material-tint) 18%, var(--dsw-specific-sidebar-fill)),
+      color-mix(in srgb, var(--dshlr-material-tint) 8%, var(--dsw-specific-sidebar-fill)));
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
