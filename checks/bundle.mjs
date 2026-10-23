@@ -248,6 +248,8 @@ await check('window material tints with the live system accent palette', () => {
   for (const marker of [
     '--dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2))',
     '--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2)',
+    '--dshlr-controls-start: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, calc(100vw - 150px)))',
+    'var(--dsw-specific-sidebar-fill) var(--dshlr-controls-start)',
     "request('/dsh-codex-style/system-colors'",
     "'--dshlr-system-accent-on-dark'",
   ]) assert(clientSource.includes(marker), 'system material marker ' + marker)

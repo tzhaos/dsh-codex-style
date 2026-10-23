@@ -23,7 +23,7 @@ vm.runInNewContext(source, {
   document: { querySelectorAll: () => [], createElement: () => ({ dataset: {}, style: {} }) },
   window: { addEventListener() {}, removeEventListener() {} },
 })
-const { planStatusLayout, splitDock, centeredPanelLeft, keepPlacement, bindPerformanceUsage, VERTICAL_DEADBAND, PERFORMANCE_ATTR, GAP, RING_GAP } = build().__test
+const { planStatusLayout, splitDock, centeredPanelLeft, chooseAnchor, keepPlacement, bindPerformanceUsage, VERTICAL_DEADBAND, PERFORMANCE_ATTR, GAP, RING_GAP } = build().__test
 
 let checks = 0
 const check = (name, run) => {
@@ -190,6 +190,27 @@ check('the detail panel centers on the clicked status button, clamped to the vie
     12,
     'left clamp',
   )
+})
+
+check('the panel anchor prefers the button the user pressed in that dock', () => {
+  const button = (expanded) => ({ getAttribute: (name) => name === 'aria-expanded' ? String(expanded) : null })
+  const first = button(false)
+  const second = button(true)
+  const stale = button(false)
+  const other = button(true)
+  assert.equal(chooseAnchor([first, second, stale], second), second, 'pressed expanded button wins')
+  assert.equal(chooseAnchor([first, stale], second), null, 'stale last press is ignored')
+  assert.equal(chooseAnchor([first, other], second), other, 'first expanded fallback')
+  assert.equal(chooseAnchor([first, stale], null), null, 'nothing expanded')
+})
+
+check('late-expanded panels are retried after their trigger updates', () => {
+  assert(source.includes("document.addEventListener('pointerdown', rememberAnchor, true)"), 'pressed buttons are remembered')
+  assert(source.includes("document.addEventListener('click', rememberAnchor, true)"), 'click activation is remembered too')
+  assert(source.includes('attributeFilter: [\'aria-expanded\']'), 'expanded state changes trigger a layout pass')
+  assert(source.includes('function retryPending()'), 'unresolved panels stay pending')
+  assert(source.includes('retryPending()'), 'reconcile retries pending panels')
+  assert(source.includes("document.removeEventListener('pointerdown', rememberAnchor, true)"), 'listeners are cleaned up')
 })
 
 check('the three status controls stay separate icon buttons in the composer row', () => {

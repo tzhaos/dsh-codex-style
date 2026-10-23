@@ -275,18 +275,30 @@ env.presentationCSS = `
 /* One viewport material joins the caption and rail. The Host publishes the
    Windows accent palette, so the material is a very pale wash of the live
    system color across the whole caption row, like the Codex window chrome;
-   until it arrives the theme surface tone keeps the material neutral. */
+   until it arrives the theme surface tone keeps the material neutral. The
+   native Window Controls Overlay paints its own solid strip over the caption,
+   so the wash fades back to the surface tone before that strip starts; the
+   overlay exposes the free titlebar area through env(titlebar-area-*), and
+   the fallback keeps a 150px gap when those variables are unavailable. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-top: 7%;
   --dshlr-material-bottom: 4%;
   --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
+  --dshlr-controls-start: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, calc(100vw - 150px)));
+  --dshlr-material-fade: 150px;
   background-color: var(--dsw-specific-sidebar-fill);
   background-image:
+    linear-gradient(90deg,
+      transparent 0,
+      transparent max(0px, calc(var(--dshlr-controls-start) - var(--dshlr-material-fade))),
+      var(--dsw-specific-sidebar-fill) var(--dshlr-controls-start)),
     linear-gradient(180deg,
       color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-top), var(--dsw-specific-sidebar-fill)),
       color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-bottom), var(--dsw-specific-sidebar-fill)));
-  background-attachment: fixed;
-  background-repeat: no-repeat;
+  background-size: 100% var(--dsh-windows-titlebar-height, 40px), 100% 100%;
+  background-position: top left, top left;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed, fixed;
 }
 html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
   --dshlr-material-top: 18%;
@@ -13857,6 +13869,21 @@ __DSH_FEATURE('dsh-composer-status', function () {
   }
 
   /**
+   * Pick the button whose panel is being centered. The stat pills and the ring
+   * are independent triggers, so prefer the button the user actually pressed
+   * when it is the expanded one; otherwise fall back to the expanded button.
+   * Pure so the package check can exercise late-expanded and stale buttons.
+   * @param {Element[]} buttons - current dock buttons.
+   * @param {Element|null} last - last pressed button in that dock.
+   * @returns {Element|null} anchor button.
+   */
+  function chooseAnchor(buttons, last) {
+    const expanded = (button) => button?.getAttribute?.('aria-expanded') === 'true'
+    if (last !== null && last !== undefined && buttons.includes(last) && expanded(last)) return last
+    return buttons.find((button) => expanded(button)) ?? null
+  }
+
+  /**
    * Find the model seat behind the composer control row.
    * @param {Element} card - composer card.
    * @returns {Element|null} seat wrapper containing the native trigger.
@@ -13943,6 +13970,10 @@ __DSH_FEATURE('dsh-composer-status', function () {
     const states = new Map()
     /** @type {Map<Element, object>} open detail panels keyed by their portaled node. */
     const popups = new Map()
+    /** Panels seen before their trigger expanded; retried on the next reconcile. */
+    const pending = new Set()
+    /** Last pressed status button per dock, so each panel centers on its own trigger. */
+    const lastAnchors = new WeakMap()
     const observed = new Set()
     const resize = new ResizeObserver(() => schedule())
     let frame = null
@@ -13981,10 +14012,13 @@ __DSH_FEATURE('dsh-composer-status', function () {
         dropPopup(panel)
         return
       }
-      // The Host writes `aria-expanded="true"` on the control that owns the
-      // open panel; both the stat pills and the ring use their own button.
-      const anchor = dock.querySelector('button[aria-expanded="true"]')
-      if (anchor === null || anchor === undefined || panel.offsetWidth === 0) return
+      // The status pills and the ring are independent triggers; prefer the
+      // button the user pressed, then the expanded one in this dock.
+      const anchor = chooseAnchor(
+        Array.from(dock.querySelectorAll('button')),
+        lastAnchors.get(dock) ?? null,
+      )
+      if (anchor === null || panel.offsetWidth === 0) return
       const anchorRect = anchor.getBoundingClientRect()
       if (anchorRect.width <= 0) return
       const left = centeredPanelLeft({
@@ -14004,24 +14038,47 @@ __DSH_FEATURE('dsh-composer-status', function () {
     }
 
     /**
-     * Track one popup opened from an expanded composer status button.
+     * Track one portaled panel opened from an expanded composer status button.
+     * A panel can appear before its trigger's `aria-expanded` lands in the DOM;
+     * those stay pending and are retried on the next layout pass.
      * @param {Element} panel - portaled dialog panel.
      */
     function registerPopup(panel) {
       if (popups.has(panel)) return
-      for (const dock of document.querySelectorAll(DOCK_SELECTOR)) {
-        if (dock.querySelector('button[aria-expanded="true"]') === null) continue
-        popups.set(panel, dock)
-        panel.setAttribute(POPUP_ATTR, '')
-        panel.style.setProperty('--dshcs-popup-left', '0px')
-        schedule()
+      const docks = Array.from(document.querySelectorAll(DOCK_SELECTOR))
+      const dock =
+        docks.find((candidate) => candidate.querySelector('button[aria-expanded="true"]') !== null) ??
+        docks.find((candidate) => {
+          const last = lastAnchors.get(candidate)
+          return last !== null && last !== undefined && last.isConnected
+        }) ??
+        null
+      if (dock === null) {
+        if (panel.isConnected) pending.add(panel)
         return
+      }
+      pending.delete(panel)
+      popups.set(panel, dock)
+      panel.setAttribute(POPUP_ATTR, '')
+      panel.style.setProperty('--dshcs-popup-left', '0px')
+      schedule()
+    }
+
+    /** Retry panels that were seen before any trigger expanded. */
+    function retryPending() {
+      for (const panel of Array.from(pending)) {
+        if (!panel.isConnected) {
+          pending.delete(panel)
+          continue
+        }
+        registerPopup(panel)
       }
     }
 
     /** Release every panel this feature moved. */
     function releasePopups() {
       for (const panel of Array.from(popups.keys())) dropPopup(panel)
+      pending.clear()
     }
 
     /**
@@ -14133,6 +14190,7 @@ __DSH_FEATURE('dsh-composer-status', function () {
       }
       const nodes = []
       for (const dock of docks) nodes.push(...syncDock(dock))
+      retryPending()
       centerPopups()
       for (const panel of popups.keys()) nodes.push(panel)
       watch(nodes)
@@ -14151,26 +14209,35 @@ __DSH_FEATURE('dsh-composer-status', function () {
 
     const mutations = new MutationObserver((records) => {
       for (const record of records) {
-        if (record.type !== 'childList') continue
+        if (record.type === 'attribute') {
+          // Attribute records arrive in the same batch as the portal insertion;
+          // schedule but keep scanning so a panel record is not skipped.
+          const target = record.target
+          if (
+            target instanceof Element &&
+            (target.closest(DOCK_SELECTOR) !== null || target.closest(CARD_SELECTOR) !== null)
+          ) {
+            schedule()
+          }
+          continue
+        }
         for (const node of record.addedNodes) {
           if (isPopupPanel(node)) {
             registerPopup(node)
             continue
           }
-          if (touchesComposer(node)) {
-            schedule()
-            return
-          }
+          if (touchesComposer(node)) schedule()
         }
         for (const node of record.removedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE && popups.has(node)) {
             dropPopup(node)
             continue
           }
-          if (touchesComposer(node)) {
-            schedule()
-            return
+          if (node.nodeType === Node.ELEMENT_NODE && pending.has(node)) {
+            pending.delete(node)
+            continue
           }
+          if (touchesComposer(node)) schedule()
         }
         const target = record.target
         if (
@@ -14178,10 +14245,24 @@ __DSH_FEATURE('dsh-composer-status', function () {
           (target.closest(CARD_SELECTOR) !== null || target.closest(DOCK_SELECTOR) !== null)
         ) {
           schedule()
-          return
         }
       }
     })
+
+    /**
+     * Remember which status button was pressed last, so a panel that opens
+     * before `aria-expanded` lands still centers on its own trigger.
+     * @param {Event} event - pointerdown/click from the document.
+     */
+    const rememberAnchor = (event) => {
+      const target = event.target
+      if (target === null || target === undefined || typeof target.closest !== 'function') return
+      const button = target.closest('button')
+      if (button === null || button === undefined) return
+      const dock = button.closest(DOCK_SELECTOR)
+      if (dock === null || dock === undefined) return
+      lastAnchors.set(dock, button)
+    }
 
     const onResize = () => {
       schedule()
@@ -14189,7 +14270,14 @@ __DSH_FEATURE('dsh-composer-status', function () {
     const onScroll = () => {
       if (popups.size > 0) schedule()
     }
-    mutations.observe(document.body, { childList: true, subtree: true })
+    document.addEventListener('pointerdown', rememberAnchor, true)
+    document.addEventListener('click', rememberAnchor, true)
+    mutations.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['aria-expanded'],
+    })
     window.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('resize', onResize)
     window.addEventListener('scroll', onScroll, true)
@@ -14202,6 +14290,8 @@ __DSH_FEATURE('dsh-composer-status', function () {
       mutations.disconnect()
       resize.disconnect()
       releasePopups()
+      document.removeEventListener('pointerdown', rememberAnchor, true)
+      document.removeEventListener('click', rememberAnchor, true)
       window.removeEventListener('resize', onResize)
       window.visualViewport?.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll, true)
@@ -14268,6 +14358,7 @@ __DSH_FEATURE('dsh-composer-status', function () {
     __test: {
       planStatusLayout,
       centeredPanelLeft,
+      chooseAnchor,
       splitDock,
       isPopupPanel,
       keepPlacement,

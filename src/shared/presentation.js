@@ -16,18 +16,30 @@ env.presentationCSS = `
 /* One viewport material joins the caption and rail. The Host publishes the
    Windows accent palette, so the material is a very pale wash of the live
    system color across the whole caption row, like the Codex window chrome;
-   until it arrives the theme surface tone keeps the material neutral. */
+   until it arrives the theme surface tone keeps the material neutral. The
+   native Window Controls Overlay paints its own solid strip over the caption,
+   so the wash fades back to the surface tone before that strip starts; the
+   overlay exposes the free titlebar area through env(titlebar-area-*), and
+   the fallback keeps a 150px gap when those variables are unavailable. */
 html[data-dshlr-active][data-windows-titlebar] body {
   --dshlr-material-top: 7%;
   --dshlr-material-bottom: 4%;
   --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
+  --dshlr-controls-start: calc(env(titlebar-area-x, 0px) + env(titlebar-area-width, calc(100vw - 150px)));
+  --dshlr-material-fade: 150px;
   background-color: var(--dsw-specific-sidebar-fill);
   background-image:
+    linear-gradient(90deg,
+      transparent 0,
+      transparent max(0px, calc(var(--dshlr-controls-start) - var(--dshlr-material-fade))),
+      var(--dsw-specific-sidebar-fill) var(--dshlr-controls-start)),
     linear-gradient(180deg,
       color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-top), var(--dsw-specific-sidebar-fill)),
       color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-bottom), var(--dsw-specific-sidebar-fill)));
-  background-attachment: fixed;
-  background-repeat: no-repeat;
+  background-size: 100% var(--dsh-windows-titlebar-height, 40px), 100% 100%;
+  background-position: top left, top left;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed, fixed;
 }
 html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
   --dshlr-material-top: 18%;
