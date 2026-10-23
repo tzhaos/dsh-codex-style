@@ -173,7 +173,9 @@ await check('host half exports its services and keeps the queue routes', () => {
     '/dsh-queue-withdraw/frozen',
   ]) assert(indexSource.includes(route), 'route ' + route)
   assert(systemColorsSource.includes("'/dsh-codex-style/system-colors'"), 'system color route')
-  assert(indexSource.includes('readSystemColors(ctx)'), 'system color route is served')
+  assert(systemColorsSource.includes("'/dsh-codex-style/system-colors/events'"), 'system color event stream route')
+  assert(indexSource.includes('createSystemColorsService(ctx)'), 'system color service is created')
+  assert(indexSource.includes('systemColors.stream(req, res)'), 'system color event stream is served')
   assert(indexSource.includes('installClaimPatch'))
   assert(indexSource.includes('frozenFile()'))
   assert(!indexSource.includes('dsh-composer-plus'), 'composer-plus is not merged yet')

@@ -23,7 +23,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { registerGit } from './host/git.js'
 import { registerActivityPreview } from './host/activity-preview.js'
-import { readSystemColors, SYSTEM_COLORS_PATH } from './host/system-colors.js'
+import { createSystemColorsService, SYSTEM_COLORS_EVENTS_PATH, SYSTEM_COLORS_PATH } from './host/system-colors.js'
 
 const REORDER_PATH = '/dsh-queue-withdraw/reorder'
 const UPDATE_PATH = '/dsh-queue-withdraw/update'
@@ -250,6 +250,10 @@ export function apply(ctx) {
   if (ctx?.webServer?.register === undefined ||
       typeof ctx.connection?.admit !== 'function' || typeof ctx.waterfall !== 'function') return
   // Read-only system palette for the window material; independent of any session.
+  // The Host watches the shell's accent keys natively and pushes changes on the
+  // event stream, so the browser never relies on a poll to notice a new color.
+  const systemColors = createSystemColorsService(ctx)
+  ctx.effect(() => () => systemColors.dispose(), 'system-colors: watcher')
   ctx.effect(
     () =>
       registerAdmittedRoute(ctx, {
@@ -260,10 +264,19 @@ export function apply(ctx) {
             sendJson(res, 405, { ok: false, reason: 'method-not-allowed' })
             return
           }
-          sendJson(res, 200, await readSystemColors(ctx))
+          sendJson(res, 200, await systemColors.read())
         },
       }),
     'system-colors: route',
+  )
+  ctx.effect(
+    () =>
+      registerAdmittedRoute(ctx, {
+        kind: 'exact',
+        path: SYSTEM_COLORS_EVENTS_PATH,
+        handler: (req, res) => systemColors.stream(req, res),
+      }),
+    'system-colors: event stream',
   )
   if (ctx?.agents?.get === undefined) return
   loadFrozen()

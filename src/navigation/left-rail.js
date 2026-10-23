@@ -484,12 +484,21 @@ html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_ne
       }
     }, 'left-rail: host adapter')
     // The window material tints with the Windows accent palette published by
-    // the Host half; a missing shell or route keeps the neutral theme surface.
+    // the Host half. The Host watches the shell's registry keys natively and
+    // pushes each change over this event stream, so switching an accent color
+    // repaints the material without waiting for a poll; a slow GET poll stays
+    // behind a closed stream only as the fallback. A missing shell or route
+    // keeps the neutral theme surface.
     ctx.effect(() => {
       const request = globalThis.fetch
       if (typeof request !== 'function') return
       const root = document.documentElement
       let active = true
+      let streamController = null
+      let streamActive = false
+      let reconnectTimer = null
+      let pollTimer = null
+      let reconnectDelay = 500
       const publish = (payload) => {
         if (active !== true || payload === null || typeof payload !== 'object' || payload.ok !== true) return
         if (typeof payload.accent === 'string') root.style.setProperty('--dshlr-system-accent', payload.accent)
@@ -497,24 +506,105 @@ html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_ne
           root.style.setProperty('--dshlr-system-accent-on-dark', payload.accentLight)
         }
       }
-      const refresh = () => {
+      const readOnce = () => {
         if (active !== true) return
         request('/dsh-codex-style/system-colors', { credentials: 'same-origin', cache: 'no-store' })
           .then((response) => (response.ok === true ? response.json() : null))
           .then(publish)
           .catch(() => {})
       }
-      const onFocus = () => refresh()
-      const onVisibility = () => {
-        if (document.visibilityState !== 'hidden') refresh()
+      const startPolling = () => {
+        if (active !== true || pollTimer !== null) return
+        pollTimer = globalThis.setInterval?.(readOnce, 3_000) ?? null
       }
-      refresh()
+      const stopPolling = () => {
+        if (pollTimer === null) return
+        globalThis.clearInterval?.(pollTimer)
+        pollTimer = null
+      }
+      const handleFrame = (frame) => {
+        for (const line of frame.split('\n')) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+          try {
+            publish(JSON.parse(trimmed.slice(5).trim()))
+          } catch {
+            /* a malformed frame is ignored; the stream keeps running */
+          }
+        }
+      }
+      const scheduleReconnect = () => {
+        if (active !== true || reconnectTimer !== null) return
+        const delay = reconnectDelay
+        reconnectDelay = Math.min(reconnectDelay * 2, 8_000)
+        reconnectTimer = globalThis.setTimeout?.(() => {
+          reconnectTimer = null
+          openStream()
+        }, delay)
+      }
+      const openStream = () => {
+        if (active !== true) return
+        const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null
+        streamController = controller
+        request('/dsh-codex-style/system-colors/events', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { accept: 'text/event-stream' },
+          ...(controller === null ? {} : { signal: controller.signal }),
+        })
+          .then(async (response) => {
+            if (response.ok !== true || response.body === null || typeof response.body.getReader !== 'function') {
+              throw new Error('event stream unavailable')
+            }
+            reconnectDelay = 500
+            streamActive = true
+            stopPolling()
+            const reader = response.body.getReader()
+            const decoder = new globalThis.TextDecoder()
+            let buffer = ''
+            for (;;) {
+              const { value, done } = await reader.read()
+              if (done) break
+              buffer += decoder.decode(value, { stream: true })
+              let boundary = buffer.indexOf('\n\n')
+              while (boundary !== -1) {
+                handleFrame(buffer.slice(0, boundary))
+                buffer = buffer.slice(boundary + 2)
+                boundary = buffer.indexOf('\n\n')
+              }
+            }
+            throw new Error('event stream closed')
+          })
+          .catch(() => {})
+          .then(() => {
+            streamActive = false
+            if (active !== true) return
+            startPolling()
+            scheduleReconnect()
+          })
+      }
+      const onFocus = () => readOnce()
+      const onVisibility = () => {
+        if (document.visibilityState === 'hidden') return
+        readOnce()
+        if (streamActive !== true) {
+          stopPolling()
+          scheduleReconnect()
+        }
+      }
+      readOnce()
+      openStream()
       globalThis.addEventListener?.('focus', onFocus)
       document.addEventListener('visibilitychange', onVisibility)
-      const timer = globalThis.setInterval?.(refresh, 8_000)
       return () => {
         active = false
-        if (timer !== undefined) globalThis.clearInterval?.(timer)
+        if (reconnectTimer !== null) globalThis.clearTimeout?.(reconnectTimer)
+        stopPolling()
+        try {
+          streamController?.abort()
+        } catch {
+          /* already closed */
+        }
         globalThis.removeEventListener?.('focus', onFocus)
         document.removeEventListener('visibilitychange', onVisibility)
         root.style.removeProperty('--dshlr-system-accent')
