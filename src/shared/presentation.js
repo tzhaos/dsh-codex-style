@@ -14,23 +14,24 @@ env.presentationCSS = `
 }
 :where(.dshcs-section, .dshqf-panel) :where(button, input, textarea, select) { box-sizing: border-box; }
 /* One viewport material joins the caption and rail. The Host publishes the
-   Windows accent palette, so the material is tinted with the live system
-   color; until it arrives the theme surface tone keeps the material neutral.
-   The tint stays a light wash so the material never reads darker than the
-   window surface next to it. Fade before native window controls. */
+   Windows accent palette, so the material is a very pale wash of the live
+   system color across the whole caption row, like the Codex window chrome;
+   until it arrives the theme surface tone keeps the material neutral. */
 html[data-dshlr-active][data-windows-titlebar] body {
-  --dshlr-material-span: min(560px, max(0px, calc(100vw - 160px)));
+  --dshlr-material-top: 7%;
+  --dshlr-material-bottom: 4%;
   --dshlr-material-tint: var(--dshlr-system-accent, var(--dsw-alias-bg-layer-2));
   background-color: var(--dsw-specific-sidebar-fill);
   background-image:
-    linear-gradient(90deg, transparent, var(--dsw-specific-sidebar-fill) var(--dshlr-material-span)),
     linear-gradient(180deg,
-      color-mix(in srgb, var(--dshlr-material-tint) 18%, var(--dsw-specific-sidebar-fill)),
-      color-mix(in srgb, var(--dshlr-material-tint) 8%, var(--dsw-specific-sidebar-fill)));
+      color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-top), var(--dsw-specific-sidebar-fill)),
+      color-mix(in srgb, var(--dshlr-material-tint) var(--dshlr-material-bottom), var(--dsw-specific-sidebar-fill)));
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
 html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
+  --dshlr-material-top: 18%;
+  --dshlr-material-bottom: 8%;
   --dshlr-material-tint: var(--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2));
 }
 html[data-dshlr-active][data-windows-titlebar] .BynINW_frame,
