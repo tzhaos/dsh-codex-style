@@ -20,8 +20,8 @@ window.__ModuleLoader__.load({
     /** Browser-local per-feature enable preferences. */
     const FEATURE_PREFS_KEY = 'dsh.codexStyle.features'
     /** Feature ids in bundle order, mirrored by the settings shell tabs. */
-    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-composer-status","dsh-file-link-actions","dsh-attachment-actions","dsh-selection-toolbar","dsh-quick-fork","dsh-tab-middle-click","dsh-instant-ui","dsh-hover-polish"]
-    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"},{"id":"dsh-composer-status","source":"src/composer/composer-status.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-attachment-actions","source":"src/conversation/attachment-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-instant-ui","source":"src/shared/instant-ui.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
+    const FEATURE_IDS = ["dsh-sidebar-sections","dsh-left-rail","dsh-workbench-pages","dsh-nav-back-forward","dsh-git-switch","dsh-queue-withdraw","dsh-composer-history","dsh-long-paste","dsh-sidebar-file-drop","dsh-selection-quotes","dsh-continue","dsh-effort-slider","dsh-composer-status","dsh-file-link-actions","dsh-attachment-actions","dsh-selection-toolbar","dsh-image-zoom","dsh-quick-fork","dsh-tab-middle-click","dsh-instant-ui","dsh-hover-polish"]
+    const FEATURE_GROUPS = [{"id":"navigation","features":[{"id":"dsh-sidebar-sections","source":"src/navigation/session-list.js"},{"id":"dsh-left-rail","source":"src/navigation/left-rail.js"},{"id":"dsh-workbench-pages","source":"src/navigation/workbench-pages.js"},{"id":"dsh-nav-back-forward","source":"src/navigation/session-history.js"},{"id":"dsh-git-switch","source":"src/navigation/git-branches.js"}]},{"id":"composer","features":[{"id":"dsh-queue-withdraw","source":"src/composer/queue.js"},{"id":"dsh-composer-history","source":"src/composer/prompt-history.js"},{"id":"dsh-long-paste","source":"src/composer/long-paste.js"},{"id":"dsh-sidebar-file-drop","source":"src/composer/file-drop.js"},{"id":"dsh-selection-quotes","source":"src/composer/selection-quotes.js"},{"id":"dsh-continue","source":"src/composer/continue.js"},{"id":"dsh-effort-slider","source":"src/composer/effort.js"},{"id":"dsh-composer-status","source":"src/composer/composer-status.js"}]},{"id":"content","features":[{"id":"dsh-file-link-actions","source":"src/conversation/file-actions.js"},{"id":"dsh-attachment-actions","source":"src/conversation/attachment-actions.js"},{"id":"dsh-selection-toolbar","source":"src/conversation/selection-toolbar.js"},{"id":"dsh-image-zoom","source":"src/conversation/image-zoom.js"}]},{"id":"panels","features":[{"id":"dsh-quick-fork","source":"src/panels/side-chat.js"},{"id":"dsh-tab-middle-click","source":"src/panels/middle-click.js"}]},{"id":"interaction","features":[{"id":"dsh-instant-ui","source":"src/shared/instant-ui.js"},{"id":"dsh-hover-polish","source":"src/shared/hover-feedback.js"}]}]
 
     /**
      * Register one merged feature.
@@ -9477,8 +9477,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 }
 /* Attachment previews: the Host hairline (border-l1 / darkmode-thin) is nearly
    invisible on the input, queue and transcript surfaces, so every preview gets
-   a readable stroke; hovering adds a soft blue ring. Only color and shadow
-   change, so a preview never moves or resizes under the pointer. */
+   a readable stroke. Hovering swaps in one solid accent stroke plus a 1px halo
+   of the same color, so the highlight reads as a single edge that fits the
+   border instead of a lighter separate ring. Only color and shadow change, so
+   a preview never moves or resizes under the pointer. */
 .Mrat-G_thumbnail,
 .srf2qa_thumbnail,
 .GjTS2W_card,
@@ -9498,8 +9500,8 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 .Nhu-QW_frame:focus-visible,
 [data-queue-dock] .v1kfCW_thumb:hover,
 [data-queue-dock] .v1kfCW_file:hover {
-  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent);
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
 }
 @media (prefers-reduced-motion: reduce) {
   .Mrat-G_thumbnail,
@@ -16093,6 +16095,204 @@ __DSH_FEATURE('dsh-selection-toolbar', function (require, env) {
 })
 
     /* ================================================================== *
+     * Feature: dsh-image-zoom
+     * ================================================================== */
+
+/**
+ * dsh-image-zoom — merged feature of dsh-codex-style.
+ *
+ * The Host image lightbox renders a fixed dialog with one `<img>`; it has no
+ * zoom affordance. This layer adds cursor-anchored wheel zoom and drag panning
+ * to that dialog only, leaves every other dialog untouched, and keeps the
+ * image's inline transform local to the open lightbox.
+ */
+__DSH_FEATURE('dsh-image-zoom', function (require, env) {
+  const MIN_SCALE = 1
+  const MAX_SCALE = 8
+  const WHEEL_STEP = 0.0025
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+
+  /**
+   * Find the image lightbox that owns an event target.
+   * The primitive renders `dialog > stage > [mask, img, close]`, so only a
+   * dialog whose stage holds a direct image child is treated as a lightbox.
+   * @param {unknown} target - event target.
+   * @returns {{ dialog: Element, image: Element }|null} lightbox parts.
+   */
+  function lightboxOf(target) {
+    if (target === null || target === undefined || typeof target !== 'object') return null
+    if (typeof target.closest !== 'function') return null
+    const dialog = target.closest('[role="dialog"][aria-modal="true"]')
+    if (dialog === null || dialog === undefined) return null
+    const stage = dialog.firstElementChild
+    if (stage === null || stage === undefined || typeof stage.querySelector !== 'function') return null
+    const image = stage.querySelector(':scope > img')
+    if (image === null) return null
+    return { dialog, image }
+  }
+
+  /**
+   * Plan one cursor-anchored zoom step.
+   * `base` is the untransformed layout rect of the image; the returned
+   * translation keeps the point under the pointer in place.
+   * @param {{ scale: number, tx: number, ty: number }} state - current zoom state.
+   * @param {{ left: number, top: number }} base - untransformed image offset.
+   * @param {{ x: number, y: number }} point - viewport point of the wheel.
+   * @param {number} deltaY - wheel delta.
+   * @returns {{ scale: number, tx: number, ty: number }} next state.
+   */
+  function planZoom(state, base, point, deltaY) {
+    const nextScale = clamp(state.scale * Math.exp(-deltaY * WHEEL_STEP), MIN_SCALE, MAX_SCALE)
+    if (nextScale === state.scale) return state
+    if (nextScale === MIN_SCALE) return { scale: MIN_SCALE, tx: 0, ty: 0 }
+    const x = point.x - base.left
+    const y = point.y - base.top
+    const localX = (x - state.tx) / state.scale
+    const localY = (y - state.ty) / state.scale
+    return {
+      scale: nextScale,
+      tx: x - localX * nextScale,
+      ty: y - localY * nextScale,
+    }
+  }
+
+  /** Paint one state onto the image, or clear the inline transform at fit size. */
+  function paint(image, state) {
+    if (state.scale <= MIN_SCALE && state.tx === 0 && state.ty === 0) {
+      image.style.removeProperty('transform')
+      image.style.removeProperty('transform-origin')
+      image.style.removeProperty('cursor')
+      image.style.removeProperty('will-change')
+      return
+    }
+    image.style.transformOrigin = '0 0'
+    image.style.transform = `translate(${String(state.tx)}px, ${String(state.ty)}px) scale(${String(state.scale)})`
+    image.style.willChange = 'transform'
+    image.style.cursor = 'grab'
+  }
+
+  /** Attach wheel zoom and drag panning to the global document. */
+  function install() {
+    const states = new WeakMap()
+    let drag = null
+
+    const stateOf = (parts) => {
+      let state = states.get(parts.dialog)
+      if (state === undefined) {
+        const rect = parts.image.getBoundingClientRect()
+        state = { scale: 1, tx: 0, ty: 0, base: { left: rect.left, top: rect.top } }
+        states.set(parts.dialog, state)
+      } else {
+        const rect = parts.image.getBoundingClientRect()
+        state.base = { left: rect.left - state.tx, top: rect.top - state.ty }
+      }
+      return state
+    }
+
+    const onWheel = (event) => {
+      const parts = lightboxOf(event.target)
+      if (parts === null) return
+      event.preventDefault()
+      event.stopPropagation()
+      parts.dialog.style.overflow = 'hidden'
+      const state = stateOf(parts)
+      const next = planZoom(state, state.base, { x: event.clientX, y: event.clientY }, event.deltaY)
+      states.set(parts.dialog, next)
+      paint(parts.image, next)
+    }
+
+    const onPointerDown = (event) => {
+      const parts = lightboxOf(event.target)
+      if (parts === null || event.target !== parts.image) return
+      if (event.button !== 0) return
+      const state = states.get(parts.dialog)
+      if (state === undefined || state.scale <= MIN_SCALE) return
+      parts.dialog.style.overflow = 'hidden'
+      drag = {
+        dialog: parts.dialog,
+        image: parts.image,
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        tx: state.tx,
+        ty: state.ty,
+      }
+      event.preventDefault()
+      try {
+        parts.image.setPointerCapture?.(event.pointerId)
+      } catch {
+        /* capture is an optimization only */
+      }
+      parts.image.style.cursor = 'grabbing'
+    }
+
+    const onPointerMove = (event) => {
+      if (drag === null || event.pointerId !== drag.pointerId) return
+      const state = states.get(drag.dialog)
+      if (state === undefined) return
+      const next = {
+        scale: state.scale,
+        tx: drag.tx + event.clientX - drag.x,
+        ty: drag.ty + event.clientY - drag.y,
+      }
+      states.set(drag.dialog, next)
+      paint(drag.image, next)
+    }
+
+    const endDrag = (event) => {
+      if (drag === null) return
+      const image = drag.image
+      const pointerId = drag.pointerId
+      drag = null
+      image.style.cursor = 'grab'
+      try {
+        image.releasePointerCapture?.(pointerId)
+      } catch {
+        /* already released */
+      }
+    }
+
+    const onDoubleClick = (event) => {
+      const parts = lightboxOf(event.target)
+      if (parts === null) return
+      const state = states.get(parts.dialog)
+      if (state === undefined) return
+      states.set(parts.dialog, { scale: MIN_SCALE, tx: 0, ty: 0, base: state.base })
+      paint(parts.image, { scale: MIN_SCALE, tx: 0, ty: 0 })
+      event.preventDefault()
+    }
+
+    document.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('pointermove', onPointerMove, true)
+    document.addEventListener('pointerup', endDrag, true)
+    document.addEventListener('pointercancel', endDrag, true)
+    document.addEventListener('dblclick', onDoubleClick, true)
+    return () => {
+      document.removeEventListener('wheel', onWheel, { capture: true })
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('pointermove', onPointerMove, true)
+      document.removeEventListener('pointerup', endDrag, true)
+      document.removeEventListener('pointercancel', endDrag, true)
+      document.removeEventListener('dblclick', onDoubleClick, true)
+      drag = null
+    }
+  }
+
+  /** Register the zoom layer for the lifetime of the feature. */
+  function apply(ctx) {
+    ctx.effect(() => install(), 'image-zoom: lightbox wheel zoom')
+  }
+
+  return {
+    inject: [],
+    apply,
+    __test: { lightboxOf, planZoom, paint },
+  }
+})
+
+    /* ================================================================== *
      * Feature: dsh-quick-fork
      * ================================================================== */
 
@@ -18122,6 +18322,9 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-selection-toolbar.title': '选区工具栏',
     'feature.dsh-selection-toolbar.summary': '选中文字后显示当前可用的操作。',
     'feature.dsh-selection-toolbar.note': '仅显示已启用功能的操作入口。',
+    'feature.dsh-image-zoom.title': '图片滚轮缩放',
+    'feature.dsh-image-zoom.summary': '在原图预览里用滚轮以指针为中心缩放，拖动平移，双击还原。',
+    'feature.dsh-image-zoom.note': '只作用于图片预览浮层；1× 到 8× 缩放，关闭预览后自动失效。',
 
     'settings.nav': 'Codex 工作台',
     'settings.title': 'Codex 工作台',
@@ -18207,6 +18410,11 @@ __DSH_FEATURE('dsh-codex-style.settings', function (require, env) {
     'feature.dsh-selection-toolbar.summary':
       'Show available actions when conversation text is selected.',
     'feature.dsh-selection-toolbar.note': 'Only actions from enabled capabilities are shown.',
+    'feature.dsh-image-zoom.title': 'Wheel zoom for image previews',
+    'feature.dsh-image-zoom.summary':
+      'Zoom the original-image preview around the pointer, drag to pan, double-click to reset.',
+    'feature.dsh-image-zoom.note':
+      'Applies to the lightbox only; 1× to 8×, and it resets when the preview closes.',
 
     'settings.nav': 'Codex Workbench',
     'settings.title': 'Codex Workbench',

@@ -75,6 +75,10 @@
       {
         "id": "dsh-selection-toolbar",
         "source": "src/conversation/selection-toolbar.js"
+      },
+      {
+        "id": "dsh-image-zoom",
+        "source": "src/conversation/image-zoom.js"
       }
     ]
   },

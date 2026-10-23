@@ -119,7 +119,7 @@ await check('client.js registers exactly one client module', () => {
 })
 
 await check('every merged feature registers exactly once in bundle order', () => {
-  assert.equal(FEATURE_ORDER.length, 20)
+  assert.equal(FEATURE_ORDER.length, 21)
   for (const id of FEATURE_ORDER) {
     const pattern = new RegExp("__DSH_FEATURE\\('" + id + "'", 'g')
     assert.equal((clientSource.match(pattern) ?? []).length, 1, id + ' registers once')
@@ -223,7 +223,7 @@ await check('the settings shell reports failed, quarantined and skipped features
   assert(settingsSource.includes('env.subscribeStatus'), 'settings shell follows live health changes')
 })
 
-await check('shared presentation gives input attachments a themed stroke and hover ring', () => {
+await check('shared presentation gives input attachments a themed stroke and solid hover edge', () => {
   for (const selector of [
     '.Mrat-G_thumbnail',
     '.srf2qa_thumbnail',
@@ -233,17 +233,14 @@ await check('shared presentation gives input attachments a themed stroke and hov
     '[data-queue-dock] .v1kfCW_file',
   ]) assert(clientSource.includes(selector), 'presentation styles attachment surface ' + selector)
   assert(
-    clientSource.includes(
-      'border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, transparent)',
-    ),
+    clientSource.includes('border-color: var(--dsw-alias-state-business-primary)'),
     'hover stroke uses the business accent token',
   )
   assert(
-    clientSource.includes(
-      'box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent)',
-    ),
-    'hover ring uses the business accent token',
+    clientSource.includes('box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary)'),
+    'hover halo reuses the same accent stroke so the edge stays seamless',
   )
+  assert(!clientSource.includes('box-shadow: 0 0 0 2px'), 'no separate lighter ring is drawn')
   assert(clientSource.includes('prefers-reduced-motion: reduce'), 'hover transition respects reduced motion')
 })
 

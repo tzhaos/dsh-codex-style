@@ -81,6 +81,9 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-selection-toolbar.title': '选区工具栏',
     'feature.dsh-selection-toolbar.summary': '选中文字后显示当前可用的操作。',
     'feature.dsh-selection-toolbar.note': '仅显示已启用功能的操作入口。',
+    'feature.dsh-image-zoom.title': '图片滚轮缩放',
+    'feature.dsh-image-zoom.summary': '在原图预览里用滚轮以指针为中心缩放，拖动平移，双击还原。',
+    'feature.dsh-image-zoom.note': '只作用于图片预览浮层；1× 到 8× 缩放，关闭预览后自动失效。',
 
     'settings.nav': 'Codex 工作台',
     'settings.title': 'Codex 工作台',
@@ -166,6 +169,11 @@ __DSH_FEATURE(SETTINGS_FEATURE_ID, function (require, env) {
     'feature.dsh-selection-toolbar.summary':
       'Show available actions when conversation text is selected.',
     'feature.dsh-selection-toolbar.note': 'Only actions from enabled capabilities are shown.',
+    'feature.dsh-image-zoom.title': 'Wheel zoom for image previews',
+    'feature.dsh-image-zoom.summary':
+      'Zoom the original-image preview around the pointer, drag to pan, double-click to reset.',
+    'feature.dsh-image-zoom.note':
+      'Applies to the lightbox only; 1× to 8×, and it resets when the preview closes.',
 
     'settings.nav': 'Codex Workbench',
     'settings.title': 'Codex Workbench',

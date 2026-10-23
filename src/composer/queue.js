@@ -1499,8 +1499,10 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 }
 /* Attachment previews: the Host hairline (border-l1 / darkmode-thin) is nearly
    invisible on the input, queue and transcript surfaces, so every preview gets
-   a readable stroke; hovering adds a soft blue ring. Only color and shadow
-   change, so a preview never moves or resizes under the pointer. */
+   a readable stroke. Hovering swaps in one solid accent stroke plus a 1px halo
+   of the same color, so the highlight reads as a single edge that fits the
+   border instead of a lighter separate ring. Only color and shadow change, so
+   a preview never moves or resizes under the pointer. */
 .Mrat-G_thumbnail,
 .srf2qa_thumbnail,
 .GjTS2W_card,
@@ -1520,8 +1522,8 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 .Nhu-QW_frame:focus-visible,
 [data-queue-dock] .v1kfCW_thumb:hover,
 [data-queue-dock] .v1kfCW_file:hover {
-  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent);
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
 }
 @media (prefers-reduced-motion: reduce) {
   .Mrat-G_thumbnail,
