@@ -590,7 +590,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
 
   /** @param {Element} row @returns {boolean} whether this native panel row is current. */
   function rowIsActive(row) {
-    return row.classList?.contains?.('wtg9ga_panelActive') === true
+    return [...(row.classList ?? [])].some((name) => name.endsWith('_panelActive'))
       || row.getAttribute?.('aria-current') === 'page'
   }
 

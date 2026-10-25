@@ -786,8 +786,8 @@ await check('the queue handle uses the Host message icon artwork', () => {
 await check('the queue dock is presented flat and cannot collapse', () => {
   const source = featureSource('dsh-queue-withdraw')
   const css = stylesheetOf(source)
-  assert(css.includes('.v1kfCW_header { display: none; }'), 'collapse header hidden')
-  assert(css.includes('.v1kfCW_list[hidden] { display: block; }'), 'collapsed list forced open')
+  assert(css.includes('[class*="_header"] { display: none; }'), 'collapse header hidden')
+  assert(css.includes('[class*="_list"][hidden] { display: block; }'), 'collapsed list forced open')
   assert(source.includes("getAttribute('aria-expanded') === 'false'"), 'a collapsed Host dock is expanded in place')
 })
 

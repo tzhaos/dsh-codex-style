@@ -357,7 +357,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       }
       const sync = () => {
         const { view, nativeT } = latest.current
-        const effort = button.querySelector('.wq12jW_triggerEffort')
+        const effort = button.querySelector('[class*="_triggerEffort"]')
         const label = view.levels[view.index]?.name ?? (view.levels.length ? t('choose') : undefined)
         if (!effort || !label) return
         // Capture the host label once so disposal restores it exactly.
@@ -365,7 +365,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const original = originalEffort.current ?? ''
         // The host renders this leaf as a plain string, with no managed child elements.
         write(effort, 'textContent', label, original)
-        const model = button.querySelector('.wq12jW_triggerLabel')?.textContent
+        const model = button.querySelector('[class*="_triggerLabel"]')?.textContent
         const aria = nativeT?.('trigger.ariaEffort', { model, effort: label })
         if (aria && aria !== 'trigger.ariaEffort')
           write(button, 'aria-label', aria, nativeT('trigger.ariaEffort', { model, effort: original }))
@@ -392,7 +392,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
     useLayoutEffect(() => syncNativeLabel.current(), [view.key, metricsKey])
     useLayoutEffect(() => {
       if (!button || !view.model || !view.levels.length) return
-      const effort = button.querySelector('.wq12jW_triggerEffort')
+      const effort = button.querySelector('[class*="_triggerEffort"]')
       if (!effort) return
       const context = document.createElement('canvas').getContext('2d')
       if (!context) return
@@ -408,7 +408,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
         const effortWidth = Math.ceil(Math.max(0, ...labels.map(widthOf)))
         const children = [...button.children].filter((child) => !child.classList.contains('dshe-native-chevron') && getComputedStyle(child).display !== 'none')
         const width = children.reduce((total, child) => total + (child === effort
-          ? effortWidth : child.matches('.wq12jW_triggerLabel') ? child.scrollWidth
+          ? effortWidth : child.matches('[class*="_triggerLabel"]') ? child.scrollWidth
             : Math.max(16, child.getBoundingClientRect().width)), 0)
           + Math.max(0, children.length - 1) * (parseFloat(style.columnGap) || 0)
           + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
@@ -442,7 +442,7 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
       const update = () => {
         frame = null
         const next = document.getElementById(button.getAttribute('aria-controls'))
-        if (!next?.matches('.wq12jW_menu')) { restore(); return }
+        if (!next?.matches('[class*="_menu"]')) { restore(); return }
         if (next !== menu) { restore(); menu = next; resize.observe(menu) }
         const viewport = window.visualViewport ?? { width: window.innerWidth, height: window.innerHeight }
         const position = place(button.getBoundingClientRect(), menu.offsetWidth, menu.offsetHeight, viewport)
@@ -776,14 +776,14 @@ __DSH_FEATURE('dsh-effort-slider', function (require) {
   }
 
   const CSS = `
-    .wq12jW_trigger[data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
-    .wq12jW_trigger[data-dshe-trigger]>.wq12jW_triggerEffort{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon){flex:none;width:16px;height:16px;}
-    .wq12jW_trigger[data-dshe-trigger]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){margin-left:auto;}
+    [class*="_trigger"][data-dshe-trigger]{position:relative;box-sizing:border-box;width:var(--dshe-trigger-width);}
+    [class*="_trigger"][data-dshe-trigger]>[class*="_triggerEffort"]{width:var(--dshe-effort-width);flex:0 1000 var(--dshe-effort-width);text-align:center;}
+    [class*="_trigger"][data-dshe-trigger]>:not([class*="_triggerLabel"]):not([class*="_triggerEffort"]):not([class*="_triggerIcon"]){flex:none;width:16px;height:16px;}
+    [class*="_trigger"][data-dshe-trigger]>:not([class*="_triggerLabel"]):not([class*="_triggerEffort"]):not([class*="_triggerIcon"]):not(.dshe-native-chevron){margin-left:auto;}
     .dshe-native-chevron{display:none;position:absolute;right:4px;top:50%;translate:0 -50%;place-items:center;color:var(--dsw-alias-label-caption);pointer-events:none;}
-    .wq12jW_trigger[data-dshe-updating]>.dshe-native-chevron{display:grid;}
-    .wq12jW_trigger[data-dshe-updating]>:not(.wq12jW_triggerLabel):not(.wq12jW_triggerEffort):not(.wq12jW_triggerIcon):not(.dshe-native-chevron){visibility:hidden;}
-    .wq12jW_menu[data-dshe-native-model]{left:var(--dshe-native-model-left)!important;}
+    [class*="_trigger"][data-dshe-updating]>.dshe-native-chevron{display:grid;}
+    [class*="_trigger"][data-dshe-updating]>:not([class*="_triggerLabel"]):not([class*="_triggerEffort"]):not([class*="_triggerIcon"]):not(.dshe-native-chevron){visibility:hidden;}
+    [class*="_menu"][data-dshe-native-model]{left:var(--dshe-native-model-left)!important;}
     .dshe-panel{position:fixed;z-index:1000;box-sizing:border-box;display:block;width:260px;min-width:0;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;box-shadow:var(--dsw-shadow-lv2);overflow:auto;overscroll-behavior:contain;color:var(--dsw-alias-label-primary);}
     .dshe-heading{display:flex;justify-content:center;min-width:0;padding:0 24px;text-align:center;}
     .dshe-levelBox{display:grid;max-width:100%;}.dshe-levelBox>span{grid-area:1/1;}

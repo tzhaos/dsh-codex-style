@@ -328,7 +328,7 @@ __DSH_FEATURE('dsh-continue', function (require, env) {
       if (!card) return
       let mounted = null
       const update = () => {
-        const button = [...card.querySelectorAll('button.RlGAzG_primary')]
+        const button = [...card.querySelectorAll('button[class*="_primary"]')]
           .filter((node) => !node.hasAttribute('data-dsh-continue'))
           .at(-1)
         if (mounted?.button === button) return
@@ -396,7 +396,7 @@ __DSH_FEATURE('dsh-continue', function (require, env) {
                 'button',
                 {
                   type: 'button',
-                  className: 'RlGAzG_primary dshc-button',
+                  className: '[class*="_primary"] dshc-button',
                   'data-dsh-continue': '',
                   'aria-label': label,
                   'aria-busy': state.pending || undefined,

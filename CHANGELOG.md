@@ -4,6 +4,27 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.3.4] - 2026-10-26
+
+### Changed
+
+- Audited the remaining host-owned class hashes. Model effort, permission trigger, composer primary/input/row/add, queue dock rows, attachment thumbnails/cards and the continue send button now use suffix selectors or plugin-owned classes instead of DSH hash literals.
+- The workbench customisation layer for Automation tasks and Plugins is gone; both pages keep their native DSH headers, tabs, search, cards and schedules list. Only rail navigation remains.
+
+### Validation
+
+- `node scripts/check.mjs`: 526 checks green (20 merged features).
+
+## [1.3.3] - 2026-10-26
+
+### Changed
+
+- Removed the workbench customisation layer for the Automation tasks and Plugins panels. The rail still navigates to both native panels, but their headers, search fields, tabs, cards, sidebars and schedules list keep the native DSH implementation and no longer depend on host hash selectors.
+
+### Validation
+
+- `node scripts/check.mjs`: 526 checks green (20 merged features).
+
 ## [1.3.2] - 2026-10-26
 
 ### Fixed

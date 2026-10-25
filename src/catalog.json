@@ -11,10 +11,6 @@
         "source": "src/navigation/left-rail.js"
       },
       {
-        "id": "dsh-workbench-pages",
-        "source": "src/navigation/workbench-pages.js"
-      },
-      {
         "id": "dsh-nav-back-forward",
         "source": "src/navigation/session-history.js"
       },

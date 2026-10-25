@@ -1209,7 +1209,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
           busyDisabled.clear()
         }
         for (const dock of docksOf(sessionId)) {
-          const header = dock.querySelector?.('.v1kfCW_header[aria-controls][aria-expanded]')
+          const header = dock.querySelector?.('[class*="_header"][aria-controls][aria-expanded]')
           // The dock is presented as one flat, always-expanded list: the Host's
           // collapse affordance is disabled instead of mirrored. A collapsed
           // Host dock is expanded in place, and the flat stylesheet keeps the
@@ -1227,7 +1227,7 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
             if (!dock.hasAttribute('data-dshq-flat')) dock.setAttribute('data-dshq-flat', '')
             // The Host renders `hidden` on a collapsed list; the flat dock never
             // collapses, so drop it for both layout and assistive technology.
-            const list = dock.querySelector?.('.v1kfCW_list')
+            const list = dock.querySelector?.('[class*="_list"]')
             if (list?.hasAttribute?.('hidden') === true) list.removeAttribute?.('hidden')
             decoratedDocks.add(dock)
           }
@@ -1408,12 +1408,12 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
 /* The queue is one flat, always-expanded list: the Host dock header (count and
    collapse chevron) is removed, and its collapsed list state is forced open so
    the row actions stay reachable even if React re-renders a collapsed list. */
-[data-queue-dock][data-dshq-flat] .v1kfCW_header { display: none; }
-[data-queue-dock][data-dshq-flat] .v1kfCW_list[hidden] { display: block; }
-[data-queue-dock][data-dshq-flat] .v1kfCW_panel { padding: 2px 0; border-radius: 16px 16px 0 0; }
-[data-queue-dock][data-dshq-flat] .v1kfCW_panel::before { background: var(--dsw-specific-input-major); backdrop-filter: none; }
-[data-queue-dock][data-dshq-flat] .v1kfCW_list { max-height: 180px; }
-[data-queue-dock][data-dshq-flat] .v1kfCW_row { border-radius: 0; box-shadow: none; }
+[data-queue-dock][data-dshq-flat] [class*="_header"] { display: none; }
+[data-queue-dock][data-dshq-flat] [class*="_list"][hidden] { display: block; }
+[data-queue-dock][data-dshq-flat] [class*="_panel"] { padding: 2px 0; border-radius: 16px 16px 0 0; }
+[data-queue-dock][data-dshq-flat] [class*="_panel"]::before { background: var(--dsw-specific-input-major); backdrop-filter: none; }
+[data-queue-dock][data-dshq-flat] [class*="_list"] { max-height: 180px; }
+[data-queue-dock][data-dshq-flat] [class*="_row"] { border-radius: 0; box-shadow: none; }
 .dshqw-handle {
   box-sizing: border-box;
   display: inline-flex;
@@ -1503,35 +1503,35 @@ __DSH_FEATURE('dsh-queue-withdraw', function (require, env) {
    of the same color, so the highlight reads as a single edge that fits the
    border instead of a lighter separate ring. Only color and shadow change, so
    a preview never moves or resizes under the pointer. */
-.Mrat-G_thumbnail,
-.srf2qa_thumbnail,
-.GjTS2W_card,
-.Nhu-QW_frame,
-[data-queue-dock] .v1kfCW_thumb,
-[data-queue-dock] .v1kfCW_file {
+[class*="_thumbnail"],
+[class*="_thumbnail"],
+[class*="_card"],
+[class*="_frame"],
+[data-queue-dock] [class*="_thumb"],
+[data-queue-dock] [class*="_file"] {
   border-color: var(--dsw-alias-border-l3);
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-.Mrat-G_thumbnail:hover,
-.Mrat-G_thumbnail:focus-visible,
-.srf2qa_thumbnail:hover,
-.srf2qa_thumbnail:focus-visible,
-.GjTS2W_card:hover,
-.GjTS2W_card:focus-within,
-.Nhu-QW_frame:hover,
-.Nhu-QW_frame:focus-visible,
-[data-queue-dock] .v1kfCW_thumb:hover,
-[data-queue-dock] .v1kfCW_file:hover {
+[class*="_thumbnail"]:hover,
+[class*="_thumbnail"]:focus-visible,
+[class*="_thumbnail"]:hover,
+[class*="_thumbnail"]:focus-visible,
+[class*="_card"]:hover,
+[class*="_card"]:focus-within,
+[class*="_frame"]:hover,
+[class*="_frame"]:focus-visible,
+[data-queue-dock] [class*="_thumb"]:hover,
+[data-queue-dock] [class*="_file"]:hover {
   border-color: var(--dsw-alias-state-business-primary);
   box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
 }
 @media (prefers-reduced-motion: reduce) {
-  .Mrat-G_thumbnail,
-  .srf2qa_thumbnail,
-  .GjTS2W_card,
-  .Nhu-QW_frame,
-  [data-queue-dock] .v1kfCW_thumb,
-  [data-queue-dock] .v1kfCW_file { transition: none; }
+  [class*="_thumbnail"],
+  [class*="_thumbnail"],
+  [class*="_card"],
+  [class*="_frame"],
+  [data-queue-dock] [class*="_thumb"],
+  [data-queue-dock] [class*="_file"] { transition: none; }
 }
 `
 

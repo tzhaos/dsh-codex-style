@@ -4,11 +4,11 @@ __DSH_FEATURE('dsh-instant-ui', function () {
     '.dsh-motion-surface', '.dshe-panel', '[data-dshe-native-model]', '.dshch-panel',
     '.dshst-searchModal', '.dshss-hoverCard', '.dshqf-annotationPanel',
     '.dsh-selection-toolbar', '.dshhp-tooltip', '.dshfl-toast', '.dshgit-menu',
-    '.dshlr-displayMenu', '.dshss-viewMenu', '.dshwp-sidebarSearch', '.dshqf-panel',
+    '.dshlr-displayMenu', '.dshss-viewMenu', '.dshqf-panel',
     '.dshwp-skills', '.dshwp-taskLanding', '[role="tooltip"][data-dshhp-ready]',
   ].join(',')
   const controls = `:where(${surfaces},.dshlr-rail,.dshss-root,.dshss-settings,
-    .dshcs-section,.dshst-headerActions,.dshwp-sidebar,.dshwp-taskFilter,
+    .dshcs-section,.dshst-headerActions,
     .dshqw-freeze,.dshqf-quotes) :where(button,[role="button"],[role="menuitem"])`
   const css = `
     :is(${surfaces}),
@@ -16,7 +16,7 @@ __DSH_FEATURE('dsh-instant-ui', function () {
     [role="presentation"]:has(> :is(${surfaces})[aria-modal="true"]) > *,
     ${controls},
     .dshss-rowActions,.dshss-sectionArrow,.dshqw-grip,.dshqw-queueGlyph,
-    .wq12jW_trigger[data-dshe-trigger] .wq12jW_chevron {
+    [class*="_trigger"][data-dshe-trigger] [class*="_chevron"] {
       animation:none!important;transition:none!important;
     }
   `

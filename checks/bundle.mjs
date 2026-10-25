@@ -43,7 +43,7 @@ async function check(name, body) {
 
 await check('manifest declares one DSH bundle and one web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.3.2')
+  assert.equal(manifest.version, '1.3.4')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')
@@ -119,7 +119,7 @@ await check('client.js registers exactly one client module', () => {
 })
 
 await check('every merged feature registers exactly once in bundle order', () => {
-  assert.equal(FEATURE_ORDER.length, 21)
+  assert.equal(FEATURE_ORDER.length, 20)
   for (const id of FEATURE_ORDER) {
     const pattern = new RegExp("__DSH_FEATURE\\('" + id + "'", 'g')
     assert.equal((clientSource.match(pattern) ?? []).length, 1, id + ' registers once')
@@ -225,12 +225,12 @@ await check('the settings shell reports failed, quarantined and skipped features
 
 await check('shared presentation gives input attachments a themed stroke and solid hover edge', () => {
   for (const selector of [
-    '.Mrat-G_thumbnail',
-    '.srf2qa_thumbnail',
-    '.GjTS2W_card',
-    '.Nhu-QW_frame',
-    '[data-queue-dock] .v1kfCW_thumb',
-    '[data-queue-dock] .v1kfCW_file',
+    '[class*="_thumbnail"]',
+    '[class*="_thumbnail"]',
+    '[class*="_card"]',
+    '[class*="_frame"]',
+    '[data-queue-dock] [class*="_thumb"]',
+    '[data-queue-dock] [class*="_file"]',
   ]) assert(clientSource.includes(selector), 'presentation styles attachment surface ' + selector)
   assert(
     clientSource.includes('border-color: var(--dsw-alias-state-business-primary)'),

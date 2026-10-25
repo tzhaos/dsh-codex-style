@@ -102,7 +102,7 @@ const featureSource = featureSlice('dsh-sidebar-sections')
 
 await check('manifest identity and client/bundle declarations', () => {
   assertEqual(manifest.name, 'dsh-codex-style', 'package name')
-  assertEqual(manifest.version, '1.3.2', 'package version')
+  assertEqual(manifest.version, '1.3.4', 'package version')
   assert(manifest.private === true, 'package stays private')
   assertEqual(manifest.type, 'module', 'module type')
   assertEqual(manifest.dsh?.bundle?.patch, './cordis.patch.yml', 'bundle patch')
