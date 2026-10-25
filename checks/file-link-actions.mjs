@@ -112,7 +112,7 @@ const isMenuButton = (element) => element.type === 'button' && element.props?.ro
 
 await check('manifest declares a DSH bundle and a web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.3.1')
+  assert.equal(manifest.version, '1.3.2')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.exports['./client'], './client.js')

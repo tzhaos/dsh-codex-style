@@ -305,10 +305,10 @@ html[data-dshlr-active][data-windows-titlebar] body[data-ds-dark-theme] {
   --dshlr-material-bottom: 8%;
   --dshlr-material-tint: var(--dshlr-system-accent-on-dark, var(--dsw-alias-bg-layer-2));
 }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame,
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::before,
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"],
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"]::before,
 html[data-dshlr-active][data-windows-titlebar] .dshlr-rail { background: transparent; }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame {
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"] {
   --dshlr-pane-radius: var(--dsh-windows-content-radius, 16px);
   --dshlr-pane-gap: 8px;
   --dshlr-pane-edge: 4px;
@@ -320,7 +320,7 @@ html[data-dshlr-active][data-windows-titlebar] .BynINW_frame {
 }
 html[data-dshlr-active][data-windows-titlebar] .dshlr-rail { top: var(--dshlr-pane-top); }
 /* Fixed like the rail, so the native frame's overflow does not clip its shadow. */
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::after {
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"]::after {
   content: ''; position: fixed; z-index: 12; pointer-events: none;
   inset: var(--dshlr-pane-top) var(--dshlr-pane-edge) var(--dshlr-pane-edge)
     calc(var(--dsh-left-rail-width) + var(--dshlr-pane-gap));
@@ -329,41 +329,41 @@ html[data-dshlr-active][data-windows-titlebar] .BynINW_frame::after {
   /* Native caption controls cover the titlebar; keep every edge below that boundary. */
   clip-path: inset(calc(-1 * var(--dshlr-pane-edge)) -40px -40px -40px);
 }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_sidebarCol {
+html[data-dshlr-active][data-windows-titlebar] [class$="_sidebarCol"] {
   --dsw-specific-sidebar-fill: transparent;
   background: color-mix(in srgb, var(--dsw-alias-bg-base) 65%, transparent);
   border-radius: var(--dshlr-pane-radius) 0 0 var(--dshlr-pane-radius);
   corner-shape: round;
   border-right: .5px solid var(--dsw-alias-border-l3);
 }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_centerCol { border-radius: 0; }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame[data-sidebar-collapsed] > .BynINW_centerCol {
+html[data-dshlr-active][data-windows-titlebar] [class$="_centerCol"] { border-radius: 0; }
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"][data-sidebar-collapsed] > [class$="_centerCol"] {
   border-top-left-radius: var(--dshlr-pane-radius);
   border-bottom-left-radius: var(--dshlr-pane-radius);
 }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame[data-sidebar-collapsed] > .BynINW_sidebarCol { border-right: 0; }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_frame[data-rightbar-collapsed] > .BynINW_centerCol,
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"][data-sidebar-collapsed] > [class$="_sidebarCol"] { border-right: 0; }
+html[data-dshlr-active][data-windows-titlebar] [class$="_frame"][data-rightbar-collapsed] > [class$="_centerCol"],
 html[data-dshlr-active][data-windows-titlebar] [data-sidebar-right-panel] {
   border-top-right-radius: var(--dshlr-pane-radius);
   border-bottom-right-radius: var(--dshlr-pane-radius);
   corner-shape: round;
 }
-html[data-dshlr-active][data-windows-titlebar] .BynINW_bottomRow {
+html[data-dshlr-active][data-windows-titlebar] [class$="_bottomRow"] {
   border-radius: 0 0 var(--dshlr-pane-radius) var(--dshlr-pane-radius);
 }
-html[data-dshlr-active][data-windows-titlebar] ._2H3hWW_root:not(._2H3hWW_collapsed) { padding-top: 0; padding-bottom: 0; }
+html[data-dshlr-active][data-windows-titlebar] [class$="_sidebarCol"] > [class$="_root"]:not([class$="_collapsed"]) { padding-top: 0; padding-bottom: 0; }
 html[data-dshlr-active][data-windows-titlebar] .dshss-scroll {
   margin-right: calc(-1 * var(--dsh-sidebar-inline-padding, 12px));
   padding-right: calc(5px + var(--dsh-sidebar-inline-padding, 12px));
 }
-html[data-dshlr-active] .Dc7zOa_root[data-phase="hero"] .Dc7zOa_composerSeat { flex: 1; min-height: 0; }
-html[data-dshlr-active] .Dc7zOa_root[data-phase="hero"] .Dc7zOa_composerHero {
+html[data-dshlr-active] [data-phase="hero"][class$="_root"] [class$="_composerSeat"] { flex: 1; min-height: 0; }
+html[data-dshlr-active] [data-phase="hero"][class$="_root"] [class$="_composerHero"] {
   flex: 1; min-height: 0; justify-content: flex-end; gap: 0; padding-bottom: 16px;
 }
-html[data-dshlr-active] .Dc7zOa_composerHero > .Hqq-bq_root { flex: 1; min-height: 160px; height: auto; }
-html[data-dshlr-active] .Dc7zOa_composerHero .Hqq-bq_headline { flex-direction: column; gap: 24px; font-weight: 400; text-align: center; }
-html[data-dshlr-active] .Dc7zOa_composerHero .Hqq-bq_fish { color: var(--dsw-alias-label-caption); }
-html[data-dshlr-active] .Dc7zOa_heroWorkspaceRow {
+html[data-dshlr-active] [class$="_composerHero"] > [class$="_root"] { flex: 1; min-height: 160px; height: auto; }
+html[data-dshlr-active] [class$="_composerHero"] [class$="_headline"] { flex-direction: column; gap: 24px; font-weight: 400; text-align: center; }
+html[data-dshlr-active] [class$="_composerHero"] [class$="_fish"] { color: var(--dsw-alias-label-caption); }
+html[data-dshlr-active] [class$="_heroWorkspaceRow"] {
   box-sizing: border-box;
   width: calc(100% - 2 * var(--dsh-composer-side-clearance, 16px) - 32px);
   max-width: calc(100% - 32px); align-self: center;
@@ -371,8 +371,8 @@ html[data-dshlr-active] .Dc7zOa_heroWorkspaceRow {
   justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px;
   border-radius: 16px 16px 0 0; background: var(--dsw-alias-bg-module-platform);
 }
-html[data-dshlr-active] .Dc7zOa_heroOptions { margin-left: 0; max-width: 100%; justify-content: flex-start; flex-wrap: wrap; }
-html[data-dshlr-active] .Dc7zOa_heroWorkspaceRow :is(.Hqq-bq_workspace,._oGoKq_seat,.dshgit-trigger) {
+html[data-dshlr-active] [class$="_heroOptions"] { margin-left: 0; max-width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+html[data-dshlr-active] [class$="_heroWorkspaceRow"] :is([class$="_workspace"],[class$="_seat"],.dshgit-trigger) {
   box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
   min-height: 28px; height: 28px; font-size: 13px; line-height: 20px;
 }
@@ -400,8 +400,8 @@ html[data-dshlr-active] .RlGAzG_primary:hover:not(:disabled) { background: var(-
 html[data-dshlr-active] .RlGAzG_add { background: transparent; }
 html[data-dshlr-active] .RlGAzG_add:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 @media (max-height: 520px) {
-  html[data-dshlr-active] .Dc7zOa_composerHero > .Hqq-bq_root { min-height: 80px; }
-  html[data-dshlr-active] .Dc7zOa_composerHero .Hqq-bq_headline { flex-direction: row; gap: 8px; font-size: 20px; line-height: 28px; }
+  html[data-dshlr-active] [class$="_composerHero"] > [class$="_root"] { min-height: 80px; }
+  html[data-dshlr-active] [class$="_composerHero"] [class$="_headline"] { flex-direction: row; gap: 8px; font-size: 20px; line-height: 28px; }
 }
 `
 
@@ -474,7 +474,7 @@ env.createSidebarTools = function (React, primitives, createPortal) {
   } = primitives
   const { useEffect, useLayoutEffect, useMemo, useRef, useState, useId } = React
   const h = React.createElement
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const PREVIEW = 'codexActivityPreview'
   const messages = {
     zh: {
@@ -5528,7 +5528,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
   const h = React.createElement
   const NavigationIcon = env.createNavigationIcon(React, primitives)
   const NS = 'leftRail'
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const BRAND = SIDEBAR + ' [class$="_logoRow"] button[class*="_brand"]'
   const PANELS = SIDEBAR + ' [class$="_panelList"] button[aria-label]'
   const SETTINGS = SIDEBAR + ' [class$="_settingsArea"] button[aria-haspopup]'
@@ -6103,7 +6103,84 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
     }
   }
 
-  function RailButton({ name, label, active, disabled, onClick }) {
+  /** @param {Element} row @returns {boolean} whether this native panel row is current. */
+  function rowIsActive(row) {
+    return row.classList?.contains?.('wtg9ga_panelActive') === true
+      || row.getAttribute?.('aria-current') === 'page'
+  }
+
+  /**
+   * Read native sidebar panel rows. Known panels keep the layout-driven rail
+   * buttons; any new panel row becomes an extra rail button and is hidden from
+   * the sidebar. The `更多` marketplace anchor stays native.
+   * @returns {{known: object, extras: object[]}} cloned icons and extra rows.
+   */
+  function useNativeNavRows() {
+    const [state, setState] = useState({ known: {}, extras: [] })
+    useEffect(() => {
+      if (typeof document === 'undefined') return undefined
+      let disposed = false
+      const scan = () => {
+        if (disposed || typeof document.querySelectorAll !== 'function') return
+        const known = {}
+        const extras = []
+        for (const row of document.querySelectorAll(PANELS)) {
+          const label = row.getAttribute?.('aria-label') ?? ''
+          if (label === '') continue
+          if (/^(更多|More)$/i.test(label)) continue
+          const markup = row.querySelector?.('svg')?.outerHTML ?? ''
+          if (/^(插件|Plugins|自动化任务|自动化|Automation|Scheduled tasks)$/i.test(label)) {
+            known[label] = markup
+            continue
+          }
+          if (row.hasAttribute?.('data-dshlr-hidden') !== true) row.setAttribute?.('data-dshlr-hidden', '')
+          extras.push({ row, label, markup })
+        }
+        setState((current) => {
+          if (current.extras.length === extras.length
+            && current.extras.every((entry, index) => entry.row === extras[index].row
+              && entry.label === extras[index].label
+              && entry.markup === extras[index].markup)
+            && Object.keys(current.known).length === Object.keys(known).length
+            && Object.keys(known).every((key) => current.known[key] === known[key])) return current
+          return { known, extras }
+        })
+      }
+      scan()
+      const observer = typeof MutationObserver === 'function' ? new MutationObserver(scan) : null
+      observer?.observe?.(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label'] })
+      const timer = typeof setInterval === 'function' ? setInterval(scan, 1000) : null
+      return () => {
+        disposed = true
+        observer?.disconnect?.()
+        if (timer !== null) clearInterval(timer)
+      }
+    }, [])
+    return state
+  }
+
+  /** One rail button for a newly discovered native panel row. */
+  function NativePanelButton({ row, label, markup }) {
+    const [active, setActive] = useState(rowIsActive(row))
+    useEffect(() => {
+      const update = () => setActive(rowIsActive(row))
+      update()
+      const observer = typeof MutationObserver === 'function'
+        ? new MutationObserver(update)
+        : null
+      observer?.observe?.(row, { attributes: true, attributeFilter: ['class', 'aria-current'] })
+      return () => observer?.disconnect?.()
+    }, [row])
+    return h(RailButton, {
+      name: 'panel',
+      label,
+      active,
+      iconMarkup: markup,
+      onClick: () => row.click?.(),
+    })
+  }
+
+  function RailButton({ name, label, active, disabled, onClick, iconMarkup }) {
     return h(
       Tooltip,
       { label, side: 'right', align: 'center', delayMs: 500 },
@@ -6118,7 +6195,13 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
           disabled,
           onClick,
         },
-        h(NavigationIcon, { name, active, size: 20 }),
+        iconMarkup !== undefined && iconMarkup !== ''
+          ? h('span', {
+              className: 'dshlr-glyph',
+              'aria-hidden': 'true',
+              dangerouslySetInnerHTML: { __html: iconMarkup },
+            })
+          : h(NavigationIcon, { name, active, size: 20 }),
       ),
     )
   }
@@ -6437,6 +6520,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
 
   function LeftRail({ actions, adapter, display, account, updates, t }) {
     const [active, setActive] = useState(actions.activePanel)
+    const navRows = useNativeNavRows()
     const [brand, setBrand] = useState(adapter.snapshot)
     const [accountState, setAccountState] = useState(
       account === null || account === undefined ? { signedIn: false } : account.getSnapshot,
@@ -6482,8 +6566,12 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
               ? t('rail.' + name)
               : t('rail.unavailable', { name: t('rail.' + name) }),
             onClick: () => actions.openPanel(id),
+            iconMarkup: name === 'plugins'
+              ? (navRows.known['插件'] ?? navRows.known.Plugins ?? '')
+              : (navRows.known['自动化任务'] ?? navRows.known.Automation ?? navRows.known['自动化'] ?? ''),
           }),
         ),
+        ...navRows.extras.map((entry) => h(NativePanelButton, { key: entry.label, ...entry })),
         h('span', { className: 'dshlr-spacer' }),
       ),
       brand.chevron === null
@@ -6523,7 +6611,9 @@ html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: 
   display: grid; place-items: center; padding: 0; border: 0; border-radius: 10px;
   background: transparent; color: inherit; font: inherit; cursor: pointer;
 }
-.dshlr-button > svg { display: block; flex: none; }
+.dshlr-glyph { display: inline-flex; align-items: center; justify-content: center; }
+  .dshlr-glyph svg { width: 18px; height: 18px; display: block; }
+  .dshlr-button > svg { display: block; flex: none; }
 .dshlr-button:hover:not(:disabled), .dshlr-button.dshlr-active { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshlr-button:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .dshlr-button:disabled { opacity: .35; cursor: default; }
@@ -6542,14 +6632,14 @@ html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: 
 .dshlr-settings-native:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshlr-settings-native:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .dshlr-spacer { flex: 1; min-height: 16px; }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_logoRow"]:has(.dshlr-brand) {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_logoRow"]:has(.dshlr-brand) {
   height: 52px; min-height: 52px; padding-block: 8px; align-items: center;
 }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_logoRow"] .dshlr-brand {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_logoRow"] .dshlr-brand {
   box-sizing: border-box; height: 36px; min-height: 36px; padding: 6px 8px;
   align-items: center; justify-content: center; border-radius: 8px; font-family: inherit;
 }
-html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"] { transform: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] .dshlr-brand [class$="_brandIdentity"] { transform: none; }
 .dshlr-brand:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dshlr-displayMenu { width: 280px; max-width: calc(100vw - 24px); }
 .dshlr-menuCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; white-space: normal; }
@@ -6557,15 +6647,15 @@ html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"
 .dshlr-menuError { color: var(--dsw-alias-state-error-primary); white-space: normal; }
 .dshlr-brand-chevron { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: 6px; color: var(--dsw-alias-label-secondary); pointer-events: none; }
 /* Keep the native new-chat row on the same text axis as project rows. */
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"] {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSession"] {
   justify-content: flex-start; border: 0; background: transparent; border-radius: 8px;
   margin: 4px 0 16px; padding: 6px 8px; height: 36px; font: inherit; font-size: 14px; font-weight: 400;
 }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSessionContent"] { justify-content: flex-start; width: auto; gap: 8px; }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_panelList"]:not(:has(button:not([data-dshlr-hidden]))) { display: none; }
-html[data-dshlr-active] .BynINW_sidebarCol [class*="_collapsed"] [class$="_footArea"] { display: flex; }
-html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_newSession"] { display: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSession"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSessionContent"] { justify-content: flex-start; width: auto; gap: 8px; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_panelList"]:not(:has(button:not([data-dshlr-hidden]))) { display: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class*="_collapsed"] [class$="_footArea"] { display: flex; }
+html[data-dshlr-active] [data-sidebar-collapsed] [class$="_sidebarCol"] [class$="_newSession"] { display: none; }
 /* Codex-style account launcher. While DeepSeek is signed in the rail paints its
    own avatar trigger and a native DSH Menu (the same primitive as every other
    shell menu), and hides the native settings launcher. */
@@ -6838,7 +6928,7 @@ __DSH_FEATURE('dsh-workbench-pages', function (require, env) {
     '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless',
     '@deepseek-ai/dsh-sdk-app', '@deepseek-ai/dsh-acp-app', '@deepseek-ai/dsh-sdk-minimal',
   ])
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const PLUGINS = '[data-plugin-panel]'
   const TASKS = '[data-testid="task-manager-page"]'
   const zh = {
@@ -7183,8 +7273,8 @@ __DSH_FEATURE('dsh-workbench-pages', function (require, env) {
   }
 
   const CSS = `
-    html[data-dshwp-panel] .BynINW_sidebarCol{position:relative;}
-    html[data-dshwp-panel] .BynINW_sidebarCol>:not(.dshwp-sidebarMount){visibility:hidden;pointer-events:none;}
+    html[data-dshwp-panel] [class$="_sidebarCol"]{position:relative;}
+    html[data-dshwp-panel] [class$="_sidebarCol"]>:not(.dshwp-sidebarMount){visibility:hidden;pointer-events:none;}
     html[data-dshwp-panel] .dshlr-settings-native{visibility:visible;pointer-events:auto;}
     .dshwp-sidebarMount{position:absolute;inset:0;display:block;overflow:hidden;}
     .dshwp-sidebar{box-sizing:border-box;display:flex;flex-direction:column;height:100%;padding:12px 10px 20px;overflow:auto;font-size:14px;}
@@ -7566,7 +7656,7 @@ html:not([data-windows-titlebar]) .dshnb-nav {
   z-index: 96;
 }
 html[data-dshnb-active][data-windows-titlebar] { --dsh-windows-menu-start: 116px; }
-html[data-dshnb-active][data-windows-titlebar] .BynINW_sidebarCol [class*="_toggle"] { left: 80px; }
+html[data-dshnb-active][data-windows-titlebar] [class$="_sidebarCol"] [class*="_toggle"] { left: 80px; }
 .dshnb-button {
   box-sizing: border-box;
   width: 28px;

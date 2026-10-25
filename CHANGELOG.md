@@ -4,6 +4,17 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.3.2] - 2026-10-26
+
+### Fixed
+
+- DSH 0.2.1-rc.x host class hashes changed (`BynINW_*`, `Dc7zOa_*`, `Hqq-bq_*`). The rail, session history, sidebar tools, workbench pages and window presentation now key off stable class suffixes instead of stale hashes.
+- Native sidebar panel rows are mirrored into the rail dynamically: `插件`, `自动化任务`, `ThoughtDAG` and future panel rows get a rail button with the host's own SVG, hide from the sidebar, and track the native active state. The `更多` marketplace row stays native.
+
+### Validation
+
+- `node scripts/check.mjs`: 526 checks green.
+
 ## [1.3.1] - 2026-10-25
 
 ### Fixed

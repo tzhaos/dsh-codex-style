@@ -10,7 +10,7 @@ env.createSidebarTools = function (React, primitives, createPortal) {
   } = primitives
   const { useEffect, useLayoutEffect, useMemo, useRef, useState, useId } = React
   const h = React.createElement
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const PREVIEW = 'codexActivityPreview'
   const messages = {
     zh: {

@@ -224,7 +224,7 @@ html:not([data-windows-titlebar]) .dshnb-nav {
   z-index: 96;
 }
 html[data-dshnb-active][data-windows-titlebar] { --dsh-windows-menu-start: 116px; }
-html[data-dshnb-active][data-windows-titlebar] .BynINW_sidebarCol [class*="_toggle"] { left: 80px; }
+html[data-dshnb-active][data-windows-titlebar] [class$="_sidebarCol"] [class*="_toggle"] { left: 80px; }
 .dshnb-button {
   box-sizing: border-box;
   width: 28px;

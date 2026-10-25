@@ -13,7 +13,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
   const h = React.createElement
   const NavigationIcon = env.createNavigationIcon(React, primitives)
   const NS = 'leftRail'
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const BRAND = SIDEBAR + ' [class$="_logoRow"] button[class*="_brand"]'
   const PANELS = SIDEBAR + ' [class$="_panelList"] button[aria-label]'
   const SETTINGS = SIDEBAR + ' [class$="_settingsArea"] button[aria-haspopup]'
@@ -588,7 +588,84 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
     }
   }
 
-  function RailButton({ name, label, active, disabled, onClick }) {
+  /** @param {Element} row @returns {boolean} whether this native panel row is current. */
+  function rowIsActive(row) {
+    return row.classList?.contains?.('wtg9ga_panelActive') === true
+      || row.getAttribute?.('aria-current') === 'page'
+  }
+
+  /**
+   * Read native sidebar panel rows. Known panels keep the layout-driven rail
+   * buttons; any new panel row becomes an extra rail button and is hidden from
+   * the sidebar. The `更多` marketplace anchor stays native.
+   * @returns {{known: object, extras: object[]}} cloned icons and extra rows.
+   */
+  function useNativeNavRows() {
+    const [state, setState] = useState({ known: {}, extras: [] })
+    useEffect(() => {
+      if (typeof document === 'undefined') return undefined
+      let disposed = false
+      const scan = () => {
+        if (disposed || typeof document.querySelectorAll !== 'function') return
+        const known = {}
+        const extras = []
+        for (const row of document.querySelectorAll(PANELS)) {
+          const label = row.getAttribute?.('aria-label') ?? ''
+          if (label === '') continue
+          if (/^(更多|More)$/i.test(label)) continue
+          const markup = row.querySelector?.('svg')?.outerHTML ?? ''
+          if (/^(插件|Plugins|自动化任务|自动化|Automation|Scheduled tasks)$/i.test(label)) {
+            known[label] = markup
+            continue
+          }
+          if (row.hasAttribute?.('data-dshlr-hidden') !== true) row.setAttribute?.('data-dshlr-hidden', '')
+          extras.push({ row, label, markup })
+        }
+        setState((current) => {
+          if (current.extras.length === extras.length
+            && current.extras.every((entry, index) => entry.row === extras[index].row
+              && entry.label === extras[index].label
+              && entry.markup === extras[index].markup)
+            && Object.keys(current.known).length === Object.keys(known).length
+            && Object.keys(known).every((key) => current.known[key] === known[key])) return current
+          return { known, extras }
+        })
+      }
+      scan()
+      const observer = typeof MutationObserver === 'function' ? new MutationObserver(scan) : null
+      observer?.observe?.(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label'] })
+      const timer = typeof setInterval === 'function' ? setInterval(scan, 1000) : null
+      return () => {
+        disposed = true
+        observer?.disconnect?.()
+        if (timer !== null) clearInterval(timer)
+      }
+    }, [])
+    return state
+  }
+
+  /** One rail button for a newly discovered native panel row. */
+  function NativePanelButton({ row, label, markup }) {
+    const [active, setActive] = useState(rowIsActive(row))
+    useEffect(() => {
+      const update = () => setActive(rowIsActive(row))
+      update()
+      const observer = typeof MutationObserver === 'function'
+        ? new MutationObserver(update)
+        : null
+      observer?.observe?.(row, { attributes: true, attributeFilter: ['class', 'aria-current'] })
+      return () => observer?.disconnect?.()
+    }, [row])
+    return h(RailButton, {
+      name: 'panel',
+      label,
+      active,
+      iconMarkup: markup,
+      onClick: () => row.click?.(),
+    })
+  }
+
+  function RailButton({ name, label, active, disabled, onClick, iconMarkup }) {
     return h(
       Tooltip,
       { label, side: 'right', align: 'center', delayMs: 500 },
@@ -603,7 +680,13 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
           disabled,
           onClick,
         },
-        h(NavigationIcon, { name, active, size: 20 }),
+        iconMarkup !== undefined && iconMarkup !== ''
+          ? h('span', {
+              className: 'dshlr-glyph',
+              'aria-hidden': 'true',
+              dangerouslySetInnerHTML: { __html: iconMarkup },
+            })
+          : h(NavigationIcon, { name, active, size: 20 }),
       ),
     )
   }
@@ -922,6 +1005,7 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
 
   function LeftRail({ actions, adapter, display, account, updates, t }) {
     const [active, setActive] = useState(actions.activePanel)
+    const navRows = useNativeNavRows()
     const [brand, setBrand] = useState(adapter.snapshot)
     const [accountState, setAccountState] = useState(
       account === null || account === undefined ? { signedIn: false } : account.getSnapshot,
@@ -967,8 +1051,12 @@ __DSH_FEATURE('dsh-left-rail', function (require, env) {
               ? t('rail.' + name)
               : t('rail.unavailable', { name: t('rail.' + name) }),
             onClick: () => actions.openPanel(id),
+            iconMarkup: name === 'plugins'
+              ? (navRows.known['插件'] ?? navRows.known.Plugins ?? '')
+              : (navRows.known['自动化任务'] ?? navRows.known.Automation ?? navRows.known['自动化'] ?? ''),
           }),
         ),
+        ...navRows.extras.map((entry) => h(NativePanelButton, { key: entry.label, ...entry })),
         h('span', { className: 'dshlr-spacer' }),
       ),
       brand.chevron === null
@@ -1008,7 +1096,9 @@ html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: 
   display: grid; place-items: center; padding: 0; border: 0; border-radius: 10px;
   background: transparent; color: inherit; font: inherit; cursor: pointer;
 }
-.dshlr-button > svg { display: block; flex: none; }
+.dshlr-glyph { display: inline-flex; align-items: center; justify-content: center; }
+  .dshlr-glyph svg { width: 18px; height: 18px; display: block; }
+  .dshlr-button > svg { display: block; flex: none; }
 .dshlr-button:hover:not(:disabled), .dshlr-button.dshlr-active { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshlr-button:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .dshlr-button:disabled { opacity: .35; cursor: default; }
@@ -1027,14 +1117,14 @@ html[data-dshlr-active] #root { margin-left: var(--dsh-left-rail-width); width: 
 .dshlr-settings-native:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshlr-settings-native:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .dshlr-spacer { flex: 1; min-height: 16px; }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_logoRow"]:has(.dshlr-brand) {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_logoRow"]:has(.dshlr-brand) {
   height: 52px; min-height: 52px; padding-block: 8px; align-items: center;
 }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_logoRow"] .dshlr-brand {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_logoRow"] .dshlr-brand {
   box-sizing: border-box; height: 36px; min-height: 36px; padding: 6px 8px;
   align-items: center; justify-content: center; border-radius: 8px; font-family: inherit;
 }
-html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"] { transform: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] .dshlr-brand [class$="_brandIdentity"] { transform: none; }
 .dshlr-brand:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dshlr-displayMenu { width: 280px; max-width: calc(100vw - 24px); }
 .dshlr-menuCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; white-space: normal; }
@@ -1042,15 +1132,15 @@ html[data-dshlr-active] .BynINW_sidebarCol .dshlr-brand [class$="_brandIdentity"
 .dshlr-menuError { color: var(--dsw-alias-state-error-primary); white-space: normal; }
 .dshlr-brand-chevron { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: 6px; color: var(--dsw-alias-label-secondary); pointer-events: none; }
 /* Keep the native new-chat row on the same text axis as project rows. */
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"] {
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSession"] {
   justify-content: flex-start; border: 0; background: transparent; border-radius: 8px;
   margin: 4px 0 16px; padding: 6px 8px; height: 36px; font: inherit; font-size: 14px; font-weight: 400;
 }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSession"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_newSessionContent"] { justify-content: flex-start; width: auto; gap: 8px; }
-html[data-dshlr-active] .BynINW_sidebarCol [class$="_panelList"]:not(:has(button:not([data-dshlr-hidden]))) { display: none; }
-html[data-dshlr-active] .BynINW_sidebarCol [class*="_collapsed"] [class$="_footArea"] { display: flex; }
-html[data-dshlr-active] [data-sidebar-collapsed] .BynINW_sidebarCol [class$="_newSession"] { display: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSession"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_newSessionContent"] { justify-content: flex-start; width: auto; gap: 8px; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class$="_panelList"]:not(:has(button:not([data-dshlr-hidden]))) { display: none; }
+html[data-dshlr-active] [class$="_sidebarCol"] [class*="_collapsed"] [class$="_footArea"] { display: flex; }
+html[data-dshlr-active] [data-sidebar-collapsed] [class$="_sidebarCol"] [class$="_newSession"] { display: none; }
 /* Codex-style account launcher. While DeepSeek is signed in the rail paints its
    own avatar trigger and a native DSH Menu (the same primitive as every other
    shell menu), and hides the native settings launcher. */

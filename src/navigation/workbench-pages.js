@@ -16,7 +16,7 @@ __DSH_FEATURE('dsh-workbench-pages', function (require, env) {
     '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless',
     '@deepseek-ai/dsh-sdk-app', '@deepseek-ai/dsh-acp-app', '@deepseek-ai/dsh-sdk-minimal',
   ])
-  const SIDEBAR = '.BynINW_sidebarCol'
+  const SIDEBAR = '[class$="_sidebarCol"]'
   const PLUGINS = '[data-plugin-panel]'
   const TASKS = '[data-testid="task-manager-page"]'
   const zh = {
@@ -361,8 +361,8 @@ __DSH_FEATURE('dsh-workbench-pages', function (require, env) {
   }
 
   const CSS = `
-    html[data-dshwp-panel] .BynINW_sidebarCol{position:relative;}
-    html[data-dshwp-panel] .BynINW_sidebarCol>:not(.dshwp-sidebarMount){visibility:hidden;pointer-events:none;}
+    html[data-dshwp-panel] [class$="_sidebarCol"]{position:relative;}
+    html[data-dshwp-panel] [class$="_sidebarCol"]>:not(.dshwp-sidebarMount){visibility:hidden;pointer-events:none;}
     html[data-dshwp-panel] .dshlr-settings-native{visibility:visible;pointer-events:auto;}
     .dshwp-sidebarMount{position:absolute;inset:0;display:block;overflow:hidden;}
     .dshwp-sidebar{box-sizing:border-box;display:flex;flex-direction:column;height:100%;padding:12px 10px 20px;overflow:auto;font-size:14px;}
