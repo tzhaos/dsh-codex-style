@@ -43,7 +43,7 @@ async function check(name, body) {
 
 await check('manifest declares one DSH bundle and one web client half', () => {
   assert.equal(manifest.name, 'dsh-codex-style')
-  assert.equal(manifest.version, '1.3.0')
+  assert.equal(manifest.version, '1.3.1')
   assert.equal(manifest.license, 'MIT')
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')

@@ -4,6 +4,16 @@ All notable changes to the merged `dsh-codex-style` bundle are documented here.
 Sub-plugin behaviour comes from the standalone repositories this bundle merges;
 their per-release history remains in those repositories.
 
+## [1.3.1] - 2026-10-25
+
+### Fixed
+
+- Conversation-wide right-click: the Session log download menu now opens from any point inside the conversation body, including message text and the transcript background, instead of only the side gutters. Attachment surfaces keep their richer attachment menu; editors, the composer card and the queue dock keep their native menus.
+
+### Validation
+
+- `checks/attachment-actions.mjs` covers the conversation scope and its editor/composer exclusions.
+
 ## [1.3.0] - 2026-10-21
 
 ### Added

@@ -59,6 +59,7 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
     'menu.openFile': '用默认应用打开',
     'menu.removeAttachment': '移除附件',
     'menu.closePreview': '关闭预览',
+    'menu.downloadSession': '下载 Session 日志',
     'toast.imageCopied': '已复制图片',
     'toast.addressCopied': '已复制图片地址',
     'toast.addressData': '已复制图片 Data URL（本地预览没有固定地址）',
@@ -67,6 +68,8 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
     'toast.infoCopied': '已复制文件名和大小',
     'toast.pathCopied': '已复制文件路径',
     'toast.saved': '已开始下载 {name}',
+    'toast.sessionExporting': '正在准备 Session 日志…',
+    'toast.sessionExported': '已开始下载 Session 日志',
     'toast.revealed': '已在文件夹中显示',
     'toast.opened': '已交给默认应用',
     'toast.removed': '已移除附件',
@@ -88,6 +91,7 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
     'menu.openFile': 'Open with default app',
     'menu.removeAttachment': 'Remove attachment',
     'menu.closePreview': 'Close preview',
+    'menu.downloadSession': 'Download session log',
     'toast.imageCopied': 'Image copied',
     'toast.addressCopied': 'Image address copied',
     'toast.addressData': 'Copied a data URL (local previews have no stable address)',
@@ -96,6 +100,8 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
     'toast.infoCopied': 'Name and size copied',
     'toast.pathCopied': 'File path copied',
     'toast.saved': 'Downloading {name}',
+    'toast.sessionExporting': 'Preparing the session log…',
+    'toast.sessionExported': 'Session log download started',
     'toast.revealed': 'Shown in folder',
     'toast.opened': 'Opened with the default application',
     'toast.removed': 'Attachment removed',
@@ -437,6 +443,25 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
   }
 
   /**
+   * Resolve the conversation Session under one context-menu target. Returns
+   * an empty string for sidebars, editors, the composer card and our own UI.
+   * @param {unknown} target - context-menu event target.
+   * @returns {string} conversation Session id, or ''.
+   */
+  function conversationSessionOf(target) {
+    const node = elementOf(target)
+    if (node === null || typeof node.closest !== 'function') return ''
+    if (node.closest('textarea') !== null || node.closest('input') !== null) return ''
+    if (node.closest('select') !== null || node.closest('[contenteditable="true"]') !== null) return ''
+    if (node.closest('[data-dshaa-menu]') !== null) return ''
+    if (node.closest('[data-composer-card]') !== null) return ''
+    if (node.closest('[data-queue-dock]') !== null) return ''
+    const root = node.closest('[data-conversation-session]')
+    const id = root?.getAttribute?.('data-conversation-session') ?? ''
+    return typeof id === 'string' ? id : ''
+  }
+
+  /**
    * Resolve a browser file back to its host path through the desktop preload.
    * The web build has no such bridge, so path actions stay hidden there.
    * @param {unknown} file - browser File of a draft attachment.
@@ -717,7 +742,8 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
         return undefined
       const onContextMenu = (event) => {
         const hit = findSurface(event.target)
-        if (hit === null) return
+        const sessionId = hit === null ? conversationSessionOf(event.target) : ''
+        if (hit === null && sessionId === '') return
         event.preventDefault?.()
         event.stopPropagation?.()
         event.stopImmediatePropagation?.()
@@ -727,11 +753,11 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
           typeof point.y !== 'number' ||
           (point.x === 0 && point.y === 0)
         ) {
-          const rect = hit.element?.getBoundingClientRect?.()
+          const rect = (hit?.element ?? event.target)?.getBoundingClientRect?.()
           point = rect === undefined || rect === null ? point : { x: rect.left, y: rect.bottom }
         }
         setNotice(null)
-        setMenu({ point, hit: actions.describe(hit) })
+        setMenu({ point, hit: hit === null ? null : actions.describe(hit), sessionId })
       }
       document.addEventListener('contextmenu', onContextMenu, true)
       return () => {
@@ -772,12 +798,20 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
         return this
       },
     }
-    const fallbackName = t(hit.kind === 'image' ? 'label.image' : 'label.file')
+    const fallbackName = hit === null ? '' : t(hit.kind === 'image' ? 'label.image' : 'label.file')
     const notify = (text, failure = false) => {
       report(text, failure)
     }
     const run = (id, current) => {
       const fail = (error) => notify(t('toast.failed', { message: messageOf(error) }), true)
+      if (id === 'download-session') {
+        notify(t('toast.sessionExporting'))
+        Promise.resolve(actions.downloadSession(menu.sessionId)).then(
+          () => notify(t('toast.sessionExported')),
+          fail,
+        )
+        return
+      }
       if (id === 'copy-image') {
         Promise.resolve()
           .then(() => actions.copyImage(current))
@@ -864,7 +898,9 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
       }
     }
 
-    const items = menuItems(hit, t)
+    const items = hit === null
+      ? [{ id: 'download-session', label: t('menu.downloadSession'), icon: h(IconDownloadOutlineRegular, { size: 14 }) }]
+      : menuItems(hit, t)
     const toast = renderToast()
     if (items.length === 0) return toast
     return h(
@@ -1093,8 +1129,34 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
       }
     }
 
+    /**
+     * Download one conversation Session archive through the Host route.
+     * @param {string} sessionId - active conversation Session id.
+     * @returns {Promise<void>} settles after the browser starts the download.
+     */
+    async function downloadSession(sessionId) {
+      if (typeof sessionId !== 'string' || sessionId === '') throw new Error('missing session id')
+      const route = '/api/session.export?' + new URLSearchParams({
+        sessionId,
+        includeDescendants: 'true',
+      }).toString()
+      const response = await fetch(route, { method: 'HEAD' })
+      if (response.ok !== true) {
+        const detail = await response.text().catch(() => '')
+        throw new Error('Export failed: HTTP ' + String(response.status) + (detail === '' ? '' : ' ' + detail))
+      }
+      const safe = sessionId.replace(/[^0-9A-Za-z._-]/g, '_')
+      const anchor = document.createElement('a')
+      anchor.href = route
+      anchor.download = 'dsh-session-' + safe + '.zip'
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+    }
+
     const actions = {
       describe,
+      downloadSession,
       copyImage,
       copyAddress,
       saveImage,
@@ -1123,6 +1185,6 @@ __DSH_FEATURE('dsh-attachment-actions', function (require, env) {
     /** Services this Client plugin waits for before applying. */
     inject: ['slots', 'locale', 'sessions', 'remote', 'remote.session'],
     apply,
-    __test: { findSurface, menuItems, imageFileName, isLightboxDialog, hostPathOf },
+    __test: { findSurface, conversationSessionOf, menuItems, imageFileName, isLightboxDialog, hostPathOf },
   }
 })

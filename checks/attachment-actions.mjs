@@ -1009,6 +1009,21 @@ await check('a generic dialog keeps the native menu', () => {
   assert.equal(plugin.__test.findSurface(surface.image), null)
 })
 
+await check('the conversation body is a valid menu scope', () => {
+  const { dom, plugin } = scenario()
+  const session = dom.element('div', { attrs: { 'data-conversation-session': 's1' } })
+  const markdown = dom.element('div', { className: '_markdown' })
+  session.append(markdown)
+  assert.equal(plugin.__test.findSurface(markdown), null)
+  assert.equal(plugin.__test.conversationSessionOf(markdown), 's1')
+  const editor = dom.element('textarea', { attrs: { 'contenteditable': 'true' } })
+  session.append(editor)
+  assert.equal(plugin.__test.conversationSessionOf(editor), '')
+  const card = dom.element('div', { attrs: { 'data-composer-card': '' } })
+  session.append(card)
+  assert.equal(plugin.__test.conversationSessionOf(card), '')
+})
+
 await check('plain markdown images keep the native menu', () => {
   const { dom, plugin } = scenario()
   const image = dom.element('img', { attrs: { src: 'https://example.com/a.png', alt: 'a' } })
